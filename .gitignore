@@ -1,0 +1,31 @@
+# Dart/Flutter artifacts at any depth. Keep the root pubspec.lock tracked.
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+coverage/
+.widget_preview/
+**/doc/api/
+
+# IDE and local files. VS Code configuration can be shared.
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+*.swp
+
+# Native build caches and machine-specific configuration.
+.gradle/
+.cxx/
+**/android/local.properties
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/.last_build_id

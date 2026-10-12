@@ -1,0 +1,14 @@
+name: bthere_mobile
+publish_to: none
+
+environment:
+  sdk: ^3.13.5
+
+workspace:
+  - apps/customer_app
+  - apps/provider_app
+  - packages/bthere_design_system
+  - packages/bthere_network
+  - packages/bthere_session
+  - packages/bthere_auth
+  - packages/bthere_common

@@ -1,0 +1,12 @@
+name: bthere_common
+resolution: workspace
+description: "A new Flutter package project."
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.13.5
+
+dev_dependencies:
+  test: ^1.26.0
+  lints: ^6.1.0
