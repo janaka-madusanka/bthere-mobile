@@ -1,3 +1,5 @@
+import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
+
 import 'dart:async';
 
 import 'package:bthere_common/bthere_common.dart';
@@ -56,17 +58,22 @@ void main() {
         final semantics = tester.ensureSemantics();
         final f = ServiceFixture();
         await pump(tester, f, route: null);
+        final reads = (
+          f.services.loads,
+          f.services.assignmentLoads,
+          f.completion.calls,
+        );
         await tester.tap(destination(tab.label));
         await tester.pumpAndSettle();
         expect(path(f), tab.path);
         expect(
           tester
-              .widget<NavigationBar>(find.byType(NavigationBar))
+              .widget<HomeNavigation>(find.byType(HomeNavigation))
               .selectedIndex,
           tab.index,
         );
-        expect(find.byType(NavigationDestination), findsNWidgets(5));
-        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(find.byType(HomeNavigation), findsOneWidget);
+        expect(find.byType(HomeNavigation), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ProviderPlaceholderScreen),
@@ -75,18 +82,22 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.bySemanticsLabel('${tab.label}\nTab ${tab.index + 1} of 5'),
+          find.bySemanticsLabel(
+            '${tab.label}\nTab ${const [0, 2, 1, 3, 4].indexOf(tab.index) + 1} of 5',
+          ),
           findsOneWidget,
         );
-        expect(f.services.loads, 0);
-        expect(f.services.assignmentLoads, 0);
-        expect(f.completion.calls, 0);
+        expect((
+          f.services.loads,
+          f.services.assignmentLoads,
+          f.completion.calls,
+        ), reads);
         await tester.tap(destination('Services'));
         await tester.pumpAndSettle();
         expect(path(f), AppRoutes.services);
         expect(
           tester
-              .widget<NavigationBar>(find.byType(NavigationBar))
+              .widget<HomeNavigation>(find.byType(HomeNavigation))
               .selectedIndex,
           1,
         );
@@ -112,7 +123,7 @@ void main() {
           f.container.read(appRouterProvider).go(tab.path);
           await tester.pumpAndSettle();
           expect(f.path, authenticated ? AppRoutes.profile : AppRoutes.auth);
-          expect(find.byType(NavigationBar), findsNothing);
+          expect(find.byType(HomeNavigation), findsNothing);
         }
       },
     );

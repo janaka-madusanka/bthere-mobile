@@ -14,7 +14,7 @@ enum ProviderTab {
   ),
   requests(
     AppRoutes.requests,
-    'Requests',
+    'Opportunities',
     Icons.receipt_long_outlined,
     Icons.receipt_long,
     'Your service requests will appear here.',

@@ -9,9 +9,11 @@ final class AuthUser {
     this.phoneNumber,
     this.emailVerified,
     this.phoneVerified,
+    this.marketId,
   }) : roles = List.unmodifiable(roles);
 
   final int id;
+  final int? marketId;
   final String username;
   final String? email;
   final String? phoneNumber;
@@ -27,6 +29,7 @@ final class RegistrationAccount {
   final AuthUser account;
 
   int get id => account.id;
+  int? get marketId => account.marketId;
   String get username => account.username;
   String? get email => account.email;
   String? get phoneNumber => account.phoneNumber;

@@ -153,6 +153,7 @@ final class ProviderAuthRepositoryImpl implements ProviderAuthRepository {
       expiresAt: _now().toUtc().add(duration),
       user: SessionUser(
         id: response.user.id,
+        marketId: response.user.marketId,
         username: response.user.username,
         email: response.user.email,
         phoneNumber: response.user.phoneNumber,

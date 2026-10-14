@@ -1,0 +1,23 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="160" height="205" viewBox="0 0 160 205" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Botanical illustration" clip-path="url(#clip0_0_163)">
+<path id="Stem" d="M77 110C89 137.333 113.667 162.667 151 186" stroke="#D7F6F6" stroke-width="2"/>
+<path id="Leaf" d="M19 148.308C24.042 119.022 81.521 128.784 109.756 150.261C121.857 160.999 125.891 184.428 139 202C92.6134 187.357 27.0672 183.452 19 148.308Z" fill="url(#paint0_linear_0_163)"/>
+<path id="Leaf_2" d="M172 50C117.901 65 86.69 111 107.497 143C100.215 118 158.475 127 172 50Z" fill="#AFECEE"/>
+<path id="Leaf_3" d="M4.14507 61.6658C56.0704 55.638 90.0215 91.8051 96.0129 118.93L105 134C92.0187 121.944 79.0373 125.963 63.0603 122.949C26.1135 118.93 -6.83913 79.7494 4.14507 61.6658Z" fill="url(#paint1_linear_0_163)"/>
+<path id="Background leaf" d="M124.791 0C69.4614 35 63.1121 84 112.092 154C113 90 185.563 74 159.259 14L124.791 0Z" fill="#EFFBFB"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_163" x1="19" y1="130" x2="19" y2="202" gradientUnits="userSpaceOnUse">
+<stop stop-color="#C9F1F3"/>
+<stop offset="1" stop-color="#F4FCFC"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_163" x1="2" y1="61" x2="105" y2="61" gradientUnits="userSpaceOnUse">
+<stop stop-color="#E6F8F8"/>
+<stop offset="0.6" stop-color="#99E3E5"/>
+<stop offset="1" stop-color="#09C1C8"/>
+</linearGradient>
+<clipPath id="clip0_0_163">
+<rect width="160" height="205" fill="white"/>
+</clipPath>
+</defs>
+</svg>

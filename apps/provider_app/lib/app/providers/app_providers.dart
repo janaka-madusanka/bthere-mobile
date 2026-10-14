@@ -21,6 +21,7 @@ import 'package:bthere_auth/bthere_auth.dart';
 import 'package:bthere_network/bthere_network.dart';
 import 'package:bthere_session/bthere_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/auth/session_access_token_provider.dart';
 import '../../core/session/app_session_state.dart';
@@ -60,6 +61,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   final client = ApiClient(
     config: ref.watch(networkConfigProvider),
     tokenProvider: ref.watch(accessTokenProvider),
+    diagnosticLogger: kDebugMode ? (message) => debugPrint(message) : null,
   );
   ref.onDispose(() => client.close(force: true));
   return client;

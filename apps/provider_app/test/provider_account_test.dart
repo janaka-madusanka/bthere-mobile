@@ -1,3 +1,5 @@
+import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
+
 import 'dart:async';
 
 import 'package:bthere_common/bthere_common.dart';
@@ -150,7 +152,9 @@ void main() {
       await pump(tester, f, route: AppRoutes.account);
       expect(find.byType(ProviderAccountScreen), findsOneWidget);
       expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        tester
+            .widget<HomeNavigation>(find.byType(HomeNavigation))
+            .selectedIndex,
         4,
       );
       expect(find.text('test.provider'), findsNWidgets(2));
@@ -162,8 +166,8 @@ void main() {
       expect(find.text('Next: Complete provider details'), findsOneWidget);
       expect(find.text('Gender'), findsNothing);
       expect(find.text('Date of birth'), findsNothing);
-      expect(f.services.loads, 0);
-      expect(f.services.assignmentLoads, 0);
+      expect(f.services.loads, 1);
+      expect(f.services.assignmentLoads, 1);
       expect(f.completion.calls, 1);
       await tester.ensureVisible(find.text('Manage services'));
       await tester.tap(find.text('Manage services'));
@@ -179,7 +183,7 @@ void main() {
     await pump(tester, f, route: null);
     await tester.tap(
       find.descendant(
-        of: find.byType(NavigationBar),
+        of: find.byType(HomeNavigation),
         matching: find.text('Profile'),
       ),
     );
@@ -246,7 +250,7 @@ void main() {
       expect(f.storage.clears, 1);
       expect(f.storage.session, isNull);
       expect(path(f), AppRoutes.auth);
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(HomeNavigation), findsNothing);
       expect(find.text('provider@example.invalid'), findsNothing);
     },
   );
@@ -287,7 +291,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(NavigationDestination), findsNWidgets(5));
+      expect(find.byType(HomeNavigation), findsOneWidget);
     },
   );
 

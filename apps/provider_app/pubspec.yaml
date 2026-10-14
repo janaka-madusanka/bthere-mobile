@@ -64,12 +64,24 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: HomeInter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: HomeLato
+      fonts:
+        - asset: assets/fonts/Lato-Regular.ttf
+        - asset: assets/fonts/Lato-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Lato-Black.ttf
+          weight: 900
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/home/
     - assets/branding/bthere_logo_care_promise.svg
     - assets/branding/google_logo.svg
     - assets/branding/apple_logo.svg
