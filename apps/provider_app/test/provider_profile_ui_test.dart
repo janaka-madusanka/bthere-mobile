@@ -131,7 +131,6 @@ void main() {
     'global skills edit saves through the global repository and refreshes chips',
     (tester) async {
       final semantics = tester.ensureSemantics();
-      addTearDown(semantics.dispose);
       final repository = FakeProfileSupplement();
       await render(tester, supplement: repository);
       await tester.ensureVisible(find.text('Skills & Languages'));
@@ -150,13 +149,13 @@ void main() {
       expect(repository.value.skills.any((s) => s.id == 10), isFalse);
       expect(find.text('Personal Care'), findsNothing);
       expect(tester.takeException(), isNull);
+      semantics.dispose();
     },
   );
   testWidgets('global edit failures keep user selections and allow retry', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     final repository = FakeProfileSupplement()..failSave = true;
     await render(tester, supplement: repository);
     await tester.ensureVisible(find.text('Skills & Languages'));
@@ -176,12 +175,12 @@ void main() {
     );
     expect(repository.value.skills.length, 4);
     expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
   testWidgets(
     'missing global contract keeps the panel and prevents unsupported writes',
     (tester) async {
       final semantics = tester.ensureSemantics();
-      addTearDown(semantics.dispose);
       await render(tester);
       await tester.ensureVisible(find.text('Skills & Languages'));
       await tester.tap(find.text('Skills & Languages'));
@@ -207,6 +206,7 @@ void main() {
         isNull,
       );
       expect(tester.takeException(), isNull);
+      semantics.dispose();
     },
   );
   testWidgets('profile visual preview uses the production navigation shell', (
@@ -227,6 +227,8 @@ void main() {
     }
     tester.view.physicalSize = const ui.Size(430, 932);
     tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 40, bottom: 34);
+    addTearDown(tester.view.resetPadding);
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final fixture = ServiceFixture(
@@ -346,8 +348,9 @@ class FakeProfileSupplement implements ProfileSupplementRepository {
     List<String> languages,
   ) async {
     saves++;
-    if (failSave)
+    if (failSave) {
       return const Failure(AppFailure(message: 'Synthetic failure'));
+    }
     value = ProfileSupplement(
       completedBookings: value.completedBookings,
       city: value.city,

@@ -180,7 +180,9 @@ class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
             bottom: false,
             child: Column(
               children: [
-                const HomeScale(child: HomeHeader()),
+                HomeScale(
+                  child: _ProfileHeader(onAccount: () => _support(true)),
+                ),
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(21),
