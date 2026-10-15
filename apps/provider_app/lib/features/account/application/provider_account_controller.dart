@@ -33,7 +33,11 @@ class SignOutState {
 final providerSignOutProvider =
     NotifierProvider<ProviderSignOutController, SignOutState>(
       ProviderSignOutController.new,
-      dependencies: [sessionStorageProvider, appSessionStateProvider],
+      dependencies: [
+        sessionStorageProvider,
+        appSessionStateProvider,
+        apiClientProvider,
+      ],
     );
 
 class ProviderSignOutController extends Notifier<SignOutState> {
@@ -44,6 +48,19 @@ class ProviderSignOutController extends Notifier<SignOutState> {
     if (state.busy) return;
     state = const SignOutState(busy: true);
     try {
+      // Local sign-out remains available when the network is unavailable.
+      try {
+        final session = await ref.read(sessionStorageProvider).read();
+        if (session != null) {
+          await ref
+              .read(apiClientProvider)
+              .post<Object?>(
+                '/auth/logout',
+                requiresAuth: false,
+                data: {'refreshToken': session.refreshToken},
+              );
+        }
+      } catch (_) {}
       await ref.read(sessionStorageProvider).clear();
       if (!ref.mounted) return;
       // Redirect only after secure credentials have actually been removed.

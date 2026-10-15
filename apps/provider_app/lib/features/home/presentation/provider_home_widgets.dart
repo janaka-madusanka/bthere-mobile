@@ -12,6 +12,7 @@ import '../../onboarding/services/domain/provider_service_type.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../../services/domain/provider_service_status.dart';
 import '../../services/application/service_providers.dart';
+import '../../services/presentation/service_catalog_visuals.dart';
 import '../../onboarding/application/provider_completion_controller.dart';
 
 const homeInk = Color(0xFF070C30),
@@ -213,7 +214,7 @@ class HomeWelcome extends StatelessWidget {
             color: const Color(0xFFF0FAFA),
             child: InkWell(
               borderRadius: BorderRadius.circular(13),
-              onTap: () => context.go(AppRoutes.services),
+              onTap: () => context.go('${AppRoutes.services}/register'),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(17, 0, 16, 0),
                 child: Row(
@@ -626,7 +627,7 @@ class HomeRegisteredService extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () async {
-          await context.push('/services/${assignment.providerTypeId}/status');
+          await context.push(AppRoutes.serviceSetup(assignment.providerTypeId));
           if (context.mounted) {
             ref.invalidate(providerAssignmentsProvider);
             ref.invalidate(providerCompletionControllerProvider);
@@ -773,38 +774,28 @@ class HomeServicePhoto extends StatelessWidget {
   final String name;
   @override
   Widget build(BuildContext context) {
-    final offset = switch (name.toLowerCase()) {
-      'caregiving' => 327.0,
-      'meal preparation' => 407.5,
-      'pet care' => 488.6,
-      _ => null,
-    };
+    final visual = serviceVisualStyle(
+      ProviderServiceType(
+        id: name.hashCode.abs() + 1,
+        name: name,
+        status: 'ACTIVE',
+      ),
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
         width: 84,
         height: 61,
-        child: offset == null
-            ? const ColoredBox(
-                color: Color(0xFFF2FAFA),
-                child: Center(
-                  child: HomeAsset('new_imgIcon5', width: 30, height: 30),
-                ),
-              )
-            : Stack(
-                children: [
-                  Positioned(
-                    left: -26.3,
-                    top: -offset,
-                    width: 430,
-                    height: 933.77,
-                    child: Image.asset(
-                      'assets/home/existing_imgOriginalServicePhotograph.png',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ],
-              ),
+        child: ColoredBox(
+          color: visual.surface,
+          child: Center(
+            child: Icon(
+              Icons.miscellaneous_services,
+              color: const Color(0xFF008B91),
+              size: 30,
+            ),
+          ),
+        ),
       ),
     );
   }

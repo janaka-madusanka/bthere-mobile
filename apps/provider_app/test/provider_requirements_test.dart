@@ -15,6 +15,7 @@ import 'package:provider_app/features/onboarding/requirements/data/provider_sche
 import 'package:provider_app/features/onboarding/requirements/domain/provider_onboarding_schema.dart';
 import 'package:provider_app/features/onboarding/requirements/domain/provider_requirement_section.dart';
 import 'package:provider_app/features/onboarding/requirements/application/provider_requirements_controller.dart';
+import 'package:provider_app/features/services/application/registration_payload.dart';
 
 import 'provider_profile_test.dart' show ProfileAdapter;
 import 'support/fake_schema_repository.dart';
@@ -110,6 +111,31 @@ void main() {
     j['options'][0]['fields'][0]['optionId'] = 8;
     expect(() => parseProviderSchema(j, 3), throwsFormatException);
   });
+  test('shared option fields retain option IDs and reuse scope', () {
+    final shared = fieldJson(optionId: 9)
+      ..['optionId'] = null
+      ..['optionIds'] = [9, 10]
+      ..['reuseScope'] = 'PROVIDER';
+    final j = schemaJson()
+      ..['options'] = [
+        {
+          'optionId': 9,
+          'code': 'A',
+          'name': 'Option A',
+          'fields': [shared],
+        },
+        {
+          'optionId': 10,
+          'code': 'B',
+          'name': 'Option B',
+          'fields': [Map<String, dynamic>.from(shared)],
+        },
+      ];
+    final schema = parseProviderSchema(j, 3);
+    expect(schema.options.first.fields.single.optionIds, [9, 10]);
+    expect(schema.options.first.fields.single.reuseScope, 'PROVIDER');
+    expect(activeRegistrationFields(schema, {9, 10}), hasLength(1));
+  });
   test('invalid bounds and nested identifiers are rejected', () {
     for (final key in ['minimumOptionSelections', 'serviceTypeId']) {
       final j = schemaJson();
@@ -181,7 +207,9 @@ void main() {
     },
   );
   test('GET exact endpoint authenticated using session bridge', () async {
-    final a = ProfileAdapter()..body = schemaJson();
+    final a = ProfileAdapter()
+      ..bodyForRequest = (request) =>
+          request.path.endsWith('/options') ? <Object>[] : schemaJson();
     final storage = FakeSessionStorage()..session = testSession();
     final client = ApiClient(
       config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
@@ -193,13 +221,41 @@ void main() {
       ProviderSchemaRemoteDataSource(client),
     );
     expect(await repo.loadSchema(3), isA<Success<ProviderOnboardingSchema>>());
-    expect(a.request!.path, '/provider-types/3/onboarding-schema');
+    expect(a.request!.path, '/provider-types/3/options');
     expect(a.request!.extra['bthere.network.requires_auth'], true);
     expect(a.request!.headers['Authorization'], 'Bearer synthetic-access');
-    a.body = schemaJson()..['serviceTypeId'] = 4;
+    a.bodyForRequest = (request) => request.path.endsWith('/options')
+        ? <Object>[]
+        : (schemaJson()..['serviceTypeId'] = 4);
     expect(await repo.loadSchema(3), isA<Failure<ProviderOnboardingSchema>>());
     a.connectionFailure = true;
     expect(await repo.loadSchema(3), isA<Failure<ProviderOnboardingSchema>>());
+  });
+  test('public option endpoint supplies selectable option names', () async {
+    final configured = schemaJson()
+      ..['options'] = [
+        {'optionId': 9, 'code': 'OLD', 'name': 'Old', 'fields': <Object>[]},
+      ];
+    final a = ProfileAdapter()
+      ..bodyForRequest = (request) => request.path.endsWith('/options')
+          ? [
+              {'optionId': 9, 'code': 'CURRENT', 'name': 'Current'},
+            ]
+          : configured;
+    final client = ApiClient(
+      config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
+      tokenProvider: SessionAccessTokenProvider(
+        FakeSessionStorage()..session = testSession(),
+        now: () => testNow,
+      ),
+      adapter: a,
+    );
+    addTearDown(() => client.close(force: true));
+    final result = await ProviderSchemaRepositoryImpl(
+      ProviderSchemaRemoteDataSource(client),
+    ).loadSchema(3) as Success<ProviderOnboardingSchema>;
+    expect(result.value.options.single.name, 'Current');
+    expect(a.request!.path, '/provider-types/3/options');
   });
   test('restored session recovers assignment without temporary selection and reuses completion', () async {
     final c = completionRepo(), s = FakeSchemaRepository();

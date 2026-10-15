@@ -1,3 +1,6 @@
+import 'package:provider_app/features/services/data/registration_repository.dart';
+import 'package:provider_app/features/services/application/registration_draft.dart';
+
 import 'support/fake_documents_repository.dart';
 import 'support/completed_entry_gate.dart';
 
@@ -21,6 +24,7 @@ import 'package:provider_app/features/services/documents/document_models.dart';
 import 'package:provider_app/features/services/documents/documents_controller.dart';
 import 'package:provider_app/features/services/documents/documents_repository.dart';
 import 'package:provider_app/features/services/documents/documents_screen.dart';
+import 'package:provider_app/features/services/presentation/registration_documents.dart';
 
 import 'service_first_test.dart' show ServiceFixture;
 import 'support/fake_session_storage.dart';
@@ -64,6 +68,12 @@ class DocumentsFixture {
   final picker = FakePicker();
   late final ProviderContainer container = ProviderContainer(
     overrides: [
+      registrationRepositoryProvider.overrideWithValue(
+        service.container.read(registrationRepositoryProvider),
+      ),
+      registrationDraftStoreProvider.overrideWithValue(
+        service.container.read(registrationDraftStoreProvider),
+      ),
       providerEntryGateProvider.overrideWith(CompletedEntryGate.new),
       appConfigProvider.overrideWithValue(
         service.container.read(appConfigProvider),
@@ -240,6 +250,31 @@ void main() {
     );
     authenticated('GET', '/provider-types/9/document-requirements');
   });
+  test('option document requirements are filtered and shared by type', () {
+    final values = parseRequirements([
+      requirementJson(),
+      {...requirementJson(), 'optionId': 12},
+      {...requirementJson(id: 2), 'optionId': 13},
+    ]);
+    expect(values, hasLength(3));
+    expect(applicableDocumentRequirements(values, {12}), hasLength(1));
+    expect(applicableDocumentRequirements(values, {13}).map((v) => v.id), [
+      1,
+      2,
+    ]);
+  });
+  test(
+    'private document view URL uses encoded key and authentication',
+    () async {
+      adapter.body = {'url': 'https://example.invalid/private-file'};
+      final result = await api.viewUrl('providers/25/documents/a file.pdf');
+      expect(result, isA<Success<Uri>>());
+      authenticated(
+        'GET',
+        '/uploads/view-url?key=providers%2F25%2Fdocuments%2Fa+file.pdf',
+      );
+    },
+  );
   test(
     'existing documents exact provider-level path and authentication',
     () async {
@@ -730,7 +765,7 @@ void main() {
     (tester) async {
       final f = DocumentsFixture();
       await f.pump(tester, route: true);
-      expect(find.text('Home Nurse Documents'), findsOneWidget);
+      expect(find.text('Upload Required Documents'), findsOneWidget);
       final c = f.container.read(documentsControllerProvider(3).notifier);
       await draft(c);
       await c.submit();
@@ -743,9 +778,9 @@ void main() {
       expect(setup.value.serviceCompletion.documentsCompleted, isFalse);
       expect(f.repo.documentCalls, 2);
       expect(f.repo.uploads, 1);
-      expect(find.text('Home Nurse Documents'), findsOneWidget);
-      await tester.ensureVisible(find.text('Back to service setup'));
-      await tester.tap(find.text('Back to service setup'));
+      expect(find.text('Upload Required Documents'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Back'));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(
         f.container

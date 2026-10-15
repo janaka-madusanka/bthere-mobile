@@ -56,7 +56,7 @@ class HomeAccessible extends StatelessWidget {
                           'Find opportunities, help people, and grow your income.',
                         ),
                         TextButton(
-                          onPressed: () => context.go(AppRoutes.services),
+                          onPressed: () => context.go('${AppRoutes.services}/register'),
                           child: const Text('Register your first service'),
                         ),
                       ] else ...[
@@ -75,7 +75,7 @@ class HomeAccessible extends StatelessWidget {
                                   'Status unavailable',
                             ),
                             onTap: () => context.push(
-                              '/services/${assignment.providerTypeId}/status',
+                              AppRoutes.serviceSetup(assignment.providerTypeId),
                             ),
                           ),
                         TextButton(

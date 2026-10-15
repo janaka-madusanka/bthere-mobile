@@ -19,8 +19,10 @@ class ProviderProfileScreen extends ConsumerStatefulWidget {
     this.onSaved,
     this.onBack,
     this.initialOnboarding = false,
+    this.initialProfile,
   });
   final bool initialOnboarding;
+  final Map<String, dynamic>? initialProfile;
   final VoidCallback? onSaved, onBack;
   @override
   ConsumerState<ProviderProfileScreen> createState() =>
@@ -37,6 +39,25 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
   DateTime? _date;
   ProviderGender? _gender;
   ProviderAvailability _availability = ProviderAvailability.available;
+  @override
+  void initState() {
+    super.initState();
+    final profile = widget.initialProfile;
+    if (profile == null) return;
+    _first.text = profile['firstName'] as String? ?? '';
+    _last.text = profile['lastName'] as String? ?? '';
+    _bio.text = profile['bio'] as String? ?? '';
+    _date = DateTime.tryParse(profile['dateOfBirth'] as String? ?? '');
+    _dateText.text = profile['dateOfBirth'] as String? ?? '';
+    _gender = ProviderGender.tryParse(profile['gender']);
+    _marketId = profile['marketId'] as int?;
+    _availability =
+        ProviderAvailability.values
+            .where((v) => v.wireValue == profile['availabilityStatus'])
+            .firstOrNull ??
+        ProviderAvailability.available;
+  }
+
   @override
   void dispose() {
     for (final controller in [_first, _last, _bio, _dateText]) {
@@ -93,6 +114,9 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
             dateOfBirth: _date!,
             gender: _gender!,
             availabilityStatus: _availability,
+            nicNumber: widget.initialProfile?['nicNumber'] as String?,
+            passportNumber: widget.initialProfile?['passportNumber'] as String?,
+            profilePhoto: widget.initialProfile?['profilePhoto'] as String?,
           ),
         );
   }

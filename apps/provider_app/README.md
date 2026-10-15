@@ -1,6 +1,6 @@
 # B there Provider app
 
-Supply `BTHERE_API_BASE_URL` with a Dart define. Google sign-in remains dormant. Authentication, secure session persistence, token expiry and network error policies are unchanged.
+Supply `BTHERE_API_BASE_URL` with a Dart define. Registration uses the complete Provider Registration and Service Approval contract, including rotated refresh tokens and server logout. See [Service registration](../../docs/provider-service-registration.md) for the Figma flow, endpoints, and validation.
 
 ## Service-first experience
 
@@ -13,13 +13,15 @@ Completion remains backend progress and approval data. The router no longer list
 Routes:
 
 - `/services`
+- `/services/register`
+- `/services/{serviceTypeId}/register`
 - `/services/{serviceTypeId}`
 - `/services/{serviceTypeId}/setup`
 - `/services/{serviceTypeId}/status`
 - `/services/{serviceTypeId}/setup/{documents,skills,availability,locations,additional,certificates,education}`
 - `/services/{serviceTypeId}/setup/profile` for the preserved Basic Details/Market form
 
-Setup shows applicable sections after persisted sub-service selection, filters dynamic fields to common fields and selected option fields, and excludes the former Service Options requirement card. Profile/market do not precede service selection. Documents now supports authenticated shared-document upload, registration, review states and safe replacement/deletion; remaining requirement submission forms are deferred; Basic Details retains its existing authenticated GET markets/PUT profile implementation, without NIC/passport controls.
+Setup links open functional registration forms for languages, skills, availability, locations, dynamic answers, shared documents, certificates, and education. Review saves the documented resources and refreshes backend completion; approval is automatic and has no separate submit endpoint. Basic Details and the account editor reload the saved provider profile and preserve optional identity/photo values.
 
 Pending/approved/inactive services show status; approved services can view read-only setup information. Optional and disabled requirement sections do not independently block pending approval. Approval itself always requires backend verification, never a local completed count.
 

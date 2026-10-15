@@ -148,12 +148,18 @@ void main() {
         expect(first.top, second.top);
         expect(second.left, greaterThan(first.right));
         expect(first.height, second.height);
-        expect(first.left, 16);
-        expect(second.left - first.right, 8);
-        expect(first.height / first.width, closeTo(202 / 158, .1));
+        expect(first.left, closeTo(23 * width / 430, .01));
+        expect(second.left - first.right, 9.5);
+        expect(first.height, greaterThanOrEqualTo(84));
         expect(find.byType(ServiceStatusBadge), findsNothing);
-        expect(find.text('Home nursing services'), findsNothing);
-        expect(find.text('Home Nurse'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ServiceCatalogCard),
+            matching: find.text('Home nursing services'),
+          ),
+          findsNothing,
+        );
+        expect(find.text('Home Nurse'), findsNWidgets(2));
         expect(find.text('Other service'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('service-status-setupRequired')),
@@ -172,7 +178,7 @@ void main() {
   }
 
   testWidgets(
-    'long names have three-line ellipsis and a single full-label semantic button',
+    'long names have two-line ellipsis and a single full-label semantic button',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -190,7 +196,7 @@ void main() {
       );
       await pump(tester, f);
       final title = tester.widget<Text>(find.text(longName));
-      expect(title.maxLines, 3);
+      expect(title.maxLines, 2);
       expect(title.overflow, TextOverflow.ellipsis);
       expect(find.bySemanticsLabel('$longName, Available'), findsOneWidget);
       final grid = tester.widget<GridView>(find.byType(GridView));

@@ -76,8 +76,14 @@ void main() {
       );
       final state = tester.state(find.byType(ServiceCatalogScreen));
       final loads = f.services.loads;
-      expect(find.text('Home Nurse'), findsOneWidget);
-      expect(find.text('Home nursing services'), findsNothing);
+      expect(find.text('Home Nurse'), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(ServiceCatalogCard),
+          matching: find.text('Home nursing services'),
+        ),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('service-status-setupRequired')),
         findsOneWidget,
@@ -109,14 +115,14 @@ void main() {
   );
 
   testWidgets(
-    'nested detail hides navigation and back restores one Services shell',
+    'nested detail retains one navigation and back restores the Services shell',
     (tester) async {
       final f = ServiceFixture();
       await pump(tester, f);
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceDetail(3));
-      expect(find.byType(HomeNavigation), findsNothing);
+      expect(find.byType(HomeNavigation), findsOneWidget);
       final router = f.container.read(appRouterProvider);
       expect(router.canPop(), isTrue);
       router.pop();

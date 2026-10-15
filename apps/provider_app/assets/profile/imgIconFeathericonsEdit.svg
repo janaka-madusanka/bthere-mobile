@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon / feathericons / edit" clip-path="url(#clip0_0_14)">
+<path id="Vector" d="M3.66667 1.33333H1.33333C1.15652 1.33333 0.986953 1.40357 0.861929 1.5286C0.736905 1.65362 0.666667 1.82319 0.666667 2V6.66667C0.666667 6.84348 0.736905 7.01305 0.861929 7.13807C0.986953 7.2631 1.15652 7.33333 1.33333 7.33333H6C6.17681 7.33333 6.34638 7.2631 6.4714 7.13807C6.59643 7.01305 6.66667 6.84348 6.66667 6.66667V4.33333" stroke="#00888B" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M6.16667 0.833333C6.29928 0.700725 6.47913 0.626227 6.66667 0.626227C6.8542 0.626227 7.03406 0.700725 7.16667 0.833333C7.29928 0.965942 7.37377 1.1458 7.37377 1.33333C7.37377 1.52087 7.29928 1.70073 7.16667 1.83333L4 5L2.66667 5.33333L3 4L6.16667 0.833333Z" stroke="#00888B" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<defs>
+<clipPath id="clip0_0_14">
+<rect width="8" height="8" fill="white"/>
+</clipPath>
+</defs>
+</svg>

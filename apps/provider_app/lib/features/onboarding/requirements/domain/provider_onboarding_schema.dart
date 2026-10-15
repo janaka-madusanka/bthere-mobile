@@ -42,6 +42,8 @@ final class ProviderRequirementField {
     required this.fieldId,
     required this.serviceTypeId,
     required this.optionId,
+    required List<int> optionIds,
+    required this.reuseScope,
     required this.scope,
     required this.code,
     required this.label,
@@ -58,12 +60,14 @@ final class ProviderRequirementField {
     required this.displayOrder,
     required this.version,
     required this.status,
-  }) : allowedFileTypes = List.unmodifiable(allowedFileTypes),
+  }) : optionIds = List.unmodifiable(optionIds),
+       allowedFileTypes = List.unmodifiable(allowedFileTypes),
        options = immutableSchemaJson(options),
        condition = immutableSchemaJson(condition);
   final int fieldId, serviceTypeId;
   final int? optionId, minimumFiles, maximumFiles, displayOrder, version;
-  final String scope, code, label, fieldType, status;
+  final List<int> optionIds;
+  final String scope, reuseScope, code, label, fieldType, status;
   final String? description;
   final bool required, requiresApproval;
   final num? maximumFileSizeMb;

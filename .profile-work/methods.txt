@@ -1,0 +1,102 @@
+class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
+  bool _savingAvailability = false;
+
+  Future<void> _refresh() async {
+    if (_savingAvailability || ref.read(providerSignOutProvider).busy) return;
+    ref.invalidate(providerAccountProvider);
+    ref.invalidate(providerProfileDetailsProvider);
+    ref.invalidate(providerAssignmentsProvider);
+    ref.invalidate(profileDocumentsProvider);
+    try {
+      await Future.wait([
+        ref.read(providerAccountProvider.future),
+        ref.read(providerProfileDetailsProvider.future),
+      ]);
+    } catch (_) {
+      // Each section renders its own safe error and retry state.
+    }
+  }
+
+  Future<void> _edit(Map<String, dynamic> profile) async {
+    final container = ProviderScope.containerOf(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (routeContext) => UncontrolledProviderScope(
+          container: container,
+          child: ProviderProfileScreen(
+            initialProfile: profile,
+            onBack: () => Navigator.pop(routeContext),
+            onSaved: () {
+              ref.invalidate(providerProfileDetailsProvider);
+              Navigator.pop(routeContext);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _availability(Map<String, dynamic> p, bool available) async {
+    if (_savingAvailability) return;
+    setState(() => _savingAvailability = true);
+    try {
+      final input = ProviderProfileInput(
+        marketId: p['marketId'] as int,
+        firstName: p['firstName'] as String,
+        lastName: p['lastName'] as String,
+        dateOfBirth: DateTime.parse(p['dateOfBirth'] as String),
+        gender:
+            ProviderGender.tryParse(p['gender']) ??
+            (throw const FormatException()),
+        availabilityStatus: available
+            ? ProviderAvailability.available
+            : ProviderAvailability.unavailable,
+        bio: p['bio'] as String?,
+        nicNumber: p['nicNumber'] as String?,
+        passportNumber: p['passportNumber'] as String?,
+        profilePhoto: p['profilePhoto'] as String?,
+      );
+      final result = await ref
+          .read(providerProfileRepositoryProvider)
+          .updateProfile(input);
+      if (result is! Success<void>) throw const FormatException();
+      ref.invalidate(providerProfileDetailsProvider);
+      await ref.read(providerProfileDetailsProvider.future);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to update availability. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAvailability = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'You will need to sign in again to access your provider account.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await ref.read(providerSignOutProvider.notifier).signOut();
+    }
+  }
+

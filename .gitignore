@@ -12,12 +12,19 @@ coverage/
 
 # IDE and local files. VS Code configuration can be shared.
 .idea/
+.vscode/
 *.iml
 *.ipr
 *.iws
 .DS_Store
 Thumbs.db
 *.swp
+
+# Local toolchain and runtime files.
+.fvm/
+*.log
+*.log.*
+*.pid
 
 # Native build caches and machine-specific configuration.
 .gradle/

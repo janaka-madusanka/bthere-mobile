@@ -8,6 +8,9 @@ import 'package:provider_app/core/auth/session_access_token_provider.dart';
 import 'package:provider_app/core/session/app_session_state.dart';
 
 import 'support/fake_session_storage.dart';
+import 'support/fake_provider_session_api.dart';
+
+import 'package:provider_app/core/auth/provider_session_api.dart';
 
 void main() {
   test('accepts HTTPS absolute configuration', () {
@@ -108,6 +111,9 @@ void main() {
         ..failRead = kind == 'failed';
       final container = ProviderContainer(
         overrides: [
+          providerSessionApiProvider.overrideWithValue(
+            RejectedProviderSessionApi(),
+          ),
           appConfigProvider.overrideWithValue(
             AppConfig(apiBaseUrl: 'https://example.invalid/api/v1'),
           ),

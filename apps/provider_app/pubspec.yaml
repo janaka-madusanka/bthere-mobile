@@ -65,6 +65,9 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
     - family: HomeInter
       fonts:
         - asset: assets/fonts/Inter.ttf
@@ -81,7 +84,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/registration/
     - assets/home/
+    - assets/profile/
+    - assets/services/
+    - assets/service_detail/
     - assets/branding/bthere_logo_care_promise.svg
     - assets/branding/google_logo.svg
     - assets/branding/apple_logo.svg

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bthere_common/bthere_common.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +10,8 @@ import '../../onboarding/application/provider_completion_controller.dart';
 import '../application/service_setup_controller.dart';
 import 'document_models.dart';
 import 'documents_repository.dart';
+import 'document_preview_cache.dart';
+import '../application/service_providers.dart';
 
 void _documentTrace(String event) {
   if (kDebugMode) debugPrint('[ProviderDocuments] $event');
@@ -59,6 +63,7 @@ class DocumentsState {
   bool requirementsLoading = true, documentsLoading = true, busy = false;
   String? phase;
   double? progress;
+  final Map<String, Uri> viewUrls = {};
   DocumentDraft? draft;
   ProviderDocument? match(int typeId, DateTime now) {
     final matches = documents?.where((d) => d.typeId == typeId).toList() ?? [];
@@ -76,6 +81,8 @@ final documentsControllerProvider = NotifierProvider.autoDispose
         serviceSetupControllerProvider,
         providerCompletionControllerProvider,
         clockProvider,
+        documentPreviewCacheProvider,
+        providerAssignmentsProvider,
       ],
     );
 
@@ -141,6 +148,9 @@ class DocumentsController extends Notifier<DocumentsState> {
         state.documentsLoading = false;
         if (result case Success<List<ProviderDocument>>(:final value)) {
           state.documents = value;
+          for (final document in value) {
+            unawaited(_loadViewUrl(repo, document.key));
+          }
         } else {
           state.documentsError = 'Unable to load your documents. Please retry.';
         }
@@ -148,6 +158,16 @@ class DocumentsController extends Notifier<DocumentsState> {
       }(),
     ]);
     _loading = false;
+  }
+
+  Future<void> _loadViewUrl(DocumentsRepository repo, String key) async {
+    if (key.isEmpty || state.viewUrls.containsKey(key)) return;
+    final result = await safe(() => repo.viewUrl(key));
+    if (!ref.mounted) return;
+    if (result case Success<Uri>(:final value)) {
+      state.viewUrls[key] = value;
+      emit();
+    }
   }
 
   void edit(DocumentRequirement requirement) {
@@ -289,6 +309,10 @@ class DocumentsController extends Notifier<DocumentsState> {
         if (!ref.mounted) return;
         if (uploaded case Success<DocumentUpload>(:final value)) {
           draft.upload = value;
+          await ref
+              .read(documentPreviewCacheProvider.notifier)
+              .remember(value.key, draft.file!);
+          if (!ref.mounted) return;
           trace('upload.completed');
         } else {
           state.operationError = 'Upload failed. Please retry.';
@@ -337,6 +361,16 @@ class DocumentsController extends Notifier<DocumentsState> {
     trace('refresh.start');
     final container = ref.container;
     container.read(providerCompletionControllerProvider.notifier).reload();
+    container.invalidate(providerAssignmentsProvider);
+    try {
+      await Future.wait([
+        container.read(providerCompletionControllerProvider.future),
+        container.read(providerAssignmentsProvider.future),
+      ]);
+    } catch (_) {
+      // Persisted documents remain saved; status providers expose refresh errors.
+    }
+    if (!ref.mounted) return;
     container.invalidate(serviceSetupControllerProvider(serviceTypeId));
     state.phase = 'Refreshing documents';
     state.documentsLoading = true;

@@ -30,6 +30,10 @@ import 'support/fake_completion_repository.dart';
 import 'support/fake_market_repository.dart';
 import 'support/fake_profile_repository.dart';
 import 'support/fake_session_storage.dart';
+
+import 'package:provider_app/features/onboarding/profile/data/provider_profile_reader.dart';
+import 'package:provider_app/features/services/application/service_setup_controller.dart';
+
 import 'provider_profile_test.dart' show input, ProfileAdapter;
 
 void main() {
@@ -198,6 +202,9 @@ void main() {
   }) {
     final container = ProviderContainer(
       overrides: [
+        providerProfileDetailsProvider.overrideWith(
+          (_) async => const Success(<String, dynamic>{}),
+        ),
         providerEntryGateProvider.overrideWith(CompletedEntryGate.new),
         appConfigProvider.overrideWithValue(
           AppConfig(apiBaseUrl: 'https://example.invalid/api/v1'),
@@ -350,10 +357,20 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    await container.read(providerEntryGateProvider.future);
+    await tester.pump();
     container.read(appRouterProvider).go('/services/3/setup/profile');
     if (pending) {
+      final profileSubscription = container.listen(
+        providerProfileDetailsProvider,
+        (_, _) {},
+      );
+      addTearDown(profileSubscription.close);
+      await container.read(serviceSetupControllerProvider(3).future);
+      await container.read(providerProfileDetailsProvider.future);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
     } else {
       await tester.pumpAndSettle();
     }

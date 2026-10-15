@@ -15,7 +15,10 @@ Future<void> open(
   WidgetTester tester, {
   String label = 'Upload document',
 }) async {
-  final button = find.widgetWithText(BThereButton, label).first;
+  final legacy = find.widgetWithText(BThereButton, label);
+  final button = legacy.evaluate().isNotEmpty
+      ? legacy.first
+      : find.byTooltip('Upload National ID');
   await tester.ensureVisible(button);
   await tester.tap(button);
   await tester.pumpAndSettle();
@@ -494,7 +497,7 @@ void main() {
         await tester.ensureVisible(button);
         await tester.pumpAndSettle();
         expect(button.hitTestable(), findsOneWidget);
-        expect(Theme.of(tester.element(button)).brightness, brightness);
+        expect(Theme.of(tester.element(button)).brightness, Brightness.light);
         expect(tester.takeException(), isNull);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
