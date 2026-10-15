@@ -29,8 +29,9 @@ authority. All API paths below are relative to the configured `/api/v1` base URL
   `options/{optionId}/delivery-modes/{deliveryMode}/service-areas`. PUT sends a
   direct array. Coordinates are mandatory; provider visits require a positive
   radius, customer visits send a null radius, and online services omit areas.
-  Saved locations can be loaded for a selected delivery mode. Address/coordinate
-  entry is available; the supplied documents do not define a geocoding or map API.
+  Saved locations can be loaded for a selected delivery mode. Google Maps now
+  supports address search, pin selection, and radius previews; see
+  [Maps setup](provider-google-maps.md). Address/coordinate entry remains available.
 - Shared document requirements, upload, registration, replacement, and deletion
   reuse the existing document repository/controller. Uploads accept PDF,
   JPG/JPEG, PNG, and WebP up to the documented **100 MB** limit, rather than the
@@ -86,3 +87,31 @@ exercise retries, navigation through completion, and 320px layouts at normal and
 enlarged text sizes. No live provider registration or production-data mutation
 is performed by the tests. Live end-to-end behavior still depends on the server's
 configured service schema, delivery modes, and review state.
+
+## Registration corrections (16 October 2026)
+
+Rechecked the supplied API PDF and all six registration Figma frames. Public
+option descriptions and supported delivery modes now survive schema loading and
+reach the option editor. The editor limits delivery choices to the configured
+modes; draft validation also rejects unsupported modes before sending requests.
+Older responses without delivery-mode metadata retain the existing choices.
+
+The option editor places Experience first, then Service Location & Area, Weekly
+Availability, and Additional Information, matching the supplied screen sequence.
+Weekday toggles stay visible for every-day availability. Additional scheduling
+controls remain available under Availability settings. Dynamic field values and
+field IDs are preserved across these presentation changes.
+
+### Step 2 UI update
+
+The Service Details overview now uses compact API-driven skill rows, a selected
+option count, descriptions and icons from the public options response, and
+independent progress for experience, skills, locations, and dynamic information.
+A saved editor flag cannot mark unanswered sections complete. Skills remain
+assignment-scoped as specified by the API; the UI does not fabricate per-option
+skill totals. New selections retain skill IDs, including duplicate display names;
+legacy drafts using names remain readable. Saved locations load using the
+assignment, selected option, and supported delivery mode before showing progress.
+Change returns to registration service selection. Common schema fields and the
+required numeric assignment experience remain available when applicable; no
+sample services, skills, answers, or selection counts are inserted in production.

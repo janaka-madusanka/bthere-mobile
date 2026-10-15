@@ -314,17 +314,27 @@ class RegistrationSection extends StatelessWidget {
     this.title,
     this.description, {
     required this.child,
+    this.trailing,
     super.key,
   });
   final String title, description;
   final Widget child;
+  final Widget? trailing;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 22),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        registrationText(title, 13, bold: true),
+        if (trailing == null)
+          registrationText(title, 13, bold: true)
+        else
+          Row(
+            children: [
+              Expanded(child: registrationText(title, 13, bold: true)),
+              trailing!,
+            ],
+          ),
         if (description.isNotEmpty)
           registrationText(description, 10.5, color: registrationMuted),
         const SizedBox(height: 10),

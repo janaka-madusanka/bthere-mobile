@@ -66,6 +66,45 @@ class RegistrationRepository {
     }
     return result;
   });
+  Future<Result<Map<String, dynamic>>> loadOptionLocations(
+    int assignmentId,
+    List<ProviderSchemaOption> options,
+  ) => safe(() async {
+    final contexts = [
+      for (final option in options)
+        for (final mode in option.deliveryModes.where(physicalModes.contains))
+          (option: option, mode: mode),
+    ];
+    final snapshots = await Future.wait([
+      for (final context in contexts)
+        read(
+          assignmentId,
+          'options/${context.option.optionId}/delivery-modes/${context.mode}/service-areas',
+        ),
+    ]);
+    final restored = <String, dynamic>{};
+    for (var index = 0; index < contexts.length; index++) {
+      final context = contexts[index];
+      final areas = json.array(snapshots[index]);
+      if (areas.isNotEmpty) {
+        restored.putIfAbsent(
+          '${context.option.optionId}',
+          () => {'deliveryMode': context.mode, 'areas': areas},
+        );
+      }
+    }
+    for (final option in options) {
+      if (option.deliveryModes.length == 1 &&
+          option.deliveryModes.single == 'ONLINE') {
+        restored['${option.optionId}'] = {
+          'deliveryMode': 'ONLINE',
+          'areas': <Object>[],
+        };
+      }
+    }
+    return restored;
+  });
+
   Future<Result<void>> languages(int id, List<String> values) => safe(() async {
     final languages = values.map((s) => s.toUpperCase()).toSet().toList();
     if (languages.any((s) => !['SINHALA', 'ENGLISH', 'TAMIL'].contains(s))) {

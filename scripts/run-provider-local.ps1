@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DeviceId,
     [ValidateRange(1, 65535)]
-    [int]$Port = 8080
+    [int]$Port = 8080,
+    [string]$ConfigFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +27,19 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not set up ADB reverse. Check adb device
 
 Push-Location (Join-Path $PSScriptRoot '../apps/provider_app')
 try {
-    & flutter run -d $DeviceId "--dart-define=BTHERE_API_BASE_URL=http://127.0.0.1:$Port/api/v1"
+    $providerConfig = $ConfigFile
+    if ([string]::IsNullOrWhiteSpace($providerConfig)) {
+        $providerConfig = Join-Path $PSScriptRoot '../config/provider.local.json'
+    }
+    $flutterArguments = @('run', '-d', $DeviceId)
+    if (Test-Path -LiteralPath $providerConfig) {
+        $resolvedConfig = (Resolve-Path -LiteralPath $providerConfig).Path
+        $flutterArguments += "--dart-define-from-file=$resolvedConfig"
+    } elseif (-not [string]::IsNullOrWhiteSpace($ConfigFile)) {
+        throw 'The provider configuration file could not be found.'
+    }
+    $flutterArguments += "--dart-define=BTHERE_API_BASE_URL=http://127.0.0.1:$Port/api/v1"
+    & flutter @flutterArguments
     if ($LASTEXITCODE -ne 0) { throw 'Flutter run failed.' }
 } finally {
     Pop-Location

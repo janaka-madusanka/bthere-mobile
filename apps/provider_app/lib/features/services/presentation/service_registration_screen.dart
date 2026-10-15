@@ -98,6 +98,29 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           local,
           (server as Success<Map<String, dynamic>>).value,
         );
+        if (service.schema.serviceSetup.serviceAreasEnabled) {
+          final options = service.schema.options
+              .where((option) => service.selected.contains(option.optionId))
+              .toList();
+          if (options.any((option) => option.deliveryModes.isNotEmpty)) {
+            final locations = await ref
+                .read(registrationRepositoryProvider)
+                .loadOptionLocations(service.assignment!.assignmentId, options);
+            if (locations is Failure<Map<String, dynamic>>) {
+              if (mounted) {
+                setState(
+                  () =>
+                      error = 'Unable to load service locations. Please retry.',
+                );
+              }
+              return;
+            }
+            restored['options'] = {
+              ...(locations as Success<Map<String, dynamic>>).value,
+              ...(restored['options'] as Map? ?? const {}),
+            };
+          }
+        }
       }
       if (mounted) {
         setState(() {
@@ -472,7 +495,10 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           focusedOptionId: widget.optionId,
           draft: draft,
           busy: saving,
-          onChange: () => context.go(AppRoutes.services),
+          onChange: () => setState(() {
+            step = 1;
+            error = null;
+          }),
           onSaveDraft: saveDraft,
           onContinue: saveDetails,
         ),

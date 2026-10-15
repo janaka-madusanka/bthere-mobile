@@ -25,6 +25,8 @@ List<ProviderServiceType> parseActiveProviderServices(Object? value) {
   return List.unmodifiable(services);
 }
 
+ProviderServiceMedia? parseProviderServiceMedia(Object? value) => _media(value);
+
 ProviderServiceMedia? _media(Object? value) {
   if (value == null) return null;
   final json = _object(value);

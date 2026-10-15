@@ -1,3 +1,5 @@
+import '../../services/domain/provider_service_type.dart';
+
 Object? immutableSchemaJson(Object? value) {
   if (value is Map<String, Object?>) {
     return Map<String, Object?>.unmodifiable(
@@ -81,9 +83,15 @@ final class ProviderSchemaOption {
     required this.code,
     required this.name,
     required List<ProviderRequirementField> fields,
+    this.description,
+    this.icon,
+    this.deliveryModes = const [],
   }) : fields = List.unmodifiable(fields);
   final int optionId;
   final String code, name;
+  final String? description;
+  final ProviderServiceMedia? icon;
+  final List<String> deliveryModes;
   final List<ProviderRequirementField> fields;
 }
 

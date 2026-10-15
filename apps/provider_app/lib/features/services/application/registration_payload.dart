@@ -124,6 +124,23 @@ String? validateRegistrationAnswer(
   };
 }
 
+/// IDs are authoritative; names support drafts created before ID-based selection.
+Set<int> registrationSkillIds(
+  ProviderOnboardingSchema schema,
+  Map<String, dynamic> draft,
+) {
+  if (draft['skillIds'] is List) {
+    return (draft['skillIds'] as List).whereType<int>().toSet();
+  }
+  final names = draft['skills'] as List? ?? [];
+  return {
+    for (final skill in schema.serviceSetup.skills)
+      if (names.contains(skill.metadata['name']) &&
+          skill.metadata['skillId'] is int)
+        skill.metadata['skillId'] as int,
+  };
+}
+
 String? validateRegistrationDraft(
   ProviderOnboardingSchema schema,
   Set<int> selected,
@@ -131,13 +148,19 @@ String? validateRegistrationDraft(
 ) {
   final languages = draft['languages'] as List? ?? [];
   if (languages.isEmpty) return 'Select at least one language.';
-  final chosen = draft['skills'] as List? ?? [];
+  final chosen = registrationSkillIds(schema, draft);
+  final configuredIds = schema.serviceSetup.skills
+      .map((skill) => skill.metadata['skillId'])
+      .toSet();
+  if (!configuredIds.containsAll(chosen)) {
+    return 'Some selected skills are no longer available. Reload this service.';
+  }
   for (final skill in schema.serviceSetup.skills) {
     if (skill.metadata['required'] == true &&
-        !chosen.contains(skill.metadata['name'])) {
+        !chosen.contains(skill.metadata['skillId'])) {
       return 'Select the required skill: ${skill.metadata['name']}.';
     }
-    if (chosen.contains(skill.metadata['name']) &&
+    if ((draft['skills'] as List? ?? []).contains(skill.metadata['name']) &&
         skill.metadata['skillId'] is! int) {
       return 'Skill configuration is unavailable. Please reload the service.';
     }
@@ -171,6 +194,14 @@ String? validateRegistrationDraft(
       if (option is! Map || option['deliveryMode'] == null) {
         return 'Choose the delivery mode for each selected service.';
       }
+      final configured = schema.options
+          .where((option) => option.optionId == id)
+          .firstOrNull;
+      if (configured != null &&
+          configured.deliveryModes.isNotEmpty &&
+          !configured.deliveryModes.contains(option['deliveryMode'])) {
+        return 'Choose a supported delivery mode for ${configured.name}.';
+      }
       if (option['deliveryMode'] != 'ONLINE' &&
           (option['areas'] as List? ?? []).isEmpty) {
         return 'Add a location for each physical service.';
@@ -198,7 +229,7 @@ Future<Result<void>> saveRegistrationRequirements(
   if (schema.serviceSetup.skills.isNotEmpty) {
     result = await repository.skills(assignmentId, [
       for (final s in schema.serviceSetup.skills)
-        if ((draft['skills'] as List? ?? []).contains(s.metadata['name']))
+        if (registrationSkillIds(schema, draft).contains(s.metadata['skillId']))
           s.metadata['skillId'] as int,
     ]);
     if (result is Failure<void>) return result;
@@ -264,6 +295,12 @@ Map<String, dynamic> mergeRegistrationSnapshot(
     'languages': (server['languages'] as List? ?? [])
         .map((v) => v.toString())
         .toList(),
+    if (!draft.containsKey('skills') && !draft.containsKey('skillIds'))
+      'skillIds': (server['skills'] as List? ?? [])
+          .whereType<Map>()
+          .map((skill) => skill['skillId'])
+          .whereType<int>()
+          .toList(),
     'skills': (server['skills'] as List? ?? [])
         .whereType<Map>()
         .map((v) => v['skillName'])

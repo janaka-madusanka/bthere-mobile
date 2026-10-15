@@ -40,7 +40,7 @@ void main() {
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
-  Map<String, dynamic> schema() {
+  Map<String, dynamic> schema({bool subservice = false}) {
     final j = optionsSchema();
     j['serviceName'] = 'Caregiving';
     j['serviceSetup']['skills'] = [
@@ -70,6 +70,8 @@ void main() {
           'optionId': i + 12,
           'name': name,
           'code': 'CARE_$i',
+          if (subservice) 'description': 'Support for older adults',
+          if (subservice) 'deliveryModes': ['PROVIDER_TO_CUSTOMER'],
           'fields': i == 0
               ? [
                   fieldJson(optionId: 12)
@@ -86,6 +88,17 @@ void main() {
                     ..['label'] = 'Care for which age group?'
                     ..['fieldType'] = 'SELECT'
                     ..['options'] = ['Children', 'Adults', '60+ years'],
+                  if (subservice)
+                    fieldJson(optionId: 12)
+                      ..['fieldId'] = 23
+                      ..['label'] = 'Can you assist with medical needs?'
+                      ..['fieldType'] = 'BOOLEAN',
+                  if (subservice)
+                    fieldJson(optionId: 12)
+                      ..['fieldId'] = 24
+                      ..['label'] = 'Any special conditions you can support?'
+                      ..['fieldType'] = 'MULTI_SELECT'
+                      ..['options'] = ['Dementia', 'Mobility Issues'],
                 ]
               : [],
         },
@@ -195,12 +208,47 @@ void main() {
           ),
         ),
         'option' => RegistrationOptionEditor(
-          option: v.schema.options.first,
+          option: parseProviderSchema(
+            schema(subservice: true),
+            3,
+          ).options.first,
           service: v.service,
           setup: v.schema.serviceSetup,
           initial: {
             ...(draft()['options'] as Map)['12'] as Map<String, dynamic>,
-            'availability': draft()['availability'],
+            'fields': {
+              ...((draft()['options'] as Map)['12']['fields']
+                  as Map<String, dynamic>),
+              '23': true,
+              '24': ['Dementia', 'Mobility Issues'],
+            },
+            'areas': [
+              ...((draft()['options'] as Map)['12']['areas'] as List),
+              {
+                'locationName': 'Galle',
+                'city': 'Galle',
+                'country': 'Sri Lanka',
+                'latitude': 6.0535,
+                'longitude': 80.2210,
+                'radiusKm': 8,
+                'capacity': 1,
+              },
+            ],
+            'availability': {
+              'availableAnyDay': false,
+              'availableAnyTime': true,
+              'weeklySlots': [
+                for (final day in [
+                  'MONDAY',
+                  'TUESDAY',
+                  'WEDNESDAY',
+                  'THURSDAY',
+                  'FRIDAY',
+                  'SUNDAY',
+                ])
+                  {'dayOfWeek': day, 'startTime': null, 'endTime': null},
+              ],
+            },
           },
         ),
         'documents' => RegistrationPage(
@@ -341,6 +389,98 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('step 2 derives progress from answers rather than saved flags', (
+    tester,
+  ) async {
+    final f = ServiceFixture();
+    final data = draft();
+    (data['options'] as Map)['12'] = {
+      'saved': true,
+      'deliveryMode': 'PROVIDER_TO_CUSTOMER',
+      'areas': <Object>[],
+      'fields': <String, dynamic>{},
+    };
+    await frame(
+      tester,
+      f,
+      RegistrationPage(
+        step: 2,
+        onBack: () {},
+        child: RegistrationDetails(
+          value: state(),
+          draft: data,
+          onChange: () {},
+          onSaveDraft: (_) async => true,
+          onContinue: (_) async {},
+        ),
+      ),
+      const Size(430, 1757),
+    );
+    expect(find.text('2 selected'), findsOneWidget);
+    final experience = find.byKey(const ValueKey('option-12-Experience'));
+    final location = find.byKey(const ValueKey('option-12-Location & Area'));
+    expect(
+      find.descendant(of: experience, matching: find.text('Not added')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: location, matching: find.text('Not added')),
+      findsOneWidget,
+    );
+    expect(find.text('Incomplete'), findsOneWidget);
+    expect(find.text('3 of 6 selected'), findsNWidgets(2));
+    await tester.ensureVisible(find.byTooltip('Collapse Elderly Care'));
+    await tester.tap(find.byTooltip('Collapse Elderly Care'));
+    await tester.pumpAndSettle();
+    expect(experience, findsNothing);
+    expect(find.byTooltip('Expand Elderly Care'), findsOneWidget);
+  });
+
+  testWidgets(
+    'step 2 renders API skill IDs independently for duplicate names',
+    (tester) async {
+      final f = ServiceFixture();
+      final data = schema();
+      data['serviceSetup']['skills'] = [
+        {'skillId': 501, 'name': 'Shared label', 'required': false},
+        {'skillId': 502, 'name': 'Shared label', 'required': false},
+      ];
+      Map<String, dynamic>? saved;
+      final v = state();
+      await frame(
+        tester,
+        f,
+        RegistrationPage(
+          step: 2,
+          onBack: () {},
+          child: RegistrationDetails(
+            value: ServiceDetailState(
+              service: v.service,
+              schema: parseProviderSchema(data, 3),
+              selected: {12},
+              experience: '4.5',
+            ),
+            draft: {...draft(), 'skillIds': <int>[], 'skills': <String>[]},
+            onChange: () {},
+            onSaveDraft: (value) async {
+              saved = value;
+              return true;
+            },
+            onContinue: (_) async {},
+          ),
+        ),
+        const Size(430, 1757),
+      );
+      final first = find.byKey(const ValueKey('skill-501'));
+      final second = find.byKey(const ValueKey('skill-502'));
+      await tester.tap(first);
+      await tester.pumpAndSettle();
+      expect(tester.widget<CheckboxListTile>(first).value, isTrue);
+      expect(tester.widget<CheckboxListTile>(second).value, isFalse);
+      expect(saved?['skillIds'], [501]);
+    },
+  );
+
   for (final scale in [1.0, 2.0]) {
     testWidgets(
       'registration remains scrollable at 320px and text scale $scale',

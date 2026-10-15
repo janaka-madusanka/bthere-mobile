@@ -17,6 +17,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
     required this.onChanged,
     this.allFields,
     this.enabled = true,
+    this.compact = false,
     this.submissions = const [],
     super.key,
   });
@@ -24,7 +25,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
   final List<ProviderRequirementField>? allFields;
   final Map<String, dynamic> values;
   final VoidCallback onChanged;
-  final bool enabled;
+  final bool enabled, compact;
   final List<Map> submissions;
   @override
   ConsumerState<RegistrationFields> createState() => _FieldsState();
@@ -134,7 +135,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             ) !=
             false)
           Padding(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.only(bottom: widget.compact ? 8 : 16),
             child: buildField(field),
           ),
       if (error != null) RegistrationNotice(error!, warning: true),
@@ -181,8 +182,28 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
       control = DropdownButtonFormField<bool>(
         initialValue: value is bool ? value : null,
         items: const [
-          DropdownMenuItem(value: true, child: Text('Yes')),
-          DropdownMenuItem(value: false, child: Text('No')),
+          DropdownMenuItem(
+            value: true,
+            child: Text(
+              'Yes',
+              style: TextStyle(
+                fontFamily: 'HomeInter',
+                fontSize: 13,
+                color: registrationInk,
+              ),
+            ),
+          ),
+          DropdownMenuItem(
+            value: false,
+            child: Text(
+              'No',
+              style: TextStyle(
+                fontFamily: 'HomeInter',
+                fontSize: 13,
+                color: registrationInk,
+              ),
+            ),
+          ),
         ],
         onChanged: widget.enabled ? change : null,
         validator: (v) => validateRegistrationAnswer(field, v),
@@ -201,6 +222,84 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             .toList(),
         onChanged: widget.enabled ? change : null,
         validator: (v) => validateRegistrationAnswer(field, v),
+      );
+    } else if (widget.compact &&
+        field.fieldType == 'MULTI_SELECT' &&
+        options.isNotEmpty) {
+      control = FormField<List>(
+        initialValue: value is List ? value : [],
+        validator: (_) => validateRegistrationAnswer(field, widget.values[key]),
+        builder: (state) => InkWell(
+          onTap: !widget.enabled
+              ? null
+              : () async {
+                  final selected = List<Object>.from(
+                    widget.values[key] as List? ?? [],
+                  );
+                  final result = await showModalBottomSheet<List<Object>>(
+                    context: context,
+                    showDragHandle: true,
+                    isScrollControlled: true,
+                    builder: (context) => StatefulBuilder(
+                      builder: (context, update) => SafeArea(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.sizeOf(context).height * .7,
+                          ),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                registrationText(field.label, 18, bold: true),
+                                for (final option in options)
+                                  CheckboxListTile(
+                                    title: Text(option.label),
+                                    value: selected.contains(option.value),
+                                    onChanged: (_) => update(() {
+                                      if (!selected.remove(option.value)) {
+                                        selected.add(option.value);
+                                      }
+                                    }),
+                                  ),
+                                RegistrationButton(
+                                  'Save',
+                                  onPressed: () =>
+                                      Navigator.pop(context, selected),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                  if (result != null && mounted) {
+                    change(result);
+                    state.didChange(result);
+                  }
+                },
+          child: InputDecorator(
+            decoration: InputDecoration(errorText: state.errorText),
+            child: Row(
+              children: [
+                Expanded(
+                  child: registrationText(
+                    options
+                        .where(
+                          (option) => (widget.values[key] as List? ?? [])
+                              .contains(option.value),
+                        )
+                        .map((option) => option.label)
+                        .join(', '),
+                    13,
+                  ),
+                ),
+                const Icon(Icons.keyboard_arrow_down, size: 20),
+              ],
+            ),
+          ),
+        ),
       );
     } else if (field.fieldType == 'MULTI_SELECT' && options.isNotEmpty) {
       control = FormField<List>(
@@ -350,6 +449,14 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
         enabled: widget.enabled,
         style: const TextStyle(fontSize: 12, fontFamily: 'HomeInter'),
         maxLines: field.fieldType == 'TEXTAREA' ? 3 : 1,
+        maxLength: widget.compact && field.fieldType == 'TEXTAREA' ? 500 : null,
+        decoration: const InputDecoration(
+          counterStyle: TextStyle(
+            fontFamily: 'HomeInter',
+            fontSize: 11,
+            color: registrationMuted,
+          ),
+        ),
         keyboardType: switch (field.fieldType) {
           'NUMBER' => const TextInputType.numberWithOptions(decimal: true),
           'EMAIL' => TextInputType.emailAddress,
@@ -373,7 +480,10 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        registrationText('${field.label}${field.required ? ' *' : ''}', 12),
+        registrationText(
+          '${field.label}${field.required && !widget.compact ? ' *' : ''}',
+          widget.compact ? 13 : 12,
+        ),
         if (field.description != null)
           registrationText(field.description!, 10, color: registrationMuted),
         const SizedBox(height: 7),

@@ -8,6 +8,7 @@ import 'registration_option_editor.dart';
 import 'registration_fields.dart';
 import '../application/registration_payload.dart';
 import '../domain/provider_service_status.dart';
+import 'registration_option_summary.dart';
 import 'service_catalog_visuals.dart';
 
 class RegistrationDetails extends ConsumerStatefulWidget {
@@ -36,10 +37,13 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
   late Map<String, dynamic> draft;
   final _form = GlobalKey<FormState>();
   final Set<int> collapsed = {};
+  final _skillsKey = GlobalKey();
+  late final bool needsExperience;
   @override
   void initState() {
     super.initState();
     draft = Map.of(widget.draft);
+    needsExperience = widget.value.experience.isEmpty;
     if (widget.focusedOptionId != null) {
       collapsed.addAll(
         widget.value.selected.where((id) => id != widget.focusedOptionId),
@@ -56,8 +60,6 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
     return configured;
   }
 
-  Set<String> get selectedSkills =>
-      (draft['skills'] as List?)?.whereType<String>().toSet() ?? {};
   Map<String, dynamic>? optionDraft(int id) {
     final raw = draft['options'];
     if (raw is! Map) return null;
@@ -77,9 +79,12 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
       code: option.code,
       name: option.name,
       fields: ownedFields,
+      description: option.description,
+      icon: option.icon,
+      deliveryModes: option.deliveryModes,
     );
     final current = <String, dynamic>{
-      ...optionDraft(option.optionId) ?? {},
+      ...?optionDraft(option.optionId),
       'fields': registrationAnswers(draft),
       'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
       if (draft['availability'] != null) 'availability': draft['availability'],
@@ -152,6 +157,67 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
     if (!mounted || result == null) return;
     setState(() => draft['languages'] = result);
     await widget.onSaveDraft(draft);
+  }
+
+  Future<void> experience() async {
+    final form = GlobalKey<FormState>();
+    var years = value.experience;
+    final changed = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Form(
+            key: form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                registrationText('Years of Experience', 20, bold: true),
+                const SizedBox(height: 16),
+                TextFormField(
+                  initialValue: years,
+                  readOnly: value.assignment != null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Years of Experience',
+                  ),
+                  onChanged: (text) => years = text,
+                  validator: (text) {
+                    final number = double.tryParse(text ?? '');
+                    return number == null || !number.isFinite || number < 0
+                        ? 'Enter valid years of experience.'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                RegistrationButton(
+                  value.assignment == null ? 'Save Experience' : 'Done',
+                  onPressed: () {
+                    if (form.currentState!.validate()) {
+                      Navigator.pop(context, years);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (changed == null || !mounted || value.assignment != null) return;
+    ref
+        .read(serviceDetailControllerProvider(value.service.id).notifier)
+        .experience(changed);
   }
 
   Future<void> availability() async {
@@ -231,11 +297,12 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                       width: 53,
                       height: 53,
                       child:
-                          [
-                            'caregiver',
-                            'caregiving',
-                            'home nurse',
-                          ].contains(value.service.name.toLowerCase())
+                          value.service.usableIconUri == null &&
+                              [
+                                'caregiving',
+                                'caregiver',
+                                'home nurse',
+                              ].contains(value.service.name.toLowerCase())
                           ? const RegistrationAsset(
                               'details_imgCaregivingSymbol',
                             )
@@ -257,6 +324,20 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                       ),
                     ),
                     TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFFE0F8F6),
+                        foregroundColor: registrationTeal,
+                        minimumSize: const Size(71, 33),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        textStyle: const TextStyle(
+                          fontFamily: 'HomeInter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       onPressed: widget.onChange,
                       child: const Text('Change'),
                     ),
@@ -273,6 +354,9 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                   dense: true,
                   visualDensity: const VisualDensity(vertical: -4),
                   minTileHeight: 40,
+                  minLeadingWidth: 28,
+                  horizontalTitleGap: 8,
+                  contentPadding: const EdgeInsets.only(left: 8, right: 16),
                   leading: const SizedBox(
                     width: 23,
                     height: 23,
@@ -292,34 +376,68 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                 'Required Skills',
                 'Select the skills you have for this service.',
                 child: RegistrationPanel(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  key: _skillsKey,
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     children: [
-                      for (final skill in skills)
-                        CheckboxListTile(
-                          key: ValueKey('skill-$skill'),
-                          dense: true,
-                          visualDensity: const VisualDensity(vertical: -4),
-                          minTileHeight: 40,
-                          checkboxScaleFactor: .8,
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: registrationText(skill, 12),
-                          value: selectedSkills.contains(skill),
-                          secondary:
-                              value.schema.serviceSetup.skills.any(
-                                (s) =>
-                                    s.metadata['name'] == skill &&
-                                    s.metadata['required'] == true,
-                              )
-                              ? const _Badge('Required')
-                              : null,
-                          onChanged: (_) async {
-                            final chosen = selectedSkills;
-                            if (!chosen.remove(skill)) chosen.add(skill);
-                            setState(() => draft['skills'] = chosen.toList());
-                            await widget.onSaveDraft(draft);
-                          },
+                      for (final (index, skill)
+                          in value.schema.serviceSetup.skills.indexed)
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: index == skills.length - 1
+                                    ? Colors.transparent
+                                    : registrationBorder,
+                                width: .6,
+                              ),
+                            ),
+                          ),
+                          child: CheckboxListTile(
+                            key: ValueKey('skill-${skill.metadata['skillId']}'),
+                            dense: true,
+                            visualDensity: const VisualDensity(
+                              vertical: -4,
+                              horizontal: -4,
+                            ),
+                            minTileHeight: 40,
+                            checkboxScaleFactor: .8,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                            ),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: registrationText(
+                              '${skill.metadata['name']}',
+                              12,
+                            ),
+                            value: registrationSkillIds(
+                              value.schema,
+                              draft,
+                            ).contains(skill.metadata['skillId']),
+                            secondary: skill.metadata['required'] == true
+                                ? const _Badge('Required', compact: true)
+                                : null,
+                            onChanged: (_) async {
+                              final chosen = registrationSkillIds(
+                                value.schema,
+                                draft,
+                              );
+                              final id = skill.metadata['skillId'] as int;
+                              if (!chosen.remove(id)) chosen.add(id);
+                              setState(() {
+                                draft['skillIds'] = chosen.toList();
+                                draft['skills'] = [
+                                  for (final item
+                                      in value.schema.serviceSetup.skills)
+                                    if (chosen.contains(
+                                      item.metadata['skillId'],
+                                    ))
+                                      item.metadata['name'],
+                                ];
+                              });
+                              await widget.onSaveDraft(draft);
+                            },
+                          ),
                         ),
                     ],
                   ),
@@ -335,21 +453,20 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 7),
                         child: RegistrationPanel(
-                          color: option.name.toLowerCase().contains('child')
-                              ? const Color(0xFFFFF7F9)
-                              : const Color(0xFFF0FCFF),
+                          color: registrationOptionSurface(option),
                           padding: EdgeInsets.zero,
                           child: ListTile(
                             key: ValueKey('sub-service-${option.optionId}'),
                             dense: true,
+                            visualDensity: const VisualDensity(vertical: -4),
+                            minTileHeight: 40,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                            ),
                             leading: SizedBox(
                               width: 30,
                               height: 30,
-                              child: RegistrationAsset(
-                                option.name.toLowerCase().contains('child')
-                                    ? 'details_imgIllustrationBadge'
-                                    : 'details_imgIllustrationBadge1',
-                              ),
+                              child: RegistrationOptionArtwork(option: option),
                             ),
                             title: registrationText(
                               option.name,
@@ -397,163 +514,81 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                   ],
                 ),
               ),
-            RegistrationSection(
-              'Your Selected Services',
-              'Complete the additional details for each selected service.',
-              child: Column(
-                children: [
-                  if (selected.isEmpty)
-                    const RegistrationNotice(
-                      'Select the services you provide above.',
-                    ),
-                  for (final option in selected)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 22),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          RegistrationPanel(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 48,
-                                      height: 48,
-                                      child: RegistrationOptionSymbol(
-                                        option.name,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () => editOption(option),
-                                        child: registrationText(
-                                          option.name,
-                                          15,
-                                          bold: true,
-                                        ),
-                                      ),
-                                    ),
-                                    _Badge(
-                                      optionDraft(option.optionId)?['saved'] ==
-                                              true
-                                          ? 'Complete'
-                                          : 'Incomplete',
-                                      complete:
-                                          optionDraft(
-                                            option.optionId,
-                                          )?['saved'] ==
-                                          true,
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Expand ${option.name}',
-                                      icon: Icon(
-                                        collapsed.contains(option.optionId)
-                                            ? Icons.keyboard_arrow_right
-                                            : Icons.keyboard_arrow_down,
-                                        size: 20,
-                                      ),
-                                      onPressed: () => setState(() {
-                                        if (!collapsed.remove(
-                                          option.optionId,
-                                        )) {
-                                          collapsed.add(option.optionId);
-                                        }
-                                      }),
-                                    ),
-                                  ],
-                                ),
-                                if (!collapsed.contains(option.optionId)) ...[
-                                  for (final (label, asset) in [
-                                    ('Experience', 'imgSquareCheck'),
-                                    ('Skills', 'imgSkills'),
-                                    ('Location & Area', 'imgLocation'),
-                                    ('Additional Information', 'imgFileText'),
-                                  ])
-                                    InkWell(
-                                      onTap: () => editOption(option),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
-                                        decoration: const BoxDecoration(
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: registrationBorder,
-                                              width: .6,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 15,
-                                              height: 15,
-                                              child: RegistrationAsset(
-                                                'details_$asset',
-                                              ),
-                                            ),
-                                            const SizedBox(width: 17),
-                                            Expanded(
-                                              child: registrationText(
-                                                label,
-                                                12,
-                                              ),
-                                            ),
-                                            registrationText(
-                                              label == 'Skills'
-                                                  ? '${selectedSkills.length} selected'
-                                                  : optionDraft(
-                                                          option.optionId,
-                                                        )?['saved'] ==
-                                                        true
-                                                  ? 'Added'
-                                                  : 'Not added',
-                                              11,
-                                              color: registrationMuted,
-                                            ),
-                                            const Icon(
-                                              Icons.chevron_right,
-                                              size: 18,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            left: -10,
-                            top: -10,
-                            child: SizedBox(
-                              width: 26,
-                              height: 26,
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                style: IconButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                ),
-                                tooltip: 'Remove ${option.name}',
-                                icon: const Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: Colors.grey,
-                                ),
-                                onPressed: () =>
-                                    controller.toggle(option.optionId),
-                              ),
-                            ),
-                          ),
-                        ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      registrationText(
+                        'Your Selected Services',
+                        13,
+                        bold: true,
                       ),
-                    ),
-                ],
-              ),
+                      registrationText(
+                        'Complete the additional details for each selected service.',
+                        10.5,
+                        color: registrationMuted,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F8F6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: registrationText(
+                    '${selected.length} selected',
+                    10,
+                    color: registrationTeal,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 12),
+            if (selected.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 22),
+                child: RegistrationNotice(
+                  'Select the services you provide above.',
+                ),
+              ),
+            for (final option in selected)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 22),
+                child: RegistrationOptionSummary(
+                  option: option,
+                  schema: value.schema,
+                  selected: value.selected,
+                  draft: draft,
+                  experience: value.experience,
+                  expanded: !collapsed.contains(option.optionId),
+                  onToggle: () => setState(() {
+                    if (!collapsed.remove(option.optionId)) {
+                      collapsed.add(option.optionId);
+                    }
+                  }),
+                  onRemove: () => controller.toggle(option.optionId),
+                  onEdit: () => editOption(option),
+                  onExperience: experience,
+                  onSkills: () {
+                    final target = _skillsKey.currentContext;
+                    if (target != null) {
+                      Scrollable.ensureVisible(
+                        target,
+                        duration: const Duration(milliseconds: 250),
+                      );
+                    }
+                  },
+                ),
+              ),
             if (selected.isEmpty &&
                 value.schema.serviceSetup.availabilityEnabled)
               RegistrationSection(
@@ -589,26 +624,27 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                   ),
                 ),
               ),
-            RegistrationSection(
-              'Years of Experience',
-              'Your experience offering this service.',
-              child: TextFormField(
-                key: ValueKey('experience-${value.service.id}'),
-                initialValue: value.experience,
-                enabled: value.assignment == null,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+            if (needsExperience || selected.isEmpty)
+              RegistrationSection(
+                'Years of Experience',
+                'Your experience offering this service.',
+                child: TextFormField(
+                  key: ValueKey('experience-${value.service.id}'),
+                  initialValue: value.experience,
+                  enabled: value.assignment == null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Enter years of experience',
+                  ),
+                  onChanged: controller.experience,
+                  validator: (v) =>
+                      double.tryParse(v ?? '') == null || double.parse(v!) < 0
+                      ? 'Enter valid years of experience.'
+                      : null,
                 ),
-                decoration: const InputDecoration(
-                  hintText: 'Enter years of experience',
-                ),
-                onChanged: controller.experience,
-                validator: (v) =>
-                    double.tryParse(v ?? '') == null || double.parse(v!) < 0
-                    ? 'Enter valid years of experience.'
-                    : null,
               ),
-            ),
             if (value.failure != null)
               RegistrationNotice(value.failure!.message, warning: true),
             if (value.validation != null)
@@ -639,21 +675,21 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge(this.label, {this.complete = false});
+  const _Badge(this.label, {this.compact = false});
   final String label;
-  final bool complete;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    padding: EdgeInsets.symmetric(horizontal: 10, vertical: compact ? 4 : 8),
     decoration: BoxDecoration(
-      color: complete ? const Color(0xFFE0FAEC) : const Color(0xFFFFF3CE),
+      color: const Color(0xFFFFF3CE),
       borderRadius: BorderRadius.circular(10),
     ),
     child: registrationText(
       label,
       10,
       bold: true,
-      color: complete ? const Color(0xFF078834) : const Color(0xFFB87900),
+      color: const Color(0xFFB87900),
     ),
   );
 }

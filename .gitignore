@@ -36,3 +36,6 @@ Thumbs.db
 **/ios/Flutter/Generated.xcconfig
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/Flutter/.last_build_id
+
+# Local API-key configuration (use --dart-define-from-file).
+config/*.local.json

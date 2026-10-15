@@ -55,6 +55,98 @@ void main() {
     repository = RegistrationRepository(client);
   });
   tearDown(() => client.close(force: true));
+  test(
+    'public option delivery modes and descriptions survive schema loading',
+    () {
+      final schema = parseProviderSchema(optionsSchema(), 3);
+      final enriched = applyPublicOptions(schema, [
+        for (final option in schema.options)
+          {
+            'optionId': option.optionId,
+            'code': option.code,
+            'name': option.name,
+            'description': 'Support for older adults',
+            'deliveryModes': ['PROVIDER_TO_CUSTOMER'],
+          },
+      ]);
+      expect(enriched.options.first.description, 'Support for older adults');
+      expect(enriched.options.first.deliveryModes, ['PROVIDER_TO_CUSTOMER']);
+      final draft = readyRegistrationDraft();
+      (draft['options'] as Map)['12'] = {
+        'deliveryMode': 'ONLINE',
+        'areas': <Object>[],
+      };
+      expect(
+        validateRegistrationDraft(enriched, {12}, draft),
+        contains('supported delivery mode'),
+      );
+    },
+  );
+  test(
+    'skill IDs distinguish duplicate labels and preserve server identities',
+    () async {
+      final data = optionsSchema();
+      data['serviceSetup']['skills'] = [
+        {'skillId': 10, 'name': 'Care', 'required': false},
+        {'skillId': 11, 'name': 'Care', 'required': false},
+      ];
+      final schema = parseProviderSchema(data, 3);
+      final draft = readyRegistrationDraft()
+        ..['skillIds'] = [11]
+        ..['skills'] = ['Care'];
+      expect(registrationSkillIds(schema, draft), {11});
+      expect(
+        await saveRegistrationRequirements(repository, 14, schema, {12}, draft),
+        isA<Success<void>>(),
+      );
+      expect(
+        adapter.requests
+            .singleWhere((request) => request.path.endsWith('/skills'))
+            .data,
+        {
+          'skillIds': [11],
+        },
+      );
+      final snapshot = mergeRegistrationSnapshot({}, {
+        'skills': [
+          {'skillId': 11, 'skillName': 'Care'},
+        ],
+      });
+      expect(registrationSkillIds(schema, snapshot), {11});
+    },
+  );
+  test('saved option locations load using the assignment and supported mode', () async {
+    final schema = applyPublicOptions(parseProviderSchema(optionsSchema(), 3), [
+      for (final id in [12, 13, 14])
+        {
+          'optionId': id,
+          'code': 'OPTION_$id',
+          'name': 'Option $id',
+          'deliveryModes': ['CUSTOMER_TO_PROVIDER'],
+        },
+    ]);
+    adapter
+        .responses['/providers/me/services/14/options/12/delivery-modes/CUSTOMER_TO_PROVIDER/service-areas'] = [
+      {
+        'locationName': 'Saved location',
+        'latitude': 6.9,
+        'longitude': 79.8,
+        'radiusKm': null,
+      },
+    ];
+    final result = await repository.loadOptionLocations(14, [
+      schema.options.first,
+    ]);
+    expect(result, isA<Success<Map<String, dynamic>>>());
+    final restored = (result as Success<Map<String, dynamic>>).value;
+    expect(restored['12']['deliveryMode'], 'CUSTOMER_TO_PROVIDER');
+    expect(restored['12']['areas'].single['locationName'], 'Saved location');
+    expect(adapter.requests.single.method, 'GET');
+    expect(
+      adapter.requests.single.headers['Authorization'],
+      'Bearer synthetic-access',
+    );
+  });
   test('languages and skills use assignment IDs, authenticated replacements and documented values', () async {
     expect(
       await repository.languages(14, ['Sinhala', 'English']),

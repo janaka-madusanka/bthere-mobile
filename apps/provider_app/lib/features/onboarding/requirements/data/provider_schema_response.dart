@@ -1,3 +1,5 @@
+import '../../services/data/provider_service_response.dart'
+    show parseProviderServiceMedia;
 import '../domain/provider_onboarding_schema.dart';
 
 final class UnsupportedRequirementMetadata implements Exception {
@@ -137,6 +139,12 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
       optionId: optionId,
       code: string(o['code']),
       name: string(o['name']),
+      description: o['description'] as String?,
+      icon: parseProviderServiceMedia(o['icon']),
+      deliveryModes: List.unmodifiable(
+        (o['deliveryModes'] == null ? <dynamic>[] : array(o['deliveryModes']))
+            .map(string),
+      ),
       fields: array(o['fields']).map((v) => field(v, id, optionId)).toList(),
     );
   }).toList();
@@ -201,6 +209,13 @@ ProviderOnboardingSchema applyPublicOptions(
         code: string(item['code']),
         name: string(item['name']),
         fields: source.fields,
+        description: item['description'] as String? ?? source.description,
+        icon: parseProviderServiceMedia(item['icon']) ?? source.icon,
+        deliveryModes: List.unmodifiable(
+          item['deliveryModes'] == null
+              ? source.deliveryModes
+              : array(item['deliveryModes']).map(string),
+        ),
       ),
     );
   }
