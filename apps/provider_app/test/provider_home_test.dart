@@ -16,6 +16,26 @@ import 'service_first_test.dart' show ServiceFixture, pump;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('registered service opens overview at text scale $scale', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(
+        tester,
+        ServiceFixture(existing: true),
+        route: AppRoutes.home,
+      );
+
+      await tester.tap(find.text('Home Nurse').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Key Responsibilities'), findsOneWidget);
+      expect(find.text('Your Registered Sub-services'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'registered greeting fits fallback glyphs and loaded sub services',
     (tester) async {

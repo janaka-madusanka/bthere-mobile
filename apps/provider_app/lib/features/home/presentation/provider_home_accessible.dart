@@ -75,7 +75,7 @@ class HomeAccessible extends StatelessWidget {
                                   'Status unavailable',
                             ),
                             onTap: () => context.push(
-                              AppRoutes.serviceSetup(assignment.providerTypeId),
+                              AppRoutes.serviceDetail(assignment.providerTypeId),
                             ),
                           ),
                         TextButton(
