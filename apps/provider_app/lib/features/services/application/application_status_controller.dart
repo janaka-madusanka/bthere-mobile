@@ -64,8 +64,12 @@ class ApplicationStatusData {
   final ServiceDetailState service;
   final ProviderServiceCompletion completion;
   final List<ApplicationReviewItem> items;
-  bool get approved => completion.verificationStatus == 'APPROVED';
-  bool get pending => completion.verificationStatus == 'PENDING';
+  bool get approved => !pending && completion.verificationStatus == 'APPROVED';
+  bool get pending =>
+      completion.verificationStatus == 'PENDING' ||
+      service.registered.any(
+        (option) => option.verificationStatus == 'PENDING',
+      );
   bool get rejected =>
       completion.verificationStatus == 'REJECTED' ||
       service.assignment?.verificationStatus == 'REJECTED' ||

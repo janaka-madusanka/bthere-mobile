@@ -176,53 +176,67 @@ void main() {
       expect(fixture.services.submissions, 0);
     },
   );
+  for (final aggregate in ['PENDING', 'APPROVED']) {
+    for (final rejected in [false, true]) {
+      testWidgets(
+        'registered subservice ${rejected ? 'rejected' : 'pending'} badge opens its status page with $aggregate aggregate',
+        (tester) async {
+          tester.view.physicalSize = const Size(430, 932);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final fixture = ServiceFixture(existing: true);
+          configure(fixture);
+          fixture.completion.result = Success(
+            parseProviderCompletion(
+              completeServiceJson(verification: aggregate),
+            ),
+          );
+          fixture.services.assignments = Success([
+            parseProviderServiceAssignment(
+              assignmentJson()..['verificationStatus'] = aggregate,
+            ),
+          ]);
+          fixture.options.selections = Success([
+            ProviderSelectedOption(
+              providerOptionId: 112,
+              optionId: 12,
+              code: 'CARE',
+              name: 'Home care',
+              providerStatus: 'ACTIVE',
+              adminStatus: 'ACTIVE',
+              verificationStatus: rejected ? 'REJECTED' : 'PENDING',
+            ),
+          ]);
+          await pump(tester, fixture, route: AppRoutes.serviceDetail(3));
+          final row = find.byKey(const ValueKey('registered-option-12'));
+          await tester.ensureVisible(row);
+          await tester.tap(
+            find.descendant(
+              of: row,
+              matching: find.text(rejected ? 'Rejected' : 'Pending review'),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Application Status'), findsOneWidget);
+          expect(
+            find.text(
+              rejected
+                  ? 'Your application was not approved'
+                  : 'Your application is Under Review',
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('Service Details'), findsNothing);
+          expect(find.text('View setup information'), findsNothing);
+          expect(fixture.services.submissions, 0);
+          expect(fixture.options.saves, isEmpty);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
   for (final rejected in [false, true]) {
-    testWidgets(
-      'registered subservice ${rejected ? 'rejected' : 'pending'} badge opens its status page',
-      (tester) async {
-        tester.view.physicalSize = const Size(430, 932);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        final fixture = ServiceFixture(existing: true);
-        // Keep the aggregate PENDING to exercise an independently rejected option.
-        configure(fixture);
-        fixture.options.selections = Success([
-          ProviderSelectedOption(
-            providerOptionId: 112,
-            optionId: 12,
-            code: 'CARE',
-            name: 'Home care',
-            providerStatus: 'ACTIVE',
-            adminStatus: 'ACTIVE',
-            verificationStatus: rejected ? 'REJECTED' : 'PENDING',
-          ),
-        ]);
-        await pump(tester, fixture, route: AppRoutes.serviceDetail(3));
-        final row = find.byKey(const ValueKey('registered-option-12'));
-        await tester.ensureVisible(row);
-        await tester.tap(
-          find.descendant(
-            of: row,
-            matching: find.text(rejected ? 'Rejected' : 'Pending review'),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('Application Status'), findsOneWidget);
-        expect(
-          find.text(
-            rejected
-                ? 'Your application was not approved'
-                : 'Your application is Under Review',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Service Details'), findsNothing);
-        expect(fixture.services.submissions, 0);
-        expect(fixture.options.saves, isEmpty);
-        expect(tester.takeException(), isNull);
-      },
-    );
     testWidgets(
       'home routes ${rejected ? 'rejected' : 'pending'} applications to status',
       (tester) async {

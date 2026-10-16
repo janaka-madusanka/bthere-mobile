@@ -15,5 +15,7 @@ Status when their own verification status is PENDING or REJECTED. The badge and
 the rest of the row share that action. A rejected registered option selects the
 rejected application view even while aggregate assignment/completion data remains
 PENDING. Opening status performs reads only; it does not restart registration.
+Pending registered sub-services also keep the application in the review view
+when aggregate assignment/completion data is already APPROVED.
 
 Design assets are bundled in `apps/provider_app/assets/application_status/`. Focused checks: `flutter test --no-pub test/application_status_test.dart` covers server-derived review items, unknown states, upload history, both catalog routes, document editing, retry, golden images, and narrow-screen large text.
