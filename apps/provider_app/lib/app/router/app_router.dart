@@ -19,6 +19,7 @@ import '../../features/services/presentation/service_basic_details_screen.dart';
 import '../../features/onboarding/requirements/domain/provider_requirement_section.dart';
 import '../../features/services/presentation/service_catalog_screen.dart';
 import '../../features/services/presentation/service_detail_screen.dart';
+import '../../features/services/presentation/sub_service_profile_screen.dart';
 import '../../features/services/presentation/service_registration_screen.dart';
 import '../../features/services/presentation/service_setup_screen.dart';
 import '../../features/services/presentation/application_status_screen.dart';
@@ -113,6 +114,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     parentNavigatorKey: rootNavigatorKey,
                     path: 'register',
                     builder: (_, _) => const ServiceRegistrationScreen(),
+                  ),
+                  GoRoute(
+                    parentNavigatorKey: rootNavigatorKey,
+                    path: ':serviceTypeId/sub-services/:optionId/profile',
+                    builder: (_, state) => SubServiceProfileScreen(
+                      serviceTypeId: serviceId(state),
+                      optionId:
+                          int.tryParse(
+                            state.pathParameters['optionId'] ?? '',
+                          ) ??
+                          0,
+                    ),
                   ),
                   GoRoute(
                     path: ':serviceTypeId',

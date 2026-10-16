@@ -57,7 +57,15 @@ class ServiceDetailScreen extends ConsumerWidget {
                                     'REJECTED',
                                   ].contains(option?.verificationStatus);
                                   context.push(
-                                    inReview
+                                    option?.verificationStatus == 'APPROVED' &&
+                                            option?.providerStatus !=
+                                                'INACTIVE' &&
+                                            option?.adminStatus != 'INACTIVE'
+                                        ? AppRoutes.subServiceProfile(
+                                            serviceTypeId,
+                                            id,
+                                          )
+                                        : inReview
                                         ? AppRoutes.serviceStatus(serviceTypeId)
                                         : '/services/$serviceTypeId/register?optionId=$id',
                                   );

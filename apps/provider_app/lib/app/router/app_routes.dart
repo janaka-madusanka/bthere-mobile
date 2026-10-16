@@ -6,6 +6,8 @@ abstract final class AppRoutes {
   // Account tab is distinct from Provider Details onboarding.
   static const account = '/profile';
   static String serviceDetail(int id) => '$services/$id';
+  static String subServiceProfile(int serviceTypeId, int optionId) =>
+      '$services/$serviceTypeId/sub-services/$optionId/profile';
   static String serviceSetup(int id, {bool view = false}) =>
       '$services/$id/setup${view ? '?view=1' : ''}';
   static String serviceStatus(int id) => '$services/$id/status';

@@ -7,6 +7,7 @@ import 'package:provider_app/app/router/app_routes.dart';
 import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
 import 'package:provider_app/features/onboarding/data/provider_completion_response.dart';
 import 'package:provider_app/features/onboarding/services/data/provider_service_response.dart';
+import 'package:provider_app/features/onboarding/requirements/data/provider_schema_response.dart';
 import 'package:provider_app/features/onboarding/requirements/options/domain/provider_selected_option.dart';
 import 'package:provider_app/features/services/application/application_status_controller.dart';
 import 'package:provider_app/features/services/application/registration_draft.dart';
@@ -20,8 +21,108 @@ import 'service_first_test.dart'
 import 'support/fake_documents_repository.dart';
 import 'support/fake_registration_repository.dart';
 import 'support/fake_service_repository.dart';
+import 'provider_options_test.dart' show optionsSchema;
 
 void main() {
+  for (final direct in [true, false]) {
+    testWidgets(
+      'screenshot profile URL opens ${direct ? 'directly' : 'from Active row'}',
+      (tester) async {
+        tester.view.physicalSize = const Size(430, 932);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final fixture = ServiceFixture(existing: true);
+        fixture.services.catalog = Success(
+          parseActiveProviderServices([serviceJson(id: 1, name: 'Caregiving')]),
+        );
+        fixture.services.assignments = Success([
+          parseProviderServiceAssignment(assignmentJson(typeId: 1)),
+        ]);
+        final schema = optionsSchema();
+        schema['serviceTypeId'] = 1;
+        schema['serviceSetup']['serviceTypeId'] = 1;
+        schema['options'] = [
+          {
+            'optionId': 2,
+            'code': 'HOSPITAL',
+            'name': 'Hospital Caregiver',
+            'fields': [],
+          },
+        ];
+        fixture.schema.result = Success(parseProviderSchema(schema, 1));
+        fixture.options.selections = const Success([
+          ProviderSelectedOption(
+            providerOptionId: 112,
+            optionId: 2,
+            code: 'HOSPITAL',
+            name: 'Hospital Caregiver',
+            providerStatus: 'ACTIVE',
+            adminStatus: 'ACTIVE',
+            verificationStatus: 'APPROVED',
+          ),
+        ]);
+        await pump(
+          tester,
+          fixture,
+          route: direct ? '/services/1/sub-services/2/profile' : '/services/1',
+        );
+        if (!direct) {
+          final row = find.byKey(const ValueKey('registered-option-2'));
+          await tester.ensureVisible(row);
+          await tester.tap(
+            find.descendant(of: row, matching: find.text('Active')),
+          );
+          await tester.pumpAndSettle();
+        }
+        // Imperative pushes retain the base URL in GoRouter's route information.
+        if (direct) {
+          expect(path(fixture), '/services/1/sub-services/2/profile');
+        }
+        expect(find.text('Service Profile'), findsOneWidget);
+        expect(find.text('Service Details'), findsOneWidget);
+        expect(find.textContaining('Unable to load'), findsNothing);
+        expect(find.textContaining('Page Not Found'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  for (final active in [true, false]) {
+    testWidgets(
+      'approved sub-service profile requires active status: $active',
+      (tester) async {
+        final fixture = ServiceFixture(existing: true);
+        fixture.options.selections = Success([
+          ProviderSelectedOption(
+            providerOptionId: 112,
+            optionId: 12,
+            code: 'CARE',
+            name: 'Home care',
+            providerStatus: active ? 'ACTIVE' : 'INACTIVE',
+            adminStatus: 'ACTIVE',
+            verificationStatus: 'APPROVED',
+          ),
+        ]);
+        await pump(
+          tester,
+          fixture,
+          route: '/services/3/sub-services/12/profile',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Service Profile'),
+          active ? findsOneWidget : findsNothing,
+        );
+        expect(
+          path(fixture),
+          active ? '/services/3/sub-services/12/profile' : '/services/3',
+        );
+        expect(fixture.services.submissions, 0);
+        expect(fixture.options.saves, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   setUpAll(() async {
     for (final (name, path) in [
       ('Nunito', 'Nunito.ttf'),
