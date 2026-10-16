@@ -638,13 +638,8 @@ void main() {
       );
       await pump(tester, f, route: AppRoutes.serviceSetup(3));
       expect(path(f), AppRoutes.serviceStatus(3));
-      expect(find.text('Pending approval'), findsOneWidget);
-      expect(
-        find.text(
-          'Your information has been submitted and is waiting for review.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Review in progress'), findsOneWidget);
+      expect(find.text('Your application is Under Review'), findsOneWidget);
       expect(find.text('Needs attention'), findsNothing);
     },
   );
@@ -690,7 +685,7 @@ void main() {
         parseProviderCompletion(completeServiceJson(verification: 'REJECTED')),
       );
       await pump(tester, f, route: AppRoutes.serviceStatus(3));
-      expect(find.text('Rejected'), findsOneWidget);
+      expect(find.text('Your application was not approved'), findsOneWidget);
       expect(
         find.text('Service review: Please provide a clearer certificate.'),
         findsOneWidget,

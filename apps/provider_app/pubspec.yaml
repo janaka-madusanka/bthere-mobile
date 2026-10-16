@@ -48,6 +48,7 @@ dependencies:
   xml: ^7.0.1
   google_maps_flutter: ^2.19.0
   geocoding: ^5.0.0
+  geolocator: ^14.0.1
 
 dev_dependencies:
   dio: ^5.9.2
@@ -87,6 +88,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/registration/
+    - assets/application_status/
     - assets/home/
     - assets/profile/
     - assets/services/

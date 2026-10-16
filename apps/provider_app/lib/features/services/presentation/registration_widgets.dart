@@ -69,12 +69,20 @@ class RegistrationPage extends StatelessWidget {
     required this.child,
     required this.onBack,
     this.busy = false,
+    this.title = 'Register a Service',
+    this.showProgress = true,
+    this.alwaysScrollable = false,
+    this.contentPadding = const EdgeInsets.fromLTRB(26, 20, 26, 28),
+    this.footer,
     super.key,
   });
   final int step;
   final Widget child;
   final VoidCallback onBack;
-  final bool busy;
+  final bool busy, showProgress, alwaysScrollable;
+  final String title;
+  final EdgeInsets contentPadding;
+  final Widget? footer;
   @override
   Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
     value: SystemUiOverlayStyle.light.copyWith(
@@ -93,6 +101,18 @@ class RegistrationPage extends StatelessWidget {
           decoration: homeGradient,
           child: Scaffold(
             backgroundColor: Colors.transparent,
+            bottomNavigationBar: footer == null
+                ? null
+                : ColoredBox(
+                    color: Colors.white,
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                        child: footer!,
+                      ),
+                    ),
+                  ),
             body: SafeArea(
               bottom: false,
               child: Column(
@@ -130,7 +150,7 @@ class RegistrationPage extends StatelessWidget {
                         Positioned(
                           bottom: 12,
                           child: registrationText(
-                            'Register a Service',
+                            title,
                             14,
                             bold: true,
                             color: Colors.white,
@@ -149,57 +169,62 @@ class RegistrationPage extends StatelessWidget {
                       clipBehavior: Clip.antiAlias,
                       child: SingleChildScrollView(
                         key: ValueKey('registration-scroll-$step'),
+                        physics: alwaysScrollable
+                            ? const AlwaysScrollableScrollPhysics()
+                            : null,
                         child: HomeScale(
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+                            padding: contentPadding,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Center(
-                                  child: registrationText(
-                                    'Step $step of 5',
-                                    11,
-                                    color: registrationMuted,
+                                if (showProgress) ...[
+                                  Center(
+                                    child: registrationText(
+                                      'Step $step of 5',
+                                      11,
+                                      color: registrationMuted,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(
-                                  height: step == 5
-                                      ? 4
-                                      : step == 1
-                                      ? 13
-                                      : 9,
-                                ),
-                                Semantics(
-                                  label: 'Registration step $step of 5',
-                                  child: Row(
-                                    children: [
-                                      for (var i = 1; i <= 5; i++) ...[
-                                        if (i > 1) const SizedBox(width: 5),
-                                        Expanded(
-                                          child: Container(
-                                            height: 6.5,
-                                            decoration: BoxDecoration(
-                                              color: i <= step
-                                                  ? registrationTeal
-                                                  : const Color(0xFFDCE1E8),
-                                              borderRadius:
-                                                  BorderRadius.circular(99),
+                                  SizedBox(
+                                    height: step == 5
+                                        ? 4
+                                        : step == 1
+                                        ? 13
+                                        : 9,
+                                  ),
+                                  Semantics(
+                                    label: 'Registration step $step of 5',
+                                    child: Row(
+                                      children: [
+                                        for (var i = 1; i <= 5; i++) ...[
+                                          if (i > 1) const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Container(
+                                              height: 6.5,
+                                              decoration: BoxDecoration(
+                                                color: i <= step
+                                                    ? registrationTeal
+                                                    : const Color(0xFFDCE1E8),
+                                                borderRadius:
+                                                    BorderRadius.circular(99),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
-                                ),
-                                SizedBox(
-                                  height: step == 5
-                                      ? 25
-                                      : step == 3
-                                      ? 19
-                                      : step == 4
-                                      ? 38
-                                      : 40,
-                                ),
+                                  SizedBox(
+                                    height: step == 5
+                                        ? 25
+                                        : step == 3
+                                        ? 19
+                                        : step == 4
+                                        ? 38
+                                        : 40,
+                                  ),
+                                ],
                                 child,
                                 SizedBox(
                                   height: MediaQuery.paddingOf(context).bottom,

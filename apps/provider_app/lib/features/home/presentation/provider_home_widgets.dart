@@ -627,7 +627,14 @@ class HomeRegisteredService extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () async {
-          await context.push(AppRoutes.serviceDetail(assignment.providerTypeId));
+          await context.push(
+            [
+                  ProviderServiceStatus.pendingApproval,
+                  ProviderServiceStatus.rejected,
+                ].contains(status)
+                ? AppRoutes.serviceStatus(assignment.providerTypeId)
+                : AppRoutes.serviceDetail(assignment.providerTypeId),
+          );
           if (context.mounted) {
             ref.invalidate(providerAssignmentsProvider);
             ref.invalidate(providerCompletionControllerProvider);

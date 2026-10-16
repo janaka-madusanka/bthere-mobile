@@ -229,12 +229,13 @@ class _DocumentsState extends ConsumerState<RegistrationDocuments> {
         RegistrationSection(
           'Common Documents',
           'Your uploaded documents are shared across your services.',
-          child: registrationText(
-            state.documents?.isEmpty != false
-                ? 'Your uploaded documents will appear here.'
-                : '${state.documents!.length} documents in your profile',
-            11,
-            color: registrationMuted,
+          child: Column(
+            children: [
+              for (final requirement in required.where(
+                (r) => r.optionId == null,
+              ))
+                card(requirement),
+            ],
           ),
         ),
         RegistrationSection(
@@ -242,7 +243,10 @@ class _DocumentsState extends ConsumerState<RegistrationDocuments> {
           'These documents are required for the services you have selected.',
           child: Column(
             children: [
-              for (final requirement in required) card(requirement),
+              for (final requirement in required.where(
+                (r) => r.optionId != null,
+              ))
+                card(requirement),
               if (!loading && required.isEmpty && error == null)
                 const RegistrationNotice(
                   'No documents are required for this service.',

@@ -7,6 +7,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider_app/app/config/app_config.dart';
 import 'package:provider_app/app/providers/app_providers.dart';
 import 'package:provider_app/features/services/data/registration_geocoder.dart';
+import 'package:provider_app/features/services/data/registration_device_location.dart';
+
+import 'support/fake_device_location.dart';
+
 import 'package:provider_app/features/services/presentation/registration_location_editor.dart';
 
 class FakeGeocoder implements RegistrationGeocoder {
@@ -37,15 +41,26 @@ class FakeGeocoder implements RegistrationGeocoder {
 }
 
 void main() {
+  void mobile(WidgetTester tester) {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   testWidgets(
     'map search saves coordinates, resolved address and radius without invented locations',
     (tester) async {
+      mobile(tester);
       final geocoder = FakeGeocoder();
       Map<String, dynamic>? saved;
       RegistrationMapState? rendered;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            registrationDeviceLocationProvider.overrideWithValue(
+              FakeDeviceLocation(issue: DeviceLocationIssue.denied),
+            ),
             appConfigProvider.overrideWithValue(
               AppConfig(
                 apiBaseUrl: 'https://example.invalid/api/v1',
@@ -109,11 +124,15 @@ void main() {
   testWidgets(
     'moving the pin ignores stale address responses and premises have no radius',
     (tester) async {
+      mobile(tester);
       final geocoder = FakeGeocoder()..delay = true;
       RegistrationMapState? rendered;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            registrationDeviceLocationProvider.overrideWithValue(
+              FakeDeviceLocation(issue: DeviceLocationIssue.denied),
+            ),
             appConfigProvider.overrideWithValue(
               AppConfig(
                 apiBaseUrl: 'https://example.invalid/api/v1',

@@ -112,6 +112,48 @@ class RegistrationRepository {
     }
     await replace(id, 'languages', {'languages': languages});
   });
+
+  /// Step 2 may be retried after another section fails. Read fresh state rather
+  /// than replaying the same language replacement or relying on a local flag.
+  Future<Result<void>> saveLanguages(
+    int id,
+    List<String> values,
+  ) => safe(() async {
+    final requested = values.map((value) => value.toUpperCase()).toSet();
+    const allowed = {'SINHALA', 'ENGLISH', 'TAMIL'};
+    if (requested.isEmpty || !allowed.containsAll(requested)) {
+      throw const FormatException('Invalid language');
+    }
+    Future<bool> matches() async {
+      final saved = json.array(await read(id, 'languages'));
+      if (saved.any((value) => value is! String || !allowed.contains(value))) {
+        throw const FormatException('Invalid saved languages');
+      }
+      final existing = saved.cast<String>().toSet();
+      return existing.length == requested.length &&
+          existing.containsAll(requested);
+    }
+
+    if (await matches()) return;
+    try {
+      await replace(id, 'languages', {'languages': requested.toList()});
+    } on NetworkException catch (failure) {
+      final uncertain =
+          failure.kind == NetworkExceptionKind.timeout ||
+          failure.kind == NetworkExceptionKind.connection ||
+          (failure.statusCode != null && failure.statusCode! >= 500);
+      if (uncertain) {
+        try {
+          // A server may commit before returning an error. Only confirmed
+          // read-back is success; an error alone never completes the step.
+          if (await matches()) return;
+        } catch (_) {
+          // Preserve the original write failure when confirmation also fails.
+        }
+      }
+      rethrow;
+    }
+  });
   Future<Result<void>> skills(int id, List<int> ids) => safe(() async {
     if (ids.any((id) => id <= 0)) throw const FormatException('Invalid skill');
     await replace(id, 'skills', {'skillIds': ids.toSet().toList()..sort()});

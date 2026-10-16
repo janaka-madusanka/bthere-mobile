@@ -17,6 +17,19 @@ class FakeRegistrationRepository extends RegistrationRepository {
   final writes = <String>[];
   List<Map<String, dynamic>>? submittedValues;
   Result<void> result = const Success(null);
+  AppFailure? loadFailure;
+  final areaLoads = <int>[];
+  Result<List<Map<String, dynamic>>> areasResult = const Success([]);
+  @override
+  Future<Result<List<Map<String, dynamic>>>> areas(
+    int id,
+    int optionId,
+    String mode,
+  ) async {
+    areaLoads.add(optionId);
+    return areasResult;
+  }
+
   Map<String, dynamic> server = {
     'languages': <String>[],
     'skills': <Object>[],
@@ -33,7 +46,10 @@ class FakeRegistrationRepository extends RegistrationRepository {
   Future<Result<Map<String, dynamic>>> load(
     int id,
     ProviderServiceSetup setup,
-  ) async => Success(server);
+  ) async => loadFailure == null ? Success(server) : Failure(loadFailure!);
+  @override
+  Future<Result<void>> saveLanguages(int id, List<String> values) =>
+      languages(id, values);
   @override
   Future<Result<void>> languages(int id, List<String> values) async {
     writes.add('languages');
@@ -81,6 +97,15 @@ class MemoryRegistrationDrafts extends RegistrationDraftStore {
   MemoryRegistrationDrafts()
     : super(FakeSessionStorage(), MemoryDraftStorage());
   final drafts = <int, Map<String, dynamic>>{};
+  final reviewHistory = <int, Map<String, dynamic>>{};
+  @override
+  Future<Map<String, dynamic>> reviewUploads(int id) async =>
+      reviewHistory[id] ?? {};
+  @override
+  Future<void> recordReviewUpload(int id, int typeId, String key) async {
+    (reviewHistory[id] ??= {})['$typeId'] = key;
+  }
+
   @override
   Future<Map<String, dynamic>> read(int id) async => drafts[id] ?? {};
   @override

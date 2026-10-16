@@ -21,7 +21,7 @@ Routes:
 - `/services/{serviceTypeId}/setup/{documents,skills,availability,locations,additional,certificates,education}`
 - `/services/{serviceTypeId}/setup/profile` for the preserved Basic Details/Market form
 
-Setup links open functional registration forms for languages, skills, availability, locations, dynamic answers, shared documents, certificates, and education. Review saves the documented resources and refreshes backend completion; approval is automatic and has no separate submit endpoint. Basic Details and the account editor reload the saved provider profile and preserve optional identity/photo values.
+Setup links open functional registration forms for languages, skills, availability, locations, dynamic answers, shared documents, certificates, and education. Steps 2 and 3 save their resources. Final review reads the saved requirements and refreshes backend completion without replaying replacement writes; approval is automatic and has no separate submit endpoint. Basic Details and the account editor reload the saved provider profile and preserve optional identity/photo values.
 
 Pending/approved/inactive services show status; approved services can view read-only setup information. Optional and disabled requirement sections do not independently block pending approval. Approval itself always requires backend verification, never a local completed count.
 

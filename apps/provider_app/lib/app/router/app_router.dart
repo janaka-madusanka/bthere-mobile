@@ -21,6 +21,7 @@ import '../../features/services/presentation/service_catalog_screen.dart';
 import '../../features/services/presentation/service_detail_screen.dart';
 import '../../features/services/presentation/service_registration_screen.dart';
 import '../../features/services/presentation/service_setup_screen.dart';
+import '../../features/services/presentation/application_status_screen.dart';
 import '../providers/app_providers.dart';
 import 'app_routes.dart';
 import '../../features/onboarding/application/provider_entry_gate.dart';
@@ -143,9 +144,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     parentNavigatorKey: rootNavigatorKey,
                     path: ':serviceTypeId/status',
-                    builder: (_, state) => ServiceSetupScreen(
+                    builder: (_, state) => ApplicationStatusScreen(
                       serviceTypeId: serviceId(state),
-                      showStatus: true,
                     ),
                   ),
                   GoRoute(

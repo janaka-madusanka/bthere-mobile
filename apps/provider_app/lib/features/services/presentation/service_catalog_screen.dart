@@ -165,8 +165,14 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
       for (final service in {...types, ...featured})
         service.id: _status(service, owned, progress),
     };
-    void open(ProviderServiceType service) =>
-        context.go(AppRoutes.serviceDetail(service.id));
+    void open(ProviderServiceType service) => context.go(
+      [
+            ProviderServiceStatus.pendingApproval,
+            ProviderServiceStatus.rejected,
+          ].contains(statuses[service.id])
+          ? AppRoutes.serviceStatus(service.id)
+          : AppRoutes.serviceDetail(service.id),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

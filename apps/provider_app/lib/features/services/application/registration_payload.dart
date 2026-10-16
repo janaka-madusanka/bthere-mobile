@@ -221,25 +221,34 @@ Future<Result<void>> saveRegistrationRequirements(
 ) async {
   final validation = validateRegistrationDraft(schema, selected, draft);
   if (validation != null) return Failure(AppFailure(message: validation));
-  var result = await repository.languages(
+  var result = await repository.saveLanguages(
     assignmentId,
     List<String>.from(draft['languages'] as List),
   );
-  if (result is Failure<void>) return result;
+  if (result is Failure<void>) {
+    return Failure(
+      AppFailure(
+        message: 'We couldn’t save your languages. Your progress is saved on this device.',
+        code: result.failure.code ?? 'REGISTRATION_LANGUAGES_FAILED',
+      ),
+    );
+  }
   if (schema.serviceSetup.skills.isNotEmpty) {
     result = await repository.skills(assignmentId, [
       for (final s in schema.serviceSetup.skills)
         if (registrationSkillIds(schema, draft).contains(s.metadata['skillId']))
           s.metadata['skillId'] as int,
     ]);
-    if (result is Failure<void>) return result;
+    if (result is Failure<void>) return _saveFailure(result.failure, 'skills');
   }
   if (schema.serviceSetup.availabilityEnabled) {
     result = await repository.availability(
       assignmentId,
       Map<String, dynamic>.from(draft['availability'] as Map),
     );
-    if (result is Failure<void>) return result;
+    if (result is Failure<void>) {
+      return _saveFailure(result.failure, 'availability');
+    }
   }
   if (schema.serviceSetup.serviceAreasEnabled) {
     final options = draft['options'] as Map;
@@ -255,7 +264,9 @@ Future<Result<void>> saveRegistrationRequirements(
             .map((a) => Map<String, dynamic>.from(a as Map))
             .toList(),
       );
-      if (result is Failure<void>) return result;
+      if (result is Failure<void>) {
+        return _saveFailure(result.failure, 'service locations');
+      }
     }
   }
   final fields = activeRegistrationFields(schema, selected),
@@ -283,18 +294,42 @@ Future<Result<void>> saveRegistrationRequirements(
           },
     ]);
   }
+  if (result is Failure<void>) {
+    return _saveFailure(result.failure, 'additional information');
+  }
   return result;
 }
+
+Failure<void> _saveFailure(AppFailure failure, String section) => Failure(
+  AppFailure(
+    message:
+        'We couldn’t save your $section. Your progress is saved on this device.',
+    code: failure.code ?? 'REGISTRATION_SAVE_FAILED',
+  ),
+);
+
+List<String> registrationLanguages(Object? value) => value is List
+    ? value
+          .whereType<String>()
+          .map((language) => language.trim().toUpperCase())
+          .where((language) => language.isNotEmpty)
+          .toSet()
+          .toList()
+    : [];
 
 Map<String, dynamic> mergeRegistrationSnapshot(
   Map<String, dynamic> draft,
   Map<String, dynamic> server,
 ) {
   final submissions = (server['submissions'] as List? ?? []).whereType<Map>();
+  final savedLanguages = registrationLanguages(server['languages']);
+  final localLanguages = registrationLanguages(draft['languages']);
+  final keepLocalLanguages =
+      draft['_languagesEdited'] == true ||
+      (!draft.containsKey('_languagesEdited') &&
+          localLanguages.isNotEmpty &&
+          (savedLanguages.isEmpty || draft['_step'] == 2));
   return {
-    'languages': (server['languages'] as List? ?? [])
-        .map((v) => v.toString())
-        .toList(),
     if (!draft.containsKey('skills') && !draft.containsKey('skillIds'))
       'skillIds': (server['skills'] as List? ?? [])
           .whereType<Map>()
@@ -308,6 +343,9 @@ Map<String, dynamic> mergeRegistrationSnapshot(
         .toList(),
     if (server['availability'] != null) 'availability': server['availability'],
     ...draft,
+    // Empty defaults are not user edits. Explicit pending edits, including
+    // clearing the selection, remain local until Step 2 is successfully saved.
+    'languages': keepLocalLanguages ? localLanguages : savedLanguages,
     'fields': {
       for (final f in submissions) '${f['fieldId']}': f['value'],
       ...Map<String, dynamic>.from(draft['fields'] as Map? ?? {}),

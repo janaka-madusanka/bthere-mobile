@@ -21,6 +21,13 @@ authority. All API paths below are relative to the configured `/api/v1` base URL
   New assignments use POST `/providers/me/service-types`. Sub-services use
   PUT `/providers/me/services/{assignmentId}/options` with `optionIds`.
 - Languages use GET/PUT `languages`, with ENGLISH, SINHALA, and TAMIL only.
+  Step 2 compares fresh saved languages before replacing them. Unchanged sets
+  are not resent. An uncertain failed write is accepted only after GET confirms
+  the exact requested set. See [the backend language-save handoff](backend-language-save-failure.md).
+  Saved languages preselect the Step 2 picker after asynchronous loading. Empty
+  defaults and clean old drafts cannot override the saved list. Explicit pending
+  language edits remain local until a successful Step 2 save; the language sheet
+  also supports shorter screens with scrolling.
   Skills use GET/PUT `skills` with catalog `skillIds`.
 - Weekly availability uses GET/PUT `availability`, shared across the assignment.
   Existing per-day times survive edits to unrelated option information.
@@ -56,11 +63,15 @@ authority. All API paths below are relative to the configured `/api/v1` base URL
 - Structured service `icon`, `coverImage`, `gallery`, and `responsibilities`
   are parsed from provider-type responses and displayed when supplied. Legacy
   `iconUrl` and bundled Figma artwork remain safe fallbacks.
-- **Submit for Review** persists remaining requirement replacements and refreshes
+- Step 2 Continue persists requirement replacements; document and qualification
+  editors persist their records in step 3. **Submit for Review** re-reads saved
+  requirements and documents, validates required uploads, and refreshes
   `/providers/me/completion` and `/providers/me/service-types`. There is no
   invented submit-application endpoint. Pending approval is permitted after
   successful data submission; required location/availability setup must be
   confirmed by completion. Approved/effective-active status remains server owned.
+  The final review does not replay PUTs for saved languages, skills, availability,
+  areas, or field answers. A failed refresh leaves review open for a safe retry.
 
 Form drafts use encrypted storage, isolated by account and service. Idempotent
 replacement requests retain draft data on failure. The assignment creation

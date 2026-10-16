@@ -36,12 +36,28 @@ class RegistrationReview extends StatelessWidget {
     final areas = options
         .expand((o) => o['areas'] as List? ?? [])
         .whereType<Map>()
-        .map((a) => a['locationName'])
+        .map((a) => a['locationName'] ?? a['city'])
+        .whereType<String>()
+        .where((name) => name.trim().isNotEmpty)
+        .toSet()
         .join(', ');
     final languageValues = (draft['languages'] as List? ?? [])
+        .where((v) => v.toString().isNotEmpty)
         .map((v) => v.toString()[0] + v.toString().substring(1).toLowerCase())
         .toList();
-    final skillValues = (draft['skills'] as List? ?? [])
+    final skillIds = registrationSkillIds(value.schema, draft);
+    final skillValues = value.schema.serviceSetup.skills
+        .where((skill) => skillIds.contains(skill.metadata['skillId']))
+        .map((skill) => skill.metadata['name'])
+        .whereType<String>()
+        .toList();
+    final certificates =
+        ((draft['server'] as Map? ?? {})['certificates'] as List? ?? [])
+            .whereType<Map>()
+            .map((record) => record['name'])
+            .whereType<String>()
+            .toList();
+    final documents = (draft['documentNames'] as List? ?? [])
         .whereType<String>()
         .toList();
     Widget chips(List<String> labels) => Wrap(
@@ -91,7 +107,7 @@ class RegistrationReview extends StatelessWidget {
                 children: [
                   registrationText(title, 12, bold: true),
                   const SizedBox(height: 3),
-                  content ??
+                  (description.isNotEmpty ? content : null) ??
                       registrationText(
                         description.isEmpty ? 'Not added' : description,
                         11.2,
@@ -160,20 +176,19 @@ class RegistrationReview extends StatelessWidget {
         ),
         row(
           'Certifications',
-          ((draft['server'] as Map? ?? {})['certificates'] as List? ?? [])
-              .whereType<Map>()
-              .map((v) => v['name'])
-              .join(', '),
+          certificates.join(', '),
           'imgCertificate',
           const Color(0xFFE7F3FF),
           step: 3,
+          content: chips(certificates),
         ),
         row(
           'Additional Documents',
-          (draft['documentNames'] as List? ?? []).join(', '),
+          documents.join(', '),
           'imgAdditionalDocument',
           const Color(0xFFFFF1EA),
           step: 3,
+          content: chips(documents),
         ),
         row(
           'Languages',
@@ -182,7 +197,6 @@ class RegistrationReview extends StatelessWidget {
           const Color(0xFFE7FAF7),
           content: chips(languageValues),
         ),
-        const SizedBox(height: 18),
         const SizedBox(height: 16),
         RegistrationButton(
           'Submit for Review',
@@ -351,7 +365,9 @@ class RegistrationCompleteScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     registrationText(
-                      'We’ll verify your details and documents.\nYou’ll be notified once your service is approved.',
+                      approved
+                          ? 'Your service is approved and ready to receive booking requests.'
+                          : 'We’ll verify your details and documents.\nYou’ll be notified once your service is approved.',
                       10.5,
                       color: registrationMuted,
                     ),
@@ -402,7 +418,9 @@ class RegistrationCompleteScreen extends StatelessWidget {
                     asset == 'imgApprovedCheck' ? 12.5 : 10,
                   ),
                   decoration: BoxDecoration(
-                    color: asset == 'imgReviewDocuments'
+                    color: asset == 'imgApprovedCheck'
+                        ? const Color(0xFF00B28C)
+                        : asset == 'imgReviewDocuments'
                         ? const Color(0xFFE7F7FF)
                         : asset == 'imgApprovalNotification'
                         ? const Color(0xFFFFF6E8)
@@ -416,7 +434,30 @@ class RegistrationCompleteScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      registrationText(title, 12, bold: true),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 5,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          registrationText(title, 12, bold: true),
+                          if (asset == 'imgReviewDocuments')
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE7F7FF),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: registrationText(
+                                '1–2 business days',
+                                9,
+                                color: const Color(0xFF009CF3),
+                              ),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 7),
                       registrationText(
                         description,

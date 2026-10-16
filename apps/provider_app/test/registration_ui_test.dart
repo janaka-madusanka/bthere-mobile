@@ -254,7 +254,11 @@ void main() {
         'documents' => RegistrationPage(
           step: 3,
           onBack: () {},
-          child: RegistrationDocuments(serviceTypeId: 3, onContinue: () {}),
+          child: RegistrationDocuments(
+            serviceTypeId: 3,
+            selectedOptionIds: const {12},
+            onContinue: () {},
+          ),
         ),
         'review' => RegistrationPage(
           step: 4,
@@ -295,6 +299,7 @@ void main() {
             false,
             true,
             true,
+            optionId: 12,
           ),
         ]);
       }
@@ -306,16 +311,195 @@ void main() {
         _ => 932,
       });
       await frame(tester, f, child, size);
+      if (name == 'documents') {
+        final common = find.byWidgetPredicate(
+          (widget) =>
+              widget is RegistrationSection &&
+              widget.title == 'Common Documents',
+        );
+        final specific = find.byWidgetPredicate(
+          (widget) =>
+              widget is RegistrationSection &&
+              widget.title == 'Service Specific Documents',
+        );
+        expect(
+          find.descendant(of: common, matching: find.text('Selfie')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: common,
+            matching: find.text('Caregiver Certificate'),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: specific,
+            matching: find.text('Caregiver Certificate'),
+          ),
+          findsOneWidget,
+        );
+      }
       await expectLater(
         find.byType(RepaintBoundary).first,
         matchesGoldenFile('goldens/registration_$name.png'),
       );
     });
   }
+  testWidgets(
+    'newly selected option on an existing assignment skips saved-location reads',
+    (tester) async {
+      final f = ServiceFixture();
+      final repository = f.container.read(
+        registrationRepositoryProvider,
+      ) as FakeRegistrationRepository;
+      repository.areasResult = const Failure(
+        AppFailure(message: 'Option not registered'),
+      );
+      final data = draft();
+      (data['options'] as Map)['15']['deliveryMode'] = 'PROVIDER_TO_CUSTOMER';
+      await frame(
+        tester,
+        f,
+        RegistrationPage(
+          step: 2,
+          onBack: () {},
+          child: RegistrationDetails(
+            value: state().copy(
+              assignment: parseProviderServiceAssignment(assignmentJson()),
+            ),
+            draft: data,
+            onChange: () {},
+            onSaveDraft: (_) async => true,
+            onContinue: (_) async {},
+          ),
+        ),
+        const Size(430, 932),
+      );
+      final location = find.byKey(const ValueKey('option-15-Location & Area'));
+      await tester.ensureVisible(location);
+      await tester.tap(location);
+      await tester.pumpAndSettle();
+      final editor = tester.widget<RegistrationOptionEditor>(
+        find.byType(RegistrationOptionEditor),
+      );
+      expect(editor.assignmentId, 14);
+      expect(editor.loadSavedLocations, isFalse);
+      expect(repository.areaLoads, isEmpty);
+      expect(find.text('Retry loading locations'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('new registration starts with service selection', (tester) async {
     final f = ServiceFixture();
     await pump(tester, f, route: '/services/register');
     expect(find.text('What service do you offer?'), findsOneWidget);
+  });
+  testWidgets(
+    'saved languages preselect the picker despite an old empty draft',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      final repository = f.container.read(
+        registrationRepositoryProvider,
+      ) as FakeRegistrationRepository;
+      repository.server['languages'] = ['ENGLISH', 'SINHALA'];
+      (f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts).drafts[3] = {
+        'languages': [],
+        '_step': 2,
+      };
+      await pump(tester, f, route: '/services/3/register?details=1');
+      await tester.ensureVisible(find.text('English, Sinhala'));
+      await tester.tap(find.text('English, Sinhala'));
+      await tester.pumpAndSettle();
+      CheckboxListTile language(String label) =>
+          tester.widget<CheckboxListTile>(
+            find.widgetWithText(CheckboxListTile, label),
+          );
+      expect(language('English').value, isTrue);
+      expect(language('Sinhala').value, isTrue);
+      expect(language('Tamil').value, isFalse);
+      expect(repository.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'language selection follows newly loaded parent data and persists edits',
+    (tester) async {
+      final f = ServiceFixture();
+      var incoming = <String, dynamic>{'languages': <String>[]};
+      late StateSetter update;
+      Map<String, dynamic>? saved;
+      await frame(
+        tester,
+        f,
+        StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return RegistrationPage(
+              step: 2,
+              onBack: () {},
+              child: RegistrationDetails(
+                value: state(),
+                draft: incoming,
+                onChange: () {},
+                onSaveDraft: (value) async {
+                  saved = value;
+                  return true;
+                },
+                onContinue: (_) async {},
+              ),
+            );
+          },
+        ),
+        const Size(430, 932),
+      );
+      update(
+        () => incoming = {
+          'languages': [' english ', 'sinhala'],
+        },
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('English, Sinhala'));
+      await tester.tap(find.text('English, Sinhala'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'English'),
+            )
+            .value,
+        isTrue,
+      );
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Tamil'));
+      await tester.tap(find.text('Save Languages'));
+      await tester.pumpAndSettle();
+      expect(saved?['languages'], ['ENGLISH', 'SINHALA', 'TAMIL']);
+      expect(saved?['_languagesEdited'], isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('unsaved valid step 2 draft stays on details after reopening', (
+    tester,
+  ) async {
+    final f = ServiceFixture(existing: true);
+    final data = optionsSchema();
+    data['serviceSetup']['certificates']['level'] = 'DISABLED';
+    data['serviceSetup']['education']['level'] = 'DISABLED';
+    f.schema.result = Success(parseProviderSchema(data, 3));
+    (f.container.read(
+      registrationDraftStoreProvider,
+    ) as MemoryRegistrationDrafts).drafts[3] = {
+      ...readyRegistrationDraft(),
+      '_step': 2,
+    };
+    await pump(tester, f, route: '/services/3/register');
+    expect(find.text('Service Details'), findsOneWidget);
+    expect(find.text('Upload Required Documents'), findsNothing);
+    expect(find.text('Review Your Service'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('existing subservice resumes incomplete details', (tester) async {
@@ -359,6 +543,12 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       expect(find.text('Upload Required Documents'), findsOneWidget);
+      expect(
+        (f.container.read(
+          registrationDraftStoreProvider,
+        ) as MemoryRegistrationDrafts).drafts[3]?['_step'],
+        3,
+      );
       expect(f.services.submissions, 1);
       expect(f.options.saves.length, 1);
       await tester.ensureVisible(find.text('Continue'));
@@ -368,15 +558,20 @@ void main() {
       final repository = f.container.read(
         registrationRepositoryProvider,
       ) as FakeRegistrationRepository;
+      final savedWrites = List<String>.of(repository.writes);
+      repository.loadFailure = const AppFailure(
+        message: 'Safe retryable failure',
+      );
+      // A final review must not replay the already successful Step 2 writes.
       repository.result = const Failure(
-        AppFailure(message: 'Safe retryable failure'),
+        AppFailure(message: 'Duplicate replacement failed'),
       );
       await tester.ensureVisible(find.text('Submit for Review'));
       await tester.tap(find.text('Submit for Review'));
       await tester.pumpAndSettle();
       expect(find.text('Review Your Service'), findsOneWidget);
       expect(find.text('Safe retryable failure'), findsOneWidget);
-      repository.result = const Success(null);
+      repository.loadFailure = null;
       f.completion.result = Success(
         parseProviderCompletion(completeServiceJson()),
       );
@@ -386,6 +581,7 @@ void main() {
       expect(find.text('All Set!'), findsOneWidget);
       expect(find.text('Under Review'), findsOneWidget);
       expect(f.services.submissions, 1);
+      expect(repository.writes, savedWrites);
       expect(tester.takeException(), isNull);
     },
   );

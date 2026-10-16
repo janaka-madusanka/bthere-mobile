@@ -52,9 +52,20 @@ class ServiceDetailScreen extends ConsumerWidget {
                                 value: result.value,
                                 register: () =>
                                     context.push('/services/register'),
-                                manage: (id) => context.push(
-                                  '/services/$serviceTypeId/register?optionId=$id',
-                                ),
+                                manage: (id) {
+                                  final option = result.value.registered
+                                      .where((option) => option.optionId == id)
+                                      .firstOrNull;
+                                  final inReview = [
+                                    'PENDING',
+                                    'REJECTED',
+                                  ].contains(option?.verificationStatus);
+                                  context.push(
+                                    inReview
+                                        ? AppRoutes.serviceStatus(serviceTypeId)
+                                        : '/services/$serviceTypeId/register?optionId=$id',
+                                  );
+                                },
                                 startOption: (id) {
                                   if (!result.value.selected.contains(id)) {
                                     ref.read(provider.notifier).toggle(id);
@@ -417,7 +428,9 @@ class _Overview extends StatelessWidget {
         ? 'Rejected'
         : registered.verificationStatus == 'APPROVED'
         ? 'Active'
-        : 'Pending review';
+        : registered.verificationStatus == 'PENDING'
+        ? 'Pending review'
+        : 'Status unavailable';
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
@@ -428,6 +441,9 @@ class _Overview extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: registered == null
+              ? null
+              : ValueKey('registered-option-${option.optionId}'),
           onTap: registered == null
               ? () => startOption(option.optionId)
               : () => manage(option.optionId),

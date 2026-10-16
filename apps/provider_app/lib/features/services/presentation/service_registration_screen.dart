@@ -100,7 +100,13 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
         );
         if (service.schema.serviceSetup.serviceAreasEnabled) {
           final options = service.schema.options
-              .where((option) => service.selected.contains(option.optionId))
+              .where(
+                (option) =>
+                    service.selected.contains(option.optionId) &&
+                    service.registered.any(
+                      (registered) => registered.optionId == option.optionId,
+                    ),
+              )
               .toList();
           if (options.any((option) => option.deliveryModes.isNotEmpty)) {
             final locations = await ref
@@ -128,6 +134,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           cached = service;
           final canResume =
               service.assignment != null &&
+              local['_step'] != 2 &&
               service.validation == null &&
               validateRegistrationDraft(
                     service.schema,
@@ -166,9 +173,10 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       error = null;
     });
     try {
-      await ref.read(registrationDraftStoreProvider).write(selected!, value);
+      final editing = {...value, '_step': 2};
+      await ref.read(registrationDraftStoreProvider).write(selected!, editing);
       if (!mounted) return false;
-      setState(() => draft = value);
+      setState(() => draft = editing);
       return true;
     } catch (_) {
       if (mounted) {
@@ -219,10 +227,16 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
         setState(() => error = result.failure.message);
         return;
       }
+      final persisted = {...draft, '_step': 3, '_languagesEdited': false};
+      await ref
+          .read(registrationDraftStoreProvider)
+          .write(selected!, persisted);
+      if (!mounted) return;
       ref.read(providerCompletionControllerProvider.notifier).reload();
       ref.invalidate(providerAssignmentsProvider);
       setState(() {
         cached = updated;
+        draft = persisted;
         step = 3;
       });
     } catch (_) {
@@ -244,18 +258,9 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       final service = await current();
       final id = service.assignment?.assignmentId;
       if (id == null) throw StateError('Missing assignment');
-      final result = await saveRegistrationRequirements(
-        ref.read(registrationRepositoryProvider),
-        id,
-        service.schema,
-        service.selected,
-        draft,
-      );
-      if (!mounted) return;
-      if (result is Failure<void>) {
-        setState(() => error = result.failure.message);
-        return;
-      }
+      // Step 2 persists requirements and step 3 persists uploads. The API
+      // recalculates review status on those writes; there is no submit endpoint.
+      // Replaying replacement PUTs here can fail or reset verification states.
       await ref.read(documentsControllerProvider(selected!).notifier).load();
       if (!mounted) return;
       final documents = ref.read(documentsControllerProvider(selected!)),
@@ -338,9 +343,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
         return;
       }
       if (completion.verificationStatus == 'REJECTED') {
-        setState(
-          () => error = 'Your service needs attention. Review rejected requirements before continuing.',
-        );
+        context.go(AppRoutes.serviceStatus(selected!));
         return;
       }
       submitted.add(selected!);
@@ -393,11 +396,12 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           '_step': 4,
         });
       } catch (_) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             busy = false;
             error = 'Unable to save progress on this device. Please retry.';
           });
+        }
         return;
       }
     }

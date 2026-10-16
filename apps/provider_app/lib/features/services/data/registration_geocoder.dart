@@ -16,14 +16,25 @@ class NativeRegistrationGeocoder implements RegistrationGeocoder {
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
     final locations = await _client.locationFromAddress(query);
-    return [
-      for (final point in locations)
-        {
+    return Future.wait(
+      locations.take(5).map((point) async {
+        Map<String, dynamic> address = {};
+        try {
+          address = await reverse(
+            point.latitude,
+            point.longitude,
+          ).timeout(const Duration(seconds: 5));
+        } catch (_) {
+          // A searchable point remains usable when its address cannot be resolved.
+        }
+        return <String, dynamic>{
           'locationName': query,
+          ...address,
           'latitude': point.latitude,
           'longitude': point.longitude,
-        },
-    ];
+        };
+      }),
+    );
   }
 
   @override

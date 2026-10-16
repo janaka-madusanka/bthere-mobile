@@ -12,6 +12,7 @@ import 'document_models.dart';
 import 'documents_repository.dart';
 import 'document_preview_cache.dart';
 import '../application/service_providers.dart';
+import '../application/registration_draft.dart';
 
 void _documentTrace(String event) {
   if (kDebugMode) debugPrint('[ProviderDocuments] $event');
@@ -82,6 +83,7 @@ final documentsControllerProvider = NotifierProvider.autoDispose
         providerCompletionControllerProvider,
         clockProvider,
         documentPreviewCacheProvider,
+        registrationDraftStoreProvider,
         providerAssignmentsProvider,
       ],
     );
@@ -319,6 +321,11 @@ class DocumentsController extends Notifier<DocumentsState> {
           return;
         }
       }
+      final replacingRejected =
+          state
+              .match(draft.requirement.id, ref.read(clockProvider)())
+              ?.verificationStatus ==
+          'REJECTED';
       trace('register.start');
       state.phase = 'Registering document';
       emit();
@@ -339,6 +346,20 @@ class DocumentsController extends Notifier<DocumentsState> {
         return;
       }
       trace('register.completed');
+      if (replacingRejected) {
+        try {
+          await ref
+              .read(registrationDraftStoreProvider)
+              .recordReviewUpload(
+                serviceTypeId,
+                draft.requirement.id,
+                draft.upload!.key,
+              );
+        } catch (_) {
+          /* Upload succeeded; optional local history must not block it. */
+        }
+        if (!ref.mounted) return;
+      }
       state.draft = null;
       state.notice =
           'Document submitted. Approval status comes from the server.';

@@ -52,6 +52,14 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
   }
 
   ServiceDetailState get value => widget.value;
+  @override
+  void didUpdateWidget(covariant RegistrationDetails oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.draft, widget.draft)) {
+      draft = Map.of(widget.draft);
+    }
+  }
+
   List<String> get skills {
     final configured = value.schema.serviceSetup.skills
         .map((s) => s.metadata['name'])
@@ -98,6 +106,9 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
           initial: current,
           commonFields: value.schema.commonFields,
           assignmentId: value.assignment?.assignmentId,
+          loadSavedLocations: value.registered.any(
+            (registered) => registered.optionId == option.optionId,
+          ),
         ),
       ),
     );
@@ -119,43 +130,46 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
   }
 
   Future<void> languages() async {
-    final selected =
-        (draft['languages'] as List?)?.whereType<String>().toSet() ??
-        <String>{};
+    final selected = registrationLanguages(draft['languages']).toSet();
     final result = await showModalBottomSheet<List<String>>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                registrationText('Select Languages', 20, bold: true),
-                const SizedBox(height: 12),
-                for (final language in ['ENGLISH', 'SINHALA', 'TAMIL'])
-                  CheckboxListTile(
-                    title: Text(
-                      language[0] + language.substring(1).toLowerCase(),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  registrationText('Select Languages', 20, bold: true),
+                  const SizedBox(height: 12),
+                  for (final language in ['ENGLISH', 'SINHALA', 'TAMIL'])
+                    CheckboxListTile(
+                      title: Text(
+                        language[0] + language.substring(1).toLowerCase(),
+                      ),
+                      value: selected.contains(language),
+                      onChanged: (_) => update(() {
+                        if (!selected.remove(language)) selected.add(language);
+                      }),
                     ),
-                    value: selected.contains(language),
-                    onChanged: (_) => update(() {
-                      if (!selected.remove(language)) selected.add(language);
-                    }),
+                  RegistrationButton(
+                    'Save Languages',
+                    onPressed: () => Navigator.pop(context, selected.toList()),
                   ),
-                RegistrationButton(
-                  'Save Languages',
-                  onPressed: () => Navigator.pop(context, selected.toList()),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
     if (!mounted || result == null) return;
-    setState(() => draft['languages'] = result);
+    setState(
+      () => draft = {...draft, 'languages': result, '_languagesEdited': true},
+    );
     await widget.onSaveDraft(draft);
   }
 
@@ -265,12 +279,9 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
     final available = value.schema.options
         .where((o) => !value.selected.contains(o.optionId))
         .toList();
-    final languageNames =
-        (draft['languages'] as List?)
-            ?.whereType<String>()
-            .map((s) => s.isEmpty ? s : s[0] + s.substring(1).toLowerCase())
-            .join(', ') ??
-        '';
+    final languageNames = registrationLanguages(draft['languages'])
+        .map((language) => language[0] + language.substring(1).toLowerCase())
+        .join(', ');
     return AbsorbPointer(
       absorbing: widget.busy,
       child: Form(

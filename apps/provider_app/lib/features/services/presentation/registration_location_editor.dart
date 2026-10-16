@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../app/providers/app_providers.dart';
+import '../data/registration_device_location.dart';
 import '../data/registration_geocoder.dart';
 import 'registration_widgets.dart';
 
@@ -22,14 +24,41 @@ Future<Map<String, dynamic>?> showRegistrationLocation(
 
 double serviceAreaMapZoom(LatLng? point, double? radiusKm) {
   if (point == null) return 2;
-  if (radiusKm == null || !radiusKm.isFinite || radiusKm <= 0) return 11;
+  if (radiusKm == null || !radiusKm.isFinite || radiusKm <= 0) return 14;
   final scale = 156543.03392 * math.cos(point.latitude * math.pi / 180).abs();
   return (math.log(scale * 240 / (radiusKm * 2000)) / math.ln2)
       .clamp(2, 18)
       .toDouble();
 }
 
-/// Injectable map surface keeps location selection testable without platform views.
+LatLng? _areaPoint(Map area) {
+  final lat = area['latitude'], lng = area['longitude'];
+  if (lat is! num ||
+      lng is! num ||
+      !lat.isFinite ||
+      !lng.isFinite ||
+      lat.abs() > 90 ||
+      lng.abs() > 180) {
+    return null;
+  }
+  return LatLng(lat.toDouble(), lng.toDouble());
+}
+
+bool get _nativeMaps =>
+    !kIsWeb &&
+    [
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+    ].contains(defaultTargetPlatform);
+Circle _coverage(String id, LatLng point, double radius) => Circle(
+  circleId: CircleId(id),
+  center: point,
+  radius: radius * 1000,
+  strokeColor: registrationTeal,
+  strokeWidth: 2,
+  fillColor: registrationTeal.withValues(alpha: .13),
+);
+
 final registrationMapBuilderProvider =
     Provider<Widget Function(RegistrationMapState)>(
       (ref) =>
@@ -39,31 +68,29 @@ final registrationMapBuilderProvider =
               zoom: serviceAreaMapZoom(state.point, state.radiusKm),
             ),
             onMapCreated: state.onCreated,
-            onTap: state.onSelect,
+            onTap: state.readOnly ? null : state.onSelect,
             myLocationButtonEnabled: false,
             mapToolbarEnabled: false,
-            markers: {
-              if (state.point != null)
-                Marker(
-                  markerId: const MarkerId('service-location'),
-                  position: state.point!,
-                  draggable: true,
-                  onDragEnd: state.onSelect,
-                ),
-            },
-            circles: {
-              if (state.point != null &&
-                  state.radiusKm != null &&
-                  state.radiusKm! > 0)
-                Circle(
-                  circleId: const CircleId('service-area'),
-                  center: state.point!,
-                  radius: state.radiusKm! * 1000,
-                  strokeColor: registrationTeal,
-                  strokeWidth: 2,
-                  fillColor: registrationTeal.withValues(alpha: .13),
-                ),
-            },
+            zoomControlsEnabled: false,
+            markers:
+                state.markers ??
+                {
+                  if (state.point != null)
+                    Marker(
+                      markerId: const MarkerId('service-location'),
+                      position: state.point!,
+                      draggable: !state.readOnly,
+                      onDragEnd: state.onSelect,
+                    ),
+                },
+            circles:
+                state.circles ??
+                {
+                  if (state.point != null &&
+                      state.radiusKm != null &&
+                      state.radiusKm! > 0)
+                    _coverage('service-area', state.point!, state.radiusKm!),
+                },
           ),
     );
 
@@ -73,11 +100,17 @@ class RegistrationMapState {
     required this.radiusKm,
     required this.onSelect,
     required this.onCreated,
+    this.readOnly = false,
+    this.markers,
+    this.circles,
   });
   final LatLng? point;
   final double? radiusKm;
   final ValueChanged<LatLng> onSelect;
   final ValueChanged<GoogleMapController> onCreated;
+  final bool readOnly;
+  final Set<Marker>? markers;
+  final Set<Circle>? circles;
 }
 
 class RegistrationLocationPicker extends ConsumerStatefulWidget {
@@ -95,12 +128,13 @@ class RegistrationLocationPicker extends ConsumerStatefulWidget {
 class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   final form = GlobalKey<FormState>();
   final search = TextEditingController();
-  late final TextEditingController name, latitude, longitude, radius;
+  late final TextEditingController name, radius;
   late Map<String, dynamic> values;
   LatLng? point;
   GoogleMapController? map;
   String? error;
-  bool searching = false, resolving = false;
+  DeviceLocationIssue? locationIssue;
+  bool searching = false, resolving = false, locating = false;
   int generation = 0;
   List<Map<String, dynamic>> results = [];
   bool get visitsCustomer => widget.mode == 'PROVIDER_TO_CUSTOMER';
@@ -114,49 +148,74 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     super.initState();
     values = Map.of(widget.initial);
     name = TextEditingController(text: values['locationName'] as String? ?? '');
-    latitude = TextEditingController(
-      text: values['latitude']?.toString() ?? '',
-    );
-    longitude = TextEditingController(
-      text: values['longitude']?.toString() ?? '',
-    );
     radius = TextEditingController(text: values['radiusKm']?.toString() ?? '');
-    point = parsePoint();
-  }
-
-  LatLng? parsePoint() {
-    final lat = double.tryParse(latitude.text),
-        lng = double.tryParse(longitude.text);
-    if (lat == null ||
-        lng == null ||
-        !lat.isFinite ||
-        !lng.isFinite ||
-        lat < -90 ||
-        lat > 90 ||
-        lng < -180 ||
-        lng > 180) {
-      return null;
+    point = _areaPoint(values);
+    if (point == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(useCurrentLocation());
+      });
     }
-    return LatLng(lat, lng);
   }
 
   @override
   void dispose() {
     generation++;
     map?.dispose();
-    for (final controller in [search, name, latitude, longitude, radius]) {
+    for (final controller in [search, name, radius]) {
       controller.dispose();
     }
     super.dispose();
   }
 
+  Future<void> useCurrentLocation() async {
+    if (locating) return;
+    final request = ++generation;
+    setState(() {
+      locating = true;
+      searching = false;
+      resolving = false;
+      error = null;
+      locationIssue = null;
+      results = [];
+    });
+    try {
+      final current = await ref
+          .read(registrationDeviceLocationProvider)
+          .current()
+          .timeout(const Duration(seconds: 20));
+      if (!mounted || request != generation) return;
+      setState(() => locating = false);
+      await select(current, label: 'Current location');
+    } catch (failure) {
+      if (!mounted || request != generation) return;
+      setState(() {
+        locationIssue = failure is DeviceLocationException
+            ? failure.issue
+            : DeviceLocationIssue.unavailable;
+        error = switch (locationIssue) {
+          DeviceLocationIssue.disabled =>
+            'Turn on your device location, or search for an address.',
+          DeviceLocationIssue.deniedForever => 'Location access is off. Enable it in Settings, or search for an address.',
+          DeviceLocationIssue.denied =>
+            'You can search for an address or choose a place on the map.',
+          _ => 'We couldn’t find your location. Try again or search for an address.',
+        };
+      });
+    } finally {
+      if (mounted && request == generation) setState(() => locating = false);
+    }
+  }
+
   Future<void> find() async {
     if (search.text.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
     final request = ++generation;
     setState(() {
       searching = true;
       resolving = false;
+      locating = false;
       error = null;
+      locationIssue = null;
     });
     try {
       final found = await ref
@@ -164,15 +223,16 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
           .search(search.text.trim());
       if (!mounted || request != generation) return;
       setState(() {
-        results = found;
-        if (found.isEmpty) {
-          error = 'No locations found. Try a more specific address.';
+        results = found.where((result) => _areaPoint(result) != null).toList();
+        if (results.isEmpty) {
+          error = 'No places found. Try a nearby city or a fuller address.';
         }
       });
     } catch (_) {
       if (mounted && request == generation) {
         setState(
-          () => error = 'Address search is unavailable. Select a point on the map or retry.',
+          () => error =
+              'Search is unavailable. Try again or choose a place on the map.',
         );
       }
     } finally {
@@ -186,21 +246,16 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
       point = selected;
       results = [];
       searching = false;
+      locating = false;
       resolving = true;
       error = null;
-      latitude.text = '${selected.latitude}';
-      longitude.text = '${selected.longitude}';
+      locationIssue = null;
       name.text = label ?? '';
       for (final key in ['country', 'province', 'district', 'city']) {
         values.remove(key);
       }
     });
-    map?.animateCamera(
-      CameraUpdate.newLatLngZoom(
-        selected,
-        serviceAreaMapZoom(selected, radiusKm),
-      ),
-    );
+    focus();
     try {
       final address = await ref
           .read(registrationGeocoderProvider)
@@ -208,14 +263,16 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
       if (!mounted || request != generation) return;
       setState(() {
         values.addAll(address);
-        if (name.text.isEmpty) {
-          name.text = address['locationName'] as String? ?? '';
+        if (name.text.isEmpty ||
+            (label == 'Current location' && name.text == 'Current location')) {
+          name.text = address['locationName'] as String? ?? label ?? '';
         }
       });
     } catch (_) {
       if (mounted && request == generation) {
         setState(
-          () => error = 'The address could not be found. Enter a location name for the selected pin.',
+          () => error =
+              'The pin is selected. You can give this place a name below.',
         );
       }
     } finally {
@@ -223,210 +280,315 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     }
   }
 
-  void save() {
-    if (!form.currentState!.validate()) return;
-    final coordinates = parsePoint();
-    if (coordinates == null) {
-      setState(() => error = 'Select a valid location on the map.');
-      return;
+  void focus() {
+    if (point != null) {
+      map?.animateCamera(
+        CameraUpdate.newLatLngZoom(point!, serviceAreaMapZoom(point, radiusKm)),
+      );
     }
+  }
+
+  void save() {
+    if (!form.currentState!.validate() || point == null) return;
     Navigator.pop(context, <String, dynamic>{
       ...values,
-      'locationName': name.text.trim(),
-      'latitude': coordinates.latitude,
-      'longitude': coordinates.longitude,
+      'locationName': name.text.trim().isEmpty
+          ? 'Selected location'
+          : name.text.trim(),
+      'latitude': point!.latitude,
+      'longitude': point!.longitude,
       'radiusKm': radiusKm,
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final supported =
-        !kIsWeb &&
-        [
-          TargetPlatform.android,
-          TargetPlatform.iOS,
-        ].contains(defaultTargetPlatform);
-    final configured =
+    final canMap =
+        _nativeMaps &&
         ref.watch(appConfigProvider)?.googleMapsApiKey.isNotEmpty == true;
-    final canMap = supported && configured;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Service Location & Area')),
-      body: SafeArea(
-        child: Form(
-          key: form,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              TextField(
-                key: const ValueKey('location-search'),
-                controller: search,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => find(),
-                decoration: InputDecoration(
-                  hintText: 'Search for a city or address',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: searching
-                      ? const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : IconButton(
-                          tooltip: 'Search locations',
-                          onPressed: find,
-                          icon: const Icon(Icons.arrow_forward),
+    return RegistrationPage(
+      step: 2,
+      title: 'Service Location & Area',
+      showProgress: false,
+      footer: RegistrationButton(
+        'Save Location',
+        onPressed: point == null || locating || resolving || searching
+            ? null
+            : save,
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+      onBack: () => Navigator.pop(context),
+      child: Form(
+        key: form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            registrationText(
+              'Where do you provide your service?',
+              21,
+              bold: true,
+            ),
+            const SizedBox(height: 6),
+            registrationText(
+              visitsCustomer
+                  ? 'Choose a location and how far you can travel.'
+                  : 'Choose the place where customers will visit you.',
+              12,
+              color: registrationMuted,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              key: const ValueKey('location-search'),
+              controller: search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => find(),
+              decoration: InputDecoration(
+                hintText: 'Search city or address',
+                prefixIcon: const Icon(Icons.search, color: registrationTeal),
+                suffixIcon: searching
+                    ? const Padding(
+                        padding: EdgeInsets.all(15),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                ),
-              ),
-              for (final (index, result) in results.indexed)
-                ListTile(
-                  key: ValueKey('location-result-$index'),
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text('${result['locationName']}'),
-                  subtitle: Text(
-                    '${result['latitude']}, ${result['longitude']}',
-                  ),
-                  onTap: () => select(
-                    LatLng(
-                      (result['latitude'] as num).toDouble(),
-                      (result['longitude'] as num).toDouble(),
-                    ),
-                    label: result['locationName'] as String?,
-                  ),
-                ),
-              const SizedBox(height: 14),
-              if (canMap)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SizedBox(
-                    height: 320,
-                    child: ref.watch(registrationMapBuilderProvider)(
-                      RegistrationMapState(
-                        point: point,
-                        radiusKm: radiusKm,
-                        onSelect: select,
-                        onCreated: (controller) {
-                          if (!mounted) {
-                            controller.dispose();
-                            return;
-                          }
-                          map = controller;
-                        },
+                      )
+                    : IconButton(
+                        tooltip: 'Search locations',
+                        onPressed: find,
+                        icon: const Icon(
+                          Icons.arrow_forward,
+                          color: registrationTeal,
+                        ),
                       ),
-                    ),
-                  ),
-                )
-              else
-                const RegistrationNotice(
-                  'The map is unavailable on this build. Enter an address and coordinates below.',
-                  warning: true,
-                ),
-              const SizedBox(height: 8),
-              if (canMap)
-                registrationText(
-                  'Tap the map or drag the pin to select where you provide this service.',
-                  12,
-                  color: registrationMuted,
-                ),
-              if (resolving) const LinearProgressIndicator(),
-              const SizedBox(height: 16),
-              TextFormField(
-                key: const ValueKey('location-name'),
-                controller: name,
-                decoration: const InputDecoration(labelText: 'Location name'),
-                validator: (value) => value?.trim().isNotEmpty == true
-                    ? null
-                    : 'Enter a location name.',
               ),
-              if (visitsCustomer) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  key: const ValueKey('location-radius'),
-                  controller: radius,
-                  onChanged: (_) => setState(() {}),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Service radius',
-                    suffixText: 'km',
-                  ),
-                  validator: (_) =>
-                      radiusKm != null && radiusKm!.isFinite && radiusKm! > 0
-                      ? null
-                      : 'Enter a positive service radius.',
+            ),
+            for (final (index, result) in results.indexed)
+              ListTile(
+                key: ValueKey('location-result-$index'),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: const Icon(
+                  Icons.place_outlined,
+                  color: registrationTeal,
                 ),
-              ],
-              ExpansionTile(
-                title: const Text('Address details'),
-                initiallyExpanded: !canMap,
+                title: registrationText('${result['locationName']}', 13),
+                trailing: const Icon(Icons.north_west, size: 17),
+                onTap: () => select(
+                  _areaPoint(result)!,
+                  label: result['locationName'] as String?,
+                ),
+              ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('use-current-location'),
+                onPressed: locating ? null : useCurrentLocation,
+                icon: locating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location, size: 18),
+                label: Text(
+                  locating
+                      ? 'Finding your location…'
+                      : 'Use my current location',
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _MapCard(
+              available: canMap,
+              child: ref.watch(registrationMapBuilderProvider)(
+                RegistrationMapState(
+                  point: point,
+                  radiusKm: radiusKm,
+                  onSelect: select,
+                  onCreated: (controller) {
+                    if (!mounted) {
+                      controller.dispose();
+                      return;
+                    }
+                    map = controller;
+                    focus();
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            registrationText(
+              'Tap the map or drag the pin to adjust your location.',
+              11,
+              color: registrationMuted,
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              RegistrationNotice(error!, warning: true),
+              if (locationIssue == DeviceLocationIssue.deniedForever)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => ref
+                        .read(registrationDeviceLocationProvider)
+                        .openSettings(),
+                    child: const Text('Open Settings'),
+                  ),
+                ),
+            ],
+            const SizedBox(height: 18),
+            RegistrationPanel(
+              padding: const EdgeInsets.all(14),
+              color: const Color(0xFFEFFBFA),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final entry in [
-                    ('country', 'Country'),
-                    ('province', 'Province'),
-                    ('district', 'District'),
-                    ('city', 'City'),
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: TextFormField(
-                        key: ValueKey('${entry.$1}-$generation'),
-                        initialValue: values[entry.$1] as String? ?? '',
-                        decoration: InputDecoration(labelText: entry.$2),
-                        onChanged: (text) => values[entry.$1] = text.trim(),
-                      ),
-                    ),
                   Row(
                     children: [
-                      for (final entry in [
-                        (latitude, 'Latitude'),
-                        (longitude, 'Longitude'),
-                      ])
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: TextFormField(
-                              controller: entry.$1,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
-                                  ),
-                              decoration: InputDecoration(labelText: entry.$2),
-                              onChanged: (_) {
-                                generation++;
-                                setState(() {
-                                  point = parsePoint();
-                                  resolving = false;
-                                  searching = false;
-                                });
-                              },
-                              validator: (_) => parsePoint() == null
-                                  ? 'Enter valid coordinates.'
-                                  : null,
-                            ),
-                          ),
-                        ),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        color: registrationTeal,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      registrationText('Selected location', 13, bold: true),
                     ],
                   ),
+                  if (resolving)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(),
+                    ),
+                  if (point == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: registrationText(
+                        'Search for an address or select a place on the map.',
+                        12,
+                        color: registrationMuted,
+                      ),
+                    )
+                  else
+                    TextFormField(
+                      key: const ValueKey('location-name'),
+                      controller: name,
+                      maxLines: 2,
+                      minLines: 1,
+                      decoration: const InputDecoration(
+                        hintText: 'Name this location (optional)',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                      ),
+                    ),
                 ],
               ),
-              if (error != null) RegistrationNotice(error!, warning: true),
-              const SizedBox(height: 16),
-              RegistrationButton(
-                'Save Location',
-                onPressed: resolving || searching ? null : save,
+            ),
+            if (visitsCustomer) ...[
+              const SizedBox(height: 20),
+              registrationText('How far can you travel?', 15, bold: true),
+              const SizedBox(height: 5),
+              registrationText(
+                'Your service area is shown around the pin.',
+                11,
+                color: registrationMuted,
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final km in [5, 10, 15, 25, 50])
+                    ChoiceChip(
+                      label: Text('$km km'),
+                      selected: radiusKm == km,
+                      onSelected: (_) {
+                        setState(() => radius.text = '$km');
+                        focus();
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                key: const ValueKey('location-radius'),
+                controller: radius,
+                onChanged: (_) {
+                  setState(() {});
+                  focus();
+                },
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Travel distance',
+                  suffixText: 'km',
+                ),
+                validator: (_) => radiusKm == null
+                    ? 'Choose a travel distance greater than zero.'
+                    : null,
               ),
             ],
-          ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );
   }
+}
+
+class _MapCard extends StatelessWidget {
+  const _MapCard({
+    required this.available,
+    required this.child,
+    this.height = 300,
+    this.overview = false,
+  });
+  final bool available, overview;
+  final Widget child;
+  final double height;
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(18),
+    child: SizedBox(
+      height: height,
+      child: available
+          ? child
+          : ColoredBox(
+              color: const Color(0xFFF0F7F7),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.map_outlined,
+                        size: 38,
+                        color: registrationTeal,
+                      ),
+                      const SizedBox(height: 10),
+                      registrationText(
+                        'Map preview is unavailable',
+                        14,
+                        bold: true,
+                      ),
+                      const SizedBox(height: 6),
+                      registrationText(
+                        overview ? 'Your saved locations are listed below.' : 'Search for an address above to choose your location.',
+                        12,
+                        color: registrationMuted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    ),
+  );
 }
 
 Future<void> showRegistrationAreas(
@@ -439,121 +601,226 @@ Future<void> showRegistrationAreas(
   ),
 );
 
-class _AreaOverview extends ConsumerWidget {
+class _AreaOverview extends ConsumerStatefulWidget {
   const _AreaOverview({required this.areas, required this.mode});
   final List<Map<String, dynamic>> areas;
   final String mode;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final valid = areas
-        .where((area) => area['latitude'] is num && area['longitude'] is num)
-        .toList();
-    final configured =
-        ref.watch(appConfigProvider)?.googleMapsApiKey.isNotEmpty == true;
-    final supported =
-        !kIsWeb &&
-        [
-          TargetPlatform.android,
-          TargetPlatform.iOS,
-        ].contains(defaultTargetPlatform);
-    LatLng position(Map area) => LatLng(
-      (area['latitude'] as num).toDouble(),
-      (area['longitude'] as num).toDouble(),
+  ConsumerState<_AreaOverview> createState() => _AreaOverviewState();
+}
+
+class _AreaOverviewState extends ConsumerState<_AreaOverview> {
+  GoogleMapController? map;
+  int selected = 0;
+  List<Map<String, dynamic>> get areas =>
+      widget.areas.where((area) => _areaPoint(area) != null).toList();
+  double? radius(Map area) =>
+      widget.mode == 'PROVIDER_TO_CUSTOMER' &&
+          area['radiusKm'] is num &&
+          (area['radiusKm'] as num).isFinite &&
+          (area['radiusKm'] as num) > 0
+      ? (area['radiusKm'] as num).toDouble()
+      : null;
+  void focusArea(int index) {
+    setState(() => selected = index);
+    final area = areas[index];
+    map?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        _areaPoint(area)!,
+        serviceAreaMapZoom(_areaPoint(area), radius(area)),
+      ),
     );
-    return Scaffold(
-      appBar: AppBar(title: const Text('Service Areas')),
-      body: Column(
+  }
+
+  void fitAll() {
+    final points = areas.expand((area) {
+      final point = _areaPoint(area)!;
+      final km = radius(area);
+      if (km == null) return [point];
+      final latitudeOffset = km / 111.32;
+      final longitudeOffset =
+          latitudeOffset /
+          math.max(.01, math.cos(point.latitude * math.pi / 180).abs());
+      return [
+        LatLng(
+          (point.latitude - latitudeOffset).clamp(-90, 90),
+          (point.longitude - longitudeOffset).clamp(-180, 180),
+        ),
+        LatLng(
+          (point.latitude + latitudeOffset).clamp(-90, 90),
+          (point.longitude + longitudeOffset).clamp(-180, 180),
+        ),
+      ];
+    }).toList();
+    if (points.isEmpty || map == null) return;
+    if (points.length == 1 || points.every((point) => point == points.first)) {
+      focusArea(0);
+      return;
+    }
+    final south = points.map((point) => point.latitude).reduce(math.min),
+        north = points.map((point) => point.latitude).reduce(math.max);
+    final west = points.map((point) => point.longitude).reduce(math.min),
+        east = points.map((point) => point.longitude).reduce(math.max);
+    map!.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(south, west),
+          northeast: LatLng(north, east),
+        ),
+        55,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    map?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = areas;
+    final available =
+        _nativeMaps &&
+        ref.watch(appConfigProvider)?.googleMapsApiKey.isNotEmpty == true;
+    return RegistrationPage(
+      step: 2,
+      title: 'Your Service Areas',
+      showProgress: false,
+      footer: RegistrationButton(
+        'Done',
+        onPressed: () => Navigator.pop(context),
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+      onBack: () => Navigator.pop(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: valid.isEmpty
-                ? const Center(
-                    child: Text('Add a service location to view its area.'),
-                  )
-                : !configured || !supported
-                ? const Center(
-                    child: Text('The map is unavailable on this build.'),
-                  )
-                : GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: position(valid.first),
-                      zoom: 10,
-                    ),
-                    mapToolbarEnabled: false,
-                    myLocationButtonEnabled: false,
-                    onMapCreated: (controller) {
-                      if (valid.length < 2) return;
-                      final latitudes =
-                          valid
-                              .map(
-                                (area) => (area['latitude'] as num).toDouble(),
-                              )
-                              .toList()
-                            ..sort();
-                      final longitudes =
-                          valid
-                              .map(
-                                (area) => (area['longitude'] as num).toDouble(),
-                              )
-                              .toList()
-                            ..sort();
-                      if (latitudes.first == latitudes.last &&
-                          longitudes.first == longitudes.last) {
-                        return;
-                      }
-                      controller.animateCamera(
-                        CameraUpdate.newLatLngBounds(
-                          LatLngBounds(
-                            southwest: LatLng(
-                              latitudes.first,
-                              longitudes.first,
-                            ),
-                            northeast: LatLng(latitudes.last, longitudes.last),
-                          ),
-                          50,
-                        ),
-                      );
-                    },
-                    markers: {
-                      for (final (index, area) in valid.indexed)
-                        Marker(
-                          markerId: MarkerId('area-$index'),
-                          position: position(area),
-                          infoWindow: InfoWindow(
-                            title: area['locationName'] as String?,
-                          ),
-                        ),
-                    },
-                    circles: {
-                      if (mode == 'PROVIDER_TO_CUSTOMER')
-                        for (final (index, area) in valid.indexed)
-                          if (area['radiusKm'] is num &&
-                              (area['radiusKm'] as num) > 0)
-                            Circle(
-                              circleId: CircleId('radius-$index'),
-                              center: position(area),
-                              radius:
-                                  (area['radiusKm'] as num).toDouble() * 1000,
-                              strokeWidth: 2,
-                              strokeColor: registrationTeal,
-                              fillColor: registrationTeal.withValues(
-                                alpha: .13,
-                              ),
-                            ),
-                    },
-                  ),
+          registrationText('Your service coverage', 22, bold: true),
+          const SizedBox(height: 6),
+          registrationText(
+            widget.mode == 'PROVIDER_TO_CUSTOMER'
+                ? 'See the places you serve and how far you travel.'
+                : 'See the places where customers can visit you.',
+            12,
+            color: registrationMuted,
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                areas
-                    .map((area) => area['locationName'])
-                    .whereType<String>()
-                    .join(' • '),
+          const SizedBox(height: 18),
+          if (valid.isEmpty)
+            RegistrationPanel(
+              color: const Color(0xFFEFFBFA),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.add_location_alt_outlined,
+                    size: 40,
+                    color: registrationTeal,
+                  ),
+                  const SizedBox(height: 12),
+                  registrationText('No service locations yet', 16, bold: true),
+                  const SizedBox(height: 8),
+                  registrationText(
+                    'Go back and choose a service location to see your coverage here.',
+                    12,
+                    color: registrationMuted,
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            _MapCard(
+              available: available,
+              height: 340,
+              overview: true,
+              child: ref.watch(registrationMapBuilderProvider)(
+                RegistrationMapState(
+                  point: _areaPoint(valid[selected]),
+                  radiusKm: radius(valid[selected]),
+                  readOnly: true,
+                  onSelect: (_) {},
+                  onCreated: (controller) {
+                    if (!mounted) {
+                      controller.dispose();
+                      return;
+                    }
+                    map = controller;
+                    fitAll();
+                  },
+                  markers: {
+                    for (final (index, area) in valid.indexed)
+                      Marker(
+                        markerId: MarkerId('area-$index'),
+                        position: _areaPoint(area)!,
+                        infoWindow: InfoWindow(
+                          title: area['locationName'] as String?,
+                        ),
+                        onTap: () => focusArea(index),
+                      ),
+                  },
+                  circles: {
+                    for (final (index, area) in valid.indexed)
+                      if (radius(area) != null)
+                        _coverage(
+                          'area-$index',
+                          _areaPoint(area)!,
+                          radius(area)!,
+                        ),
+                  },
+                ),
               ),
             ),
-          ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: fitAll,
+                icon: const Icon(Icons.fit_screen, size: 18),
+                label: const Text('Show all locations'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            registrationText(
+              '${valid.length} saved ${valid.length == 1 ? 'location' : 'locations'}',
+              15,
+              bold: true,
+            ),
+            const SizedBox(height: 12),
+            for (final (index, area) in valid.indexed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: RegistrationPanel(
+                  color: index == selected
+                      ? const Color(0xFFEFFBFA)
+                      : Colors.white,
+                  padding: EdgeInsets.zero,
+                  child: ListTile(
+                    key: ValueKey('saved-area-$index'),
+                    leading: const Icon(
+                      Icons.place_outlined,
+                      color: registrationTeal,
+                    ),
+                    title: registrationText(
+                      area['locationName'] as String? ?? 'Service location',
+                      13,
+                      bold: true,
+                    ),
+                    subtitle: registrationText(
+                      radius(area) == null
+                          ? 'Customer visit location'
+                          : 'Within ${radius(area)} km',
+                      11,
+                      color: registrationMuted,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: registrationTeal,
+                    ),
+                    onTap: () => focusArea(index),
+                  ),
+                ),
+              ),
+          ],
+          const SizedBox(height: 18),
         ],
       ),
     );

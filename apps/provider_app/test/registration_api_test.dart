@@ -18,6 +18,7 @@ class RegistrationAdapter implements HttpClientAdapter {
   final requests = <RequestOptions>[];
   final responses = <String, Object?>{};
   String? failResource;
+  ResponseBody Function(RequestOptions)? handler;
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -25,6 +26,7 @@ class RegistrationAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    if (handler != null) return handler!(options);
     return ResponseBody.fromString(
       jsonEncode(responses[options.path] ?? []),
       options.path.endsWith(failResource ?? 'never') ? 503 : 200,
@@ -55,6 +57,151 @@ void main() {
     repository = RegistrationRepository(client);
   });
   tearDown(() => client.close(force: true));
+  test('saved languages replace empty defaults and clean stale drafts', () {
+    final server = {
+      'languages': ['ENGLISH', 'SINHALA'],
+    };
+    expect(mergeRegistrationSnapshot({'languages': []}, server)['languages'], [
+      'ENGLISH',
+      'SINHALA',
+    ]);
+    expect(
+      mergeRegistrationSnapshot({
+        'languages': ['TAMIL'],
+        '_languagesEdited': false,
+      }, server)['languages'],
+      ['ENGLISH', 'SINHALA'],
+    );
+    expect(
+      mergeRegistrationSnapshot(
+        {
+          'languages': ['TAMIL'],
+          '_languagesEdited': false,
+        },
+        {'languages': []},
+      )['languages'],
+      isEmpty,
+    );
+  });
+  test('pending language changes survive restoration including intentional clearing', () {
+    final server = {
+      'languages': ['ENGLISH'],
+    };
+    expect(
+      mergeRegistrationSnapshot({
+        'languages': ['tamil'],
+        '_languagesEdited': true,
+      }, server)['languages'],
+      ['TAMIL'],
+    );
+    expect(
+      mergeRegistrationSnapshot({
+        'languages': [],
+        '_languagesEdited': true,
+      }, server)['languages'],
+      isEmpty,
+    );
+    expect(
+      mergeRegistrationSnapshot({
+        'languages': ['Sinhala'],
+        '_step': 2,
+      }, server)['languages'],
+      ['SINHALA'],
+    );
+    expect(
+      mergeRegistrationSnapshot(
+        {
+          'languages': ['Sinhala'],
+        },
+        {'languages': []},
+      )['languages'],
+      ['SINHALA'],
+    );
+  });
+  test('Step 2 skips an unchanged saved language set using fresh authenticated state', () async {
+    adapter.responses['/providers/me/services/14/languages'] = [
+      'ENGLISH',
+      'SINHALA',
+    ];
+    expect(
+      await repository.saveLanguages(14, ['Sinhala', 'English', 'English']),
+      isA<Success<void>>(),
+    );
+    expect(adapter.requests.map((request) => request.method), ['GET']);
+    expect(
+      adapter.requests.single.headers['Authorization'],
+      'Bearer synthetic-access',
+    );
+  });
+  for (final commits in [false, true]) {
+    test(
+      'failed language PUT ${commits ? 'recovers only after confirmed commit' : 'keeps an unsaved change failed'}',
+      () async {
+        var saved = ['ENGLISH'];
+        adapter.handler = (request) {
+          if (request.method == 'PUT' && commits) saved = ['TAMIL'];
+          return ResponseBody.fromString(
+            jsonEncode(saved),
+            request.method == 'PUT' ? 500 : 200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          );
+        };
+        final result = await repository.saveLanguages(14, ['TAMIL']);
+        expect(result, commits ? isA<Success<void>>() : isA<Failure<void>>());
+        expect(adapter.requests.map((request) => request.method), [
+          'GET',
+          'PUT',
+          'GET',
+        ]);
+        expect(adapter.requests[1].data, {
+          'languages': ['TAMIL'],
+        });
+      },
+    );
+  }
+  test(
+    'failed initial language read never triggers a blind replacement',
+    () async {
+      adapter.failResource = 'languages';
+      expect(
+        await repository.saveLanguages(14, ['ENGLISH']),
+        isA<Failure<void>>(),
+      );
+      expect(adapter.requests.map((request) => request.method), ['GET']);
+    },
+  );
+  test(
+    'retrying a later failed section never repeats unchanged languages',
+    () async {
+      adapter.responses['/providers/me/services/14/languages'] = ['ENGLISH'];
+      adapter.failResource = 'availability';
+      final schema = parseProviderSchema(optionsSchema(), 3);
+      for (var attempt = 0; attempt < 2; attempt++) {
+        expect(
+          await saveRegistrationRequirements(repository, 14, schema, {
+            12,
+          }, readyRegistrationDraft()),
+          isA<Failure<void>>(),
+        );
+      }
+      expect(
+        adapter.requests.where(
+          (request) =>
+              request.path.endsWith('/languages') && request.method == 'PUT',
+        ),
+        isEmpty,
+      );
+      expect(
+        adapter.requests.where(
+          (request) =>
+              request.path.endsWith('/availability') && request.method == 'PUT',
+        ),
+        hasLength(2),
+      );
+    },
+  );
   test(
     'public option delivery modes and descriptions survive schema loading',
     () {

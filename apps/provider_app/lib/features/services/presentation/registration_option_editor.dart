@@ -19,6 +19,7 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
     required this.initial,
     this.commonFields = const [],
     this.assignmentId,
+    this.loadSavedLocations = true,
     super.key,
   });
   final ProviderSchemaOption option;
@@ -26,6 +27,7 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
   final ProviderServiceSetup setup;
   final List<ProviderRequirementField> commonFields;
   final int? assignmentId;
+  final bool loadSavedLocations;
   final Map<String, dynamic> initial;
   @override
   ConsumerState<RegistrationOptionEditor> createState() => _OptionState();
@@ -86,7 +88,8 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       start = parse(slots.first['startTime'], start);
       end = parse(slots.first['endTime'], end);
     }
-    if (areas.isEmpty &&
+    if (widget.loadSavedLocations &&
+        areas.isEmpty &&
         mode != null &&
         mode != 'ONLINE' &&
         widget.assignmentId != null) {
@@ -102,7 +105,12 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
   }
 
   Future<void> loadAreas() async {
-    if (widget.assignmentId == null || mode == null || mode == 'ONLINE') return;
+    if (!widget.loadSavedLocations ||
+        widget.assignmentId == null ||
+        mode == null ||
+        mode == 'ONLINE') {
+      return;
+    }
     final requestedMode = mode!;
     final request = ++areaGeneration;
     setState(() {
@@ -340,7 +348,8 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
   void save() {
     setState(() => error = null);
-    if (widget.assignmentId != null &&
+    if (widget.loadSavedLocations &&
+        widget.assignmentId != null &&
         mode != null &&
         mode != 'ONLINE' &&
         !areasLoaded) {
