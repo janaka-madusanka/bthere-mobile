@@ -45,8 +45,9 @@ class ServiceDetailScreen extends ConsumerWidget {
                             child: HomeScale(
                               child: _Overview(
                                 value: result.value,
-                                register: () =>
-                                    context.push('/services/register'),
+                                register: () => context.push(
+                                  '/services/$serviceTypeId/register?details=1',
+                                ),
                                 manage: (id) {
                                   final option = result.value.registered
                                       .where((option) => option.optionId == id)
@@ -143,81 +144,61 @@ class _Overview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: 191,
-          child: Stack(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: IconButton(
+            tooltip: 'Back to services',
+            onPressed: back,
+            icon: const SizedBox(
+              width: 22,
+              height: 22,
+              child: _Asset('imgBack'),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(26, 0, 17, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Positioned(
-                left: 5,
-                top: 0,
-                child: IconButton(
-                  tooltip: 'Back to services',
-                  onPressed: back,
-                  icon: const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: _Asset('imgBack'),
-                  ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    text(value.service.name, 23, bold: true),
+                    const SizedBox(height: 6),
+                    text(
+                      value.service.description ??
+                          'Service details are available from the backend.',
+                      13.5,
+                      color: servicesMuted,
+                    ),
+                  ],
                 ),
               ),
-              Positioned(
-                left: 26,
-                top: 40,
-                width: 54,
-                height: 54,
-                child: ServiceCatalogSymbol(service: value.service),
-              ),
-              Positioned(
-                left: 26,
-                top: 100,
-                width: 238,
-                child: text(value.service.name, 23, bold: true),
-              ),
-              Positioned(
-                left: 26,
-                top: 132,
-                width: 238,
-                child: text(
-                  value.service.description ??
-                      'Service details are available from the backend.',
-                  13.5,
-                  color: servicesMuted,
-                ),
-              ),
-              if (value.service.usableCoverUri != null)
-                Positioned(
-                  left: 270,
-                  top: 36,
+              const SizedBox(width: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
                   width: 143,
                   height: 143,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.network(
-                      value.service.usableCoverUri.toString(),
-                      fit: BoxFit.cover,
-                      semanticLabel:
-                          value.service.coverImage?.altText ??
-                          value.service.name,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                )
-              else
-                Positioned(
-                  left: 270,
-                  top: 36,
-                  width: 143,
-                  height: 143,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: serviceVisualStyle(value.service).surface,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: ServiceCatalogSymbol(service: value.service),
-                    ),
-                  ),
+                  color: serviceVisualStyle(value.service).surface,
+                  child: value.service.usableCoverUri != null
+                      ? Image.network(
+                          value.service.usableCoverUri.toString(),
+                          fit: BoxFit.cover,
+                          semanticLabel:
+                              value.service.coverImage?.altText ??
+                              value.service.name,
+                          errorBuilder: (_, _, _) => Center(
+                            child: ServiceCatalogSymbol(service: value.service),
+                          ),
+                        )
+                      : Center(
+                          child: ServiceCatalogSymbol(service: value.service),
+                        ),
                 ),
+              ),
             ],
           ),
         ),

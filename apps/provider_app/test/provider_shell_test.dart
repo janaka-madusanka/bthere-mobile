@@ -105,7 +105,7 @@ void main() {
   });
 
   testWidgets(
-    'Services retains its detail across tabs and device back pops it',
+    'tab taps open main pages and Services clears its detail history',
     (tester) async {
       final f = ServiceFixture();
       await pump(tester, f);
@@ -117,13 +117,15 @@ void main() {
       expect(path(f), AppRoutes.account);
       await tester.tap(destination('Services'));
       await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.services);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
+      router.push(AppRoutes.serviceDetail(3));
+      await tester.pumpAndSettle();
       expect(find.byType(ServiceDetailScreen), findsOneWidget);
       await tester.tap(destination('Services'));
       await tester.pumpAndSettle();
-      expect(find.byType(ServiceDetailScreen), findsOneWidget);
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
       expect(path(f), AppRoutes.services);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.home);
@@ -161,6 +163,39 @@ void main() {
           );
           expect(destination.properties.selected, index == item.$1);
         }
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+  testWidgets(
+    'each tab opens its main page after service navigation and back',
+    (tester) async {
+      final f = ServiceFixture();
+      await pump(tester, f);
+      final router = f.container.read(appRouterProvider);
+      for (final (label, route) in [
+        ('Home', AppRoutes.home),
+        ('Opportunities', AppRoutes.requests),
+        ('Messages', AppRoutes.messages),
+        ('Profile', AppRoutes.account),
+        ('Services', AppRoutes.services),
+      ]) {
+        router.go(AppRoutes.services);
+        await tester.pumpAndSettle();
+        router.push(AppRoutes.serviceDetail(3));
+        await tester.pumpAndSettle();
+        router.pop();
+        await tester.pumpAndSettle();
+        router.push(AppRoutes.serviceDetail(3));
+        await tester.pumpAndSettle();
+        await tester.tap(destination(label));
+        await tester.pumpAndSettle();
+        expect(path(f), route);
+        expect(find.byType(ServiceDetailScreen), findsNothing);
+        await tester.tap(destination('Services'));
+        await tester.pumpAndSettle();
+        expect(path(f), AppRoutes.services);
+        expect(find.byType(ServiceDetailScreen), findsNothing);
         expect(tester.takeException(), isNull);
       }
     },

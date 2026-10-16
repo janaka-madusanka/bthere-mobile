@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/providers/app_providers.dart';
 import '../../../../core/presentation/branded_form_page.dart';
-import '../../presentation/onboarding_screen.dart';
+import 'provider_profile_page.dart';
 import '../application/provider_profile_controller.dart';
 import '../domain/provider_profile_input.dart';
 
@@ -72,10 +72,14 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final selected = await showDatePicker(
       context: context,
-      builder: widget.initialOnboarding
-          ? (context, child) =>
-                Theme(data: BThereTheme.authentication(), child: child!)
-          : null,
+      builder: (context, child) => Theme(
+        data:
+            !widget.initialOnboarding &&
+                Theme.of(context).brightness == Brightness.dark
+            ? BThereTheme.dark()
+            : BThereTheme.authentication(),
+        child: child!,
+      ),
       initialDate: _date ?? today,
       firstDate: DateTime(1),
       lastDate: today,
@@ -123,9 +127,11 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = widget.initialOnboarding
-        ? BThereTheme.authentication()
-        : Theme.of(context);
+    final theme =
+        !widget.initialOnboarding &&
+            Theme.of(context).brightness == Brightness.dark
+        ? BThereTheme.dark()
+        : BThereTheme.authentication();
     final state = ref.watch(providerProfileControllerProvider);
     ref.listen(providerProfileControllerProvider, (_, next) {
       if (next.saved) widget.onSaved?.call();
@@ -240,12 +246,17 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
           if (!widget.initialOnboarding) ...[
             Text(
               'Complete your profile',
-              style: theme.textTheme.headlineMedium,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              "We'll use this information to set up your Provider account.",
-              style: theme.textTheme.bodyMedium,
+              'Add your personal details so we can set up your provider account.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: BThereSpacing.lg),
           ],
@@ -302,27 +313,31 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
           marketSelector(),
           const SizedBox(height: 16),
           if (!widget.initialOnboarding)
-            DropdownButtonFormField<ProviderAvailability>(
-              key: const ValueKey('profile-availability'),
-              initialValue: _availability,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Availability status',
+            BThereFieldGroup(
+              label: 'Availability status',
+              child: DropdownButtonFormField<ProviderAvailability>(
+                key: const ValueKey('profile-availability'),
+                initialValue: _availability,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.work_outline_rounded),
+                ),
+                items: ProviderAvailability.values
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: busy
+                    ? null
+                    : (value) => setState(
+                        () => _availability = value ?? _availability,
+                      ),
+                validator: (value) =>
+                    value == null ? 'Select your availability.' : null,
               ),
-              items: ProviderAvailability.values
-                  .map(
-                    (value) => DropdownMenuItem(
-                      value: value,
-                      child: Text(value.label),
-                    ),
-                  )
-                  .toList(),
-              onChanged: busy
-                  ? null
-                  : (value) =>
-                        setState(() => _availability = value ?? _availability),
-              validator: (value) =>
-                  value == null ? 'Select your availability.' : null,
             ),
           if (!widget.initialOnboarding)
             const SizedBox(height: BThereSpacing.md),
@@ -348,12 +363,15 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
             onPressed: canSubmit ? _submit : null,
             loading: busy,
           ),
-          if (widget.onBack != null)
+          if (widget.onBack != null) ...[
+            const SizedBox(height: 12),
             BThereButton(
               label: 'Back to setup',
+              variant: BThereButtonVariant.outlined,
               enabled: !busy,
               onPressed: widget.onBack,
             ),
+          ],
         ],
       ),
     );
@@ -366,7 +384,7 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
                   "We'll use this information to set up your Provider account.",
               child: form,
             )
-          : OnboardingPage(child: form),
+          : ProviderProfilePage(child: form),
     );
   }
 }

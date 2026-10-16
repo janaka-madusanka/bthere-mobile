@@ -417,38 +417,6 @@ class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
                                         ),
                                       ),
                                       _ProfileSection(
-                                        asset: 'imgSettings',
-                                        title: 'Skills & Languages',
-                                        subtitle:
-                                            'Update your skills and languages',
-                                        expandedSubtitle:
-                                            'Your skills and languages',
-                                        onEdit: busy
-                                            ? null
-                                            : () => _editGlobal(
-                                                'Skills & Languages',
-                                                supplement,
-                                              ),
-                                        body: () =>
-                                            _SkillsPanel(value: supplement),
-                                      ),
-                                      _ProfileSection(
-                                        asset: 'imgClock',
-                                        title: 'Availability',
-                                        subtitle: 'Set your working hours and availability',
-                                        expandedSubtitle:
-                                            'Working Days of the week',
-                                        onEdit: busy
-                                            ? null
-                                            : () => _editGlobal(
-                                                'Availability',
-                                                supplement,
-                                              ),
-                                        body: () => _AvailabilityPanel(
-                                          value: supplement?.workingHours,
-                                        ),
-                                      ),
-                                      _ProfileSection(
                                         asset: 'imgSetting1',
                                         title: 'Payouts',
                                         subtitle: 'Manage your payment details',
@@ -488,6 +456,16 @@ class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
                                                 )
                                               : Column(children: tiles);
                                         },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      BThereButton(
+                                        label: 'Log out',
+                                        variant: BThereButtonVariant.outlined,
+                                        leadingIcon: const Icon(
+                                          Icons.logout_rounded,
+                                        ),
+                                        loading: signOut.busy,
+                                        onPressed: busy ? null : _signOut,
                                       ),
                                     ],
                                   ),

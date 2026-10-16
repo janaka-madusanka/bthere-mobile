@@ -87,6 +87,17 @@ void main() {
       expect(find.text('Nimali Perera'), findsOneWidget);
       expect(find.text('4.8 (128 reviews)'), findsOneWidget);
       expect(find.text('Profile Verified'), findsNothing);
+      expect(find.text('Skills & Languages'), findsNothing);
+      expect(find.text('Availability'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Collapse Personal Information'),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel('Collapse Documents & Verification'),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel('Collapse Payouts'), findsNothing);
       expect(find.textContaining('1992 June 21'), findsNothing);
       await tester.tap(find.text('Personal Information'));
       await tester.pumpAndSettle();
@@ -127,88 +138,6 @@ void main() {
     expect(find.text('Payment details are not available yet.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets(
-    'global skills edit saves through the global repository and refreshes chips',
-    (tester) async {
-      final semantics = tester.ensureSemantics();
-      final repository = FakeProfileSupplement();
-      await render(tester, supplement: repository);
-      await tester.ensureVisible(find.text('Skills & Languages'));
-      await tester.tap(find.text('Skills & Languages'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.bySemanticsLabel('Edit Skills & Languages'),
-      );
-      await tester.tap(find.bySemanticsLabel('Edit Skills & Languages'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(CheckboxListTile, 'Personal Care'));
-      await tester.ensureVisible(find.text('Save changes'));
-      await tester.tap(find.text('Save changes'));
-      await tester.pumpAndSettle();
-      expect(repository.saves, 1);
-      expect(repository.value.skills.any((s) => s.id == 10), isFalse);
-      expect(find.text('Personal Care'), findsNothing);
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-    },
-  );
-  testWidgets('global edit failures keep user selections and allow retry', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    final repository = FakeProfileSupplement()..failSave = true;
-    await render(tester, supplement: repository);
-    await tester.ensureVisible(find.text('Skills & Languages'));
-    await tester.tap(find.text('Skills & Languages'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.bySemanticsLabel('Edit Skills & Languages'),
-    );
-    await tester.tap(find.bySemanticsLabel('Edit Skills & Languages'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Save changes'));
-    await tester.tap(find.text('Save changes'));
-    await tester.pumpAndSettle();
-    expect(
-      find.text('Unable to save your changes. Please try again.'),
-      findsOneWidget,
-    );
-    expect(repository.value.skills.length, 4);
-    expect(tester.takeException(), isNull);
-    semantics.dispose();
-  });
-  testWidgets(
-    'missing global contract keeps the panel and prevents unsupported writes',
-    (tester) async {
-      final semantics = tester.ensureSemantics();
-      await render(tester);
-      await tester.ensureVisible(find.text('Skills & Languages'));
-      await tester.tap(find.text('Skills & Languages'));
-      await tester.pumpAndSettle();
-      expect(find.text('Skills unavailable'), findsOneWidget);
-      await tester.ensureVisible(
-        find.bySemanticsLabel('Edit Skills & Languages'),
-      );
-      await tester.tap(find.bySemanticsLabel('Edit Skills & Languages'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text(
-          'These profile settings are not available yet. Please try again later.',
-        ),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Save changes'),
-            )
-            .onPressed,
-        isNull,
-      );
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-    },
-  );
   testWidgets('profile visual preview uses the production navigation shell', (
     tester,
   ) async {
@@ -279,8 +208,6 @@ void main() {
     for (final title in [
       'Personal Information',
       'Documents & Verification',
-      'Skills & Languages',
-      'Availability',
       'Payouts',
     ]) {
       await tester.ensureVisible(find.text(title));

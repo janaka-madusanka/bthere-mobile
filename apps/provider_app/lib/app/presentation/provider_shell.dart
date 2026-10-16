@@ -16,13 +16,14 @@ class ProviderShell extends StatelessWidget {
       builder: (context) => PopScope(
         canPop: navigationShell.currentIndex == 0,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) navigationShell.goBranch(0);
+          if (!didPop) navigationShell.goBranch(0, initialLocation: true);
         },
         child: Scaffold(
           body: navigationShell,
           bottomNavigationBar: ProviderNavigationBar(
             selectedIndex: navigationShell.currentIndex,
-            onSelect: navigationShell.goBranch,
+            onSelect: (index) =>
+                navigationShell.goBranch(index, initialLocation: true),
           ),
         ),
       ),

@@ -12,6 +12,34 @@ import 'support/fake_service_repository.dart';
 import 'support/fake_options_repository.dart';
 
 void main() {
+  testWidgets(
+    'long service text grows the header without overlapping sections',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 932);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = ServiceFixture();
+      const name = 'Caregiver and daily living assistance';
+      final description = List.filled(
+        8,
+        'Professional care and support at home for daily activities.',
+      ).join(' ');
+      final data = serviceJson(name: name)..['description'] = description;
+      f.services.catalog = Success(parseActiveProviderServices([data]));
+      await pump(tester, f, route: '/services/3');
+      expect(
+        tester.getBottomLeft(find.text(name)).dy,
+        lessThan(tester.getTopLeft(find.text(description)).dy),
+      );
+      expect(
+        tester.getBottomLeft(find.text(description)).dy,
+        lessThan(tester.getTopLeft(find.text('Sub Services')).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final registered in [false, true]) {
     testWidgets('caregiving overview ${registered ? 'registered' : 'new'}', (
       tester,
@@ -81,10 +109,38 @@ void main() {
         await tester.ensureVisible(find.text('Register for this Service'));
         await tester.tap(find.text('Register for this Service'));
         await tester.pumpAndSettle();
-        expect(find.text('What service do you offer?'), findsOneWidget);
+        expect(find.text('Service Details'), findsOneWidget);
+        expect(find.text('Selected Service'), findsOneWidget);
+        expect(find.text('Caregiving'), findsOneWidget);
+        expect(find.text('What service do you offer?'), findsNothing);
       }
       expect(f.services.submissions, 0);
       expect(f.options.saves, isEmpty);
     });
   }
+
+  testWidgets(
+    'register service without subservices opens its details directly',
+    (tester) async {
+      final f = ServiceFixture();
+      f.services.catalog = Success(
+        parseActiveProviderServices([serviceJson(name: 'Bike Ride')]),
+      );
+      final schema = optionsSchema(required: false, min: 0);
+      schema['options'] = <Object>[];
+      f.schema.result = Success(parseProviderSchema(schema, 3));
+      await pump(tester, f, route: '/services/3');
+      await tester.ensureVisible(find.text('Register for this Service'));
+      await tester.tap(find.text('Register for this Service'));
+      await tester.pumpAndSettle();
+      expect(find.text('Service Details'), findsOneWidget);
+      expect(find.text('Selected Service'), findsOneWidget);
+      expect(find.text('Bike Ride'), findsOneWidget);
+      expect(find.text('Select Languages'), findsNothing);
+      expect(find.text('What service do you offer?'), findsNothing);
+      expect(f.services.submissions, 0);
+      expect(f.options.saves, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

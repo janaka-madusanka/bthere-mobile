@@ -20,6 +20,10 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
     this.commonFields = const [],
     this.assignmentId,
     this.loadSavedLocations = true,
+    this.onSave,
+    this.onBack,
+    this.busy = false,
+    this.saveError,
     super.key,
   });
   final ProviderSchemaOption option;
@@ -29,6 +33,10 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
   final int? assignmentId;
   final bool loadSavedLocations;
   final Map<String, dynamic> initial;
+  final Future<void> Function(Map<String, dynamic>)? onSave;
+  final VoidCallback? onBack;
+  final bool busy;
+  final String? saveError;
   @override
   ConsumerState<RegistrationOptionEditor> createState() => _OptionState();
 }
@@ -385,7 +393,7 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       setState(() => error = 'Start time must be before end time.');
       return;
     }
-    Navigator.pop(context, <String, dynamic>{
+    final result = <String, dynamic>{
       ...values,
       'fields': fields,
       'areas': areas,
@@ -411,380 +419,395 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
                     ],
             },
       'saved': true,
-    });
+    };
+    if (widget.onSave != null) {
+      widget.onSave!(result);
+    } else {
+      Navigator.pop(context, result);
+    }
   }
 
   @override
   Widget build(BuildContext context) => RegistrationPage(
     step: 2,
-    onBack: () => Navigator.pop(context),
-    child: Form(
-      key: form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 64,
-                height: 64,
-                child: widget.option.icon?.usableUri != null
-                    ? RegistrationOptionArtwork(option: widget.option)
-                    : widget.option.name.toLowerCase().contains('elder')
-                    ? const RegistrationAsset('option_imgElderlyCareSymbol')
-                    : RegistrationOptionSymbol(widget.option.name),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    registrationText(widget.option.name, 20, bold: true),
-                    registrationText(
-                      widget.option.description ??
-                          'Tell us about the support you offer',
-                      11,
-                      color: registrationMuted,
-                    ),
-                  ],
+    onBack: widget.onBack ?? () => Navigator.pop(context),
+    busy: widget.busy,
+    child: AbsorbPointer(
+      absorbing: widget.busy,
+      child: Form(
+        key: form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: widget.option.icon?.usableUri != null
+                      ? RegistrationOptionArtwork(option: widget.option)
+                      : widget.option.name.toLowerCase().contains('elder')
+                      ? const RegistrationAsset('option_imgElderlyCareSymbol')
+                      : RegistrationOptionSymbol(widget.option.name),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          if (experienceFields.isNotEmpty)
-            fieldSection(
-              'Experience',
-              'Your experience in ${widget.option.name.toLowerCase()}.',
-              experienceFields,
-            ),
-          if (widget.setup.serviceAreasEnabled)
-            RegistrationSection(
-              'Service Location & Area',
-              'Where do you provide this service?',
-              trailing: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: mode == null || mode == 'ONLINE'
-                    ? null
-                    : () => showRegistrationAreas(context, areas, mode!),
-                child: registrationText(
-                  'View in Map',
-                  11,
-                  color: const Color(0xFF168EFF),
-                ),
-              ),
-              child: RegistrationPanel(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.option.deliveryModes.length != 1) ...[
-                      DropdownButtonFormField<String>(
-                        initialValue: mode,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Delivery mode',
-                          isDense: true,
-                        ),
-                        items: [
-                          for (final entry in const {
-                            'PROVIDER_TO_CUSTOMER': 'I travel to the customer',
-                            'CUSTOMER_TO_PROVIDER':
-                                'Customers visit my location',
-                            'ONLINE': 'Online',
-                          }.entries)
-                            if (widget.option.deliveryModes.isEmpty ||
-                                widget.option.deliveryModes.contains(entry.key))
-                              DropdownMenuItem(
-                                value: entry.key,
-                                child: registrationText(entry.value, 12),
-                              ),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            mode = value;
-                            areas = [];
-                            pendingArea = null;
-                            loadingAreas = false;
-                          });
-                          loadAreas();
-                        },
-                        validator: (value) =>
-                            value == null ? 'Select a delivery mode.' : null,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      registrationText(widget.option.name, 20, bold: true),
+                      registrationText(
+                        widget.option.description ??
+                            'Tell us about the support you offer',
+                        11,
+                        color: registrationMuted,
                       ),
-                      const SizedBox(height: 12),
                     ],
-                    if (loadingAreas) const LinearProgressIndicator(),
-                    if (mode != 'ONLINE') ...[
-                      for (final (index, area) in areas.indexed)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 7),
-                          child: RegistrationPanel(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: loadingAreas
-                                        ? null
-                                        : () => location(index: index),
-                                    child: registrationText(
-                                      '${area['locationName'] ?? area['city'] ?? ''}',
-                                      12,
-                                    ),
-                                  ),
-                                ),
-                                if (mode == 'PROVIDER_TO_CUSTOMER' &&
-                                    area['radiusKm'] != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF0F1F8),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: registrationText(
-                                      'Radius: ${area['radiusKm']} km',
-                                      9,
-                                      color: registrationMuted,
-                                    ),
-                                  ),
-                                IconButton(
-                                  tooltip: 'Remove location',
-                                  onPressed: loadingAreas
-                                      ? null
-                                      : () => setState(
-                                          () => areas.removeAt(index),
-                                        ),
-                                  icon: const Icon(
-                                    Icons.close,
-                                    size: 18,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+            if (experienceFields.isNotEmpty)
+              fieldSection(
+                'Experience',
+                'Your experience in ${widget.option.name.toLowerCase()}.',
+                experienceFields,
+              ),
+            if (widget.setup.serviceAreasEnabled)
+              RegistrationSection(
+                'Service Location & Area',
+                'Where do you provide this service?',
+                trailing: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: mode == null || mode == 'ONLINE'
+                      ? null
+                      : () => showRegistrationAreas(context, areas, mode!),
+                  child: registrationText(
+                    'View in Map',
+                    11,
+                    color: const Color(0xFF168EFF),
+                  ),
+                ),
+                child: RegistrationPanel(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.option.deliveryModes.length != 1) ...[
+                        DropdownButtonFormField<String>(
+                          initialValue: mode,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Delivery mode',
+                            isDense: true,
                           ),
+                          items: [
+                            for (final entry in const {
+                              'PROVIDER_TO_CUSTOMER':
+                                  'I travel to the customer',
+                              'CUSTOMER_TO_PROVIDER':
+                                  'Customers visit my location',
+                              'ONLINE': 'Online',
+                            }.entries)
+                              if (widget.option.deliveryModes.isEmpty ||
+                                  widget.option.deliveryModes.contains(
+                                    entry.key,
+                                  ))
+                                DropdownMenuItem(
+                                  value: entry.key,
+                                  child: registrationText(entry.value, 12),
+                                ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              mode = value;
+                              areas = [];
+                              pendingArea = null;
+                              loadingAreas = false;
+                            });
+                            loadAreas();
+                          },
+                          validator: (value) =>
+                              value == null ? 'Select a delivery mode.' : null,
                         ),
-                      if (areas.isNotEmpty)
-                        const Center(
-                          child: SizedBox(
-                            width: 110,
-                            child: Divider(height: 14, thickness: .6),
-                          ),
-                        ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              onPressed: loadingAreas || mode == null
-                                  ? null
-                                  : () => location(stage: true),
-                              icon: const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: RegistrationAsset(
-                                  'option_imgLocationPin',
-                                ),
-                              ),
-                              label: Row(
+                        const SizedBox(height: 12),
+                      ],
+                      if (loadingAreas) const LinearProgressIndicator(),
+                      if (mode != 'ONLINE') ...[
+                        for (final (index, area) in areas.indexed)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 7),
+                            child: RegistrationPanel(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Row(
                                 children: [
                                   Expanded(
-                                    child: registrationText(
-                                      pendingArea?['locationName'] as String? ??
-                                          'Select Location',
-                                      11,
+                                    child: InkWell(
+                                      onTap: loadingAreas
+                                          ? null
+                                          : () => location(index: index),
+                                      child: registrationText(
+                                        '${area['locationName'] ?? area['city'] ?? ''}',
+                                        12,
+                                      ),
                                     ),
                                   ),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down,
-                                    size: 17,
+                                  if (mode == 'PROVIDER_TO_CUSTOMER' &&
+                                      area['radiusKm'] != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF0F1F8),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: registrationText(
+                                        'Radius: ${area['radiusKm']} km',
+                                        9,
+                                        color: registrationMuted,
+                                      ),
+                                    ),
+                                  IconButton(
+                                    tooltip: 'Remove location',
+                                    onPressed: loadingAreas
+                                        ? null
+                                        : () => setState(
+                                            () => areas.removeAt(index),
+                                          ),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 18,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          if (mode == 'PROVIDER_TO_CUSTOMER') ...[
-                            const SizedBox(width: 6),
-                            SizedBox(
-                              width: 88,
-                              child: TextFormField(
-                                controller: radiusInput,
-                                onChanged: (_) => setState(() {}),
-                                style: const TextStyle(fontSize: 12),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: InputDecoration(
-                                  hintText: 'km',
-                                  suffixText: radiusInput.text.isNotEmpty
-                                      ? 'km'
-                                      : null,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 13,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(width: 6),
-                          SizedBox(
-                            width: 42,
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              onPressed: loadingAreas ? null : addPendingArea,
-                              child: const Icon(
-                                Icons.add,
-                                color: registrationTeal,
-                                size: 20,
-                              ),
+                        if (areas.isNotEmpty)
+                          const Center(
+                            child: SizedBox(
+                              width: 110,
+                              child: Divider(height: 14, thickness: .6),
                             ),
                           ),
-                        ],
-                      ),
-                    ] else
-                      registrationText(
-                        'This service is provided online.',
-                        12,
-                        color: registrationMuted,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          if (widget.setup.availabilityEnabled)
-            RegistrationSection(
-              'Weekly Availability',
-              'Select the days you are available for this service.',
-              trailing: IconButton(
-                tooltip: 'Availability settings',
-                constraints: const BoxConstraints.tightFor(
-                  width: 16,
-                  height: 16,
-                ),
-                style: IconButton.styleFrom(
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                padding: EdgeInsets.zero,
-                onPressed: availabilitySettings,
-                icon: const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: RegistrationAsset('option_imgInformationIcon'),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      for (final (i, day) in [
-                        'Mon',
-                        'Tue',
-                        'Wed',
-                        'Thu',
-                        'Fri',
-                        'Sat',
-                        'Sun',
-                      ].indexed) ...[
-                        if (i > 0) const SizedBox(width: 6),
-                        Expanded(
-                          child: Semantics(
-                            toggled: anyDay || days.contains(i),
-                            label: day,
-                            child: InkWell(
-                              onTap: () => setState(() {
-                                availabilityChanged = true;
-                                if (anyDay) {
-                                  days = {0, 1, 2, 3, 4, 5, 6};
-                                  anyDay = false;
-                                }
-                                if (!days.remove(i)) days.add(i);
-                              }),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 11,
-                                  horizontal: 4,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF0F9FA),
-                                  borderRadius: BorderRadius.circular(8),
+                                onPressed: loadingAreas || mode == null
+                                    ? null
+                                    : () => location(stage: true),
+                                icon: const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: RegistrationAsset(
+                                    'option_imgLocationPin',
+                                  ),
                                 ),
-                                child: Column(
+                                label: Row(
                                   children: [
-                                    registrationText(day, 10),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: 33,
-                                      height: 18.5,
-                                      child: RegistrationAsset(
-                                        (anyDay || days.contains(i))
-                                            ? 'option_imgAvailabilitySwitch'
-                                            : 'option_imgAvailabilitySwitch1',
+                                    Expanded(
+                                      child: registrationText(
+                                        pendingArea?['locationName']
+                                                as String? ??
+                                            'Select Location',
+                                        11,
                                       ),
+                                    ),
+                                    const Icon(
+                                      Icons.keyboard_arrow_down,
+                                      size: 17,
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                          ),
+                            if (mode == 'PROVIDER_TO_CUSTOMER') ...[
+                              const SizedBox(width: 6),
+                              SizedBox(
+                                width: 88,
+                                child: TextFormField(
+                                  controller: radiusInput,
+                                  onChanged: (_) => setState(() {}),
+                                  style: const TextStyle(fontSize: 12),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: InputDecoration(
+                                    hintText: 'km',
+                                    suffixText: radiusInput.text.isNotEmpty
+                                        ? 'km'
+                                        : null,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 6),
+                            SizedBox(
+                              width: 42,
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                onPressed: loadingAreas ? null : addPendingArea,
+                                child: const Icon(
+                                  Icons.add,
+                                  color: registrationTeal,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ] else
+                        registrationText(
+                          'This service is provided online.',
+                          12,
+                          color: registrationMuted,
+                        ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          if (widget.option.fields.any(
-            (field) => !experienceFields.contains(field),
-          ))
-            fieldSection(
-              'Additional Information',
-              'Additional details for ${widget.option.name.toLowerCase()}.',
-              widget.option.fields
-                  .where((field) => !experienceFields.contains(field))
-                  .toList(),
-            ),
-          if (error != null) ...[
-            RegistrationNotice(error!, warning: true),
-            if (!areasLoaded && !loadingAreas)
-              TextButton(
-                onPressed: loadAreas,
-                child: const Text('Retry loading locations'),
+            if (widget.setup.availabilityEnabled)
+              RegistrationSection(
+                'Weekly Availability',
+                'Select the days you are available for this service.',
+                trailing: IconButton(
+                  tooltip: 'Availability settings',
+                  constraints: const BoxConstraints.tightFor(
+                    width: 16,
+                    height: 16,
+                  ),
+                  style: IconButton.styleFrom(
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: availabilitySettings,
+                  icon: const SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: RegistrationAsset('option_imgInformationIcon'),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        for (final (i, day) in [
+                          'Mon',
+                          'Tue',
+                          'Wed',
+                          'Thu',
+                          'Fri',
+                          'Sat',
+                          'Sun',
+                        ].indexed) ...[
+                          if (i > 0) const SizedBox(width: 6),
+                          Expanded(
+                            child: Semantics(
+                              toggled: anyDay || days.contains(i),
+                              label: day,
+                              child: InkWell(
+                                onTap: () => setState(() {
+                                  availabilityChanged = true;
+                                  if (anyDay) {
+                                    days = {0, 1, 2, 3, 4, 5, 6};
+                                    anyDay = false;
+                                  }
+                                  if (!days.remove(i)) days.add(i);
+                                }),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 11,
+                                    horizontal: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0F9FA),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      registrationText(day, 10),
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: 33,
+                                        height: 18.5,
+                                        child: RegistrationAsset(
+                                          (anyDay || days.contains(i))
+                                              ? 'option_imgAvailabilitySwitch'
+                                              : 'option_imgAvailabilitySwitch1',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            const SizedBox(height: 12),
+            if (widget.option.fields.any(
+              (field) => !experienceFields.contains(field),
+            ))
+              fieldSection(
+                'Additional Information',
+                'Additional details for ${widget.option.name.toLowerCase()}.',
+                widget.option.fields
+                    .where((field) => !experienceFields.contains(field))
+                    .toList(),
+              ),
+            if (widget.saveError != null)
+              RegistrationNotice(widget.saveError!, warning: true),
+            if (error != null) ...[
+              RegistrationNotice(error!, warning: true),
+              if (!areasLoaded && !loadingAreas)
+                TextButton(
+                  onPressed: loadAreas,
+                  child: const Text('Retry loading locations'),
+                ),
+              const SizedBox(height: 12),
+            ],
+            RegistrationButton(
+              'Save ${widget.option.name} Details',
+              onPressed: loadingAreas || widget.busy ? null : save,
+            ),
           ],
-          RegistrationButton(
-            'Save ${widget.option.name} Details',
-            onPressed: loadingAreas ? null : save,
-          ),
-        ],
+        ),
       ),
     ),
   );

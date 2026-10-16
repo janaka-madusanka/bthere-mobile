@@ -524,6 +524,77 @@ void main() {
   });
 
   testWidgets(
+    'unregistered subservice opens its editor and back returns to overview',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      await pump(tester, f, route: '/services/3');
+      await tester.ensureVisible(find.text('Work type 13'));
+      await tester.tap(find.text('Work type 13'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RegistrationOptionEditor), findsOneWidget);
+      expect(find.text('Save Work type 13 Details'), findsOneWidget);
+      expect(find.byType(RegistrationDetails), findsNothing);
+      expect(
+        f.container.read(serviceDetailControllerProvider(3)).asData!.value
+            is Success<ServiceDetailState>,
+        isTrue,
+      );
+      final editor = tester.widget<RegistrationOptionEditor>(
+        find.byType(RegistrationOptionEditor),
+      );
+      expect(editor.option.optionId, 13);
+      expect(editor.loadSavedLocations, isFalse);
+      editor.onBack!();
+      await tester.pumpAndSettle();
+      expect(find.byType(RegistrationOptionEditor), findsNothing);
+      expect(find.text('Your Registered Sub-services'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'direct subservice save preserves shared details and advances to documents',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      final data = optionsSchema();
+      data['serviceSetup']['certificates']['level'] = 'DISABLED';
+      data['serviceSetup']['education']['level'] = 'DISABLED';
+      f.schema.result = Success(parseProviderSchema(data, 3));
+      final original = readyRegistrationDraft();
+      final store = f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts;
+      store.drafts[3] = original;
+      await pump(
+        tester,
+        f,
+        route: '/services/3/register?optionId=13&details=1',
+      );
+      final editor = tester.widget<RegistrationOptionEditor>(
+        find.byType(RegistrationOptionEditor),
+      );
+      await editor.onSave!({
+        'saved': true,
+        'fields': <String, dynamic>{},
+        'deliveryMode': 'ONLINE',
+        'areas': <Object>[],
+        'availability': original['availability'],
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Upload Required Documents'), findsOneWidget);
+      expect(find.byType(RegistrationDetails), findsNothing);
+      expect(store.drafts[3]!['languages'], original['languages']);
+      expect(
+        (store.drafts[3]!['options'] as Map)['12'],
+        (original['options'] as Map)['12'],
+      );
+      expect((store.drafts[3]!['options'] as Map)['13']['saved'], isTrue);
+      expect(f.options.saves.last.ids, containsAll([12, 13]));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'registration saves supported sections, advances only after success, and retains retry state',
     (tester) async {
       final f = ServiceFixture();

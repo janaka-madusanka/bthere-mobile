@@ -13,6 +13,7 @@ import '../application/service_detail_controller.dart';
 import '../application/service_providers.dart';
 import 'registration_widgets.dart';
 import 'registration_details.dart';
+import 'registration_option_editor.dart';
 import 'registration_documents.dart';
 import 'registration_review.dart';
 import '../application/registration_payload.dart';
@@ -49,6 +50,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
   ServiceDetailState? cached;
   bool approved = false;
   bool allApproved = true;
+  bool detailsReady = false;
   @override
   void initState() {
     super.initState();
@@ -81,7 +83,16 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       final local = await ref
           .read(registrationDraftStoreProvider)
           .read(selected!);
-      final service = await current();
+      var service = await current();
+      if (widget.optionId != null &&
+          service.registered.isNotEmpty &&
+          service.schema.options.any((o) => o.optionId == widget.optionId) &&
+          !service.selected.contains(widget.optionId)) {
+        ref
+            .read(serviceDetailControllerProvider(selected!).notifier)
+            .toggle(widget.optionId!);
+        service = await current();
+      }
       var restored = local;
       if (service.assignment != null) {
         final server = await ref
@@ -132,6 +143,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
         setState(() {
           draft = restored;
           cached = service;
+          detailsReady = true;
           final canResume =
               service.assignment != null &&
               local['_step'] != 2 &&
@@ -457,6 +469,75 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     if (step == 5) return RegistrationCompleteScreen(approved: approved);
     final saving =
         busy || (result is Success<ServiceDetailState> && result.value.busy);
+    final focusedOption = cached?.schema.options
+        .where((option) => option.optionId == widget.optionId)
+        .firstOrNull;
+    if (step == 2 && widget.optionId != null && !detailsReady && busy) {
+      return RegistrationPage(
+        step: 2,
+        onBack: back,
+        busy: true,
+        child: const BThereLoadingState(label: 'Loading sub-service details'),
+      );
+    }
+    if (step == 2 &&
+        detailsReady &&
+        focusedOption != null &&
+        cached!.registered.isNotEmpty &&
+        !cached!.registered.any(
+          (option) => option.optionId == focusedOption.optionId,
+        )) {
+      final service = cached!;
+      final ownedFields = focusedOption.fields.where((field) {
+        final applicable =
+            field.optionIds.where(service.selected.contains).toList()..sort();
+        return applicable.isNotEmpty &&
+            applicable.first == focusedOption.optionId;
+      }).toList();
+      final options = Map<String, dynamic>.from(draft['options'] as Map? ?? {});
+      return RegistrationOptionEditor(
+        key: ValueKey('direct-option-${focusedOption.optionId}'),
+        option: ProviderSchemaOption(
+          optionId: focusedOption.optionId,
+          code: focusedOption.code,
+          name: focusedOption.name,
+          fields: ownedFields,
+          description: focusedOption.description,
+          icon: focusedOption.icon,
+          deliveryModes: focusedOption.deliveryModes,
+        ),
+        service: service.service,
+        setup: service.schema.serviceSetup,
+        commonFields: service.schema.commonFields,
+        assignmentId: service.assignment?.assignmentId,
+        loadSavedLocations: false,
+        initial: {
+          ...Map<String, dynamic>.from(
+            options['${focusedOption.optionId}'] as Map? ?? {},
+          ),
+          'fields': registrationAnswers(draft),
+          'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
+          if (draft['availability'] != null)
+            'availability': draft['availability'],
+        },
+        busy: saving,
+        saveError: error,
+        onBack: back,
+        onSave: (updated) async {
+          final fieldIds = ownedFields
+              .map((field) => '${field.fieldId}')
+              .toSet();
+          updated['fields'] = Map<String, dynamic>.from(
+            updated['fields'] as Map? ?? {},
+          )..removeWhere((key, _) => !fieldIds.contains(key));
+          await saveDetails({
+            ...draft,
+            'options': {...options, '${focusedOption.optionId}': updated},
+            'availability': updated['availability'],
+          });
+        },
+      );
+    }
     Widget content;
     if (step == 1) {
       final types = catalog.asData?.value, owned = assignments.asData?.value;
@@ -684,6 +765,7 @@ class RegistrationCategory extends StatelessWidget {
   Widget build(BuildContext context) {
     final visual = serviceVisualStyle(service);
     final badge = visual.badge ?? visual.surface;
+    final imageUri = service.usableIconUri ?? service.usableCoverUri;
     return Semantics(
       selected: selected,
       button: true,
@@ -713,13 +795,30 @@ class RegistrationCategory extends StatelessWidget {
                         color: badge,
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: Center(
-                        child: const Icon(
-                          Icons.miscellaneous_services,
-                          color: registrationTeal,
-                          size: 28,
-                        ),
-                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: imageUri == null
+                          ? const Center(
+                              child: Icon(
+                                Icons.miscellaneous_services,
+                                color: registrationTeal,
+                                size: 28,
+                              ),
+                            )
+                          : Image.network(
+                              imageUri.toString(),
+                              fit: BoxFit.contain,
+                              semanticLabel:
+                                  service.icon?.altText ??
+                                  service.coverImage?.altText ??
+                                  service.name,
+                              errorBuilder: (_, _, _) => const Center(
+                                child: Icon(
+                                  Icons.miscellaneous_services,
+                                  color: registrationTeal,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
                     ),
                     const SizedBox(height: 6),
                     registrationText(
