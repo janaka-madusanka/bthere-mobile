@@ -115,7 +115,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (_, _) => const ServiceRegistrationScreen(),
                   ),
                   GoRoute(
-                    parentNavigatorKey: rootNavigatorKey,
                     path: ':serviceTypeId',
                     builder: (_, state) =>
                         ServiceDetailScreen(serviceTypeId: serviceId(state)),

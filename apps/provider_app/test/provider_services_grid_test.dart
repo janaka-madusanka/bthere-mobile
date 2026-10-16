@@ -1,4 +1,4 @@
-import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
+import 'package:provider_app/app/presentation/provider_navigation_bar.dart';
 
 import 'dart:async';
 
@@ -68,12 +68,12 @@ void main() {
         expect(path(f), tab.path);
         expect(
           tester
-              .widget<HomeNavigation>(find.byType(HomeNavigation))
+              .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
               .selectedIndex,
           tab.index,
         );
-        expect(find.byType(HomeNavigation), findsOneWidget);
-        expect(find.byType(HomeNavigation), findsOneWidget);
+        expect(find.byType(ProviderNavigationBar), findsOneWidget);
+        expect(find.byType(ProviderNavigationBar), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ProviderPlaceholderScreen),
@@ -97,7 +97,7 @@ void main() {
         expect(path(f), AppRoutes.services);
         expect(
           tester
-              .widget<HomeNavigation>(find.byType(HomeNavigation))
+              .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
               .selectedIndex,
           1,
         );
@@ -123,7 +123,7 @@ void main() {
           f.container.read(appRouterProvider).go(tab.path);
           await tester.pumpAndSettle();
           expect(f.path, authenticated ? AppRoutes.profile : AppRoutes.auth);
-          expect(find.byType(HomeNavigation), findsNothing);
+          expect(find.byType(ProviderNavigationBar), findsNothing);
         }
       },
     );
@@ -195,7 +195,9 @@ void main() {
         ]),
       );
       await pump(tester, f);
-      final title = tester.widget<Text>(find.text(longName));
+      final title = tester.widget<Text>(find.descendant(
+        of: find.byType(GridView), matching: find.text(longName),
+      ));
       expect(title.maxLines, 2);
       expect(title.overflow, TextOverflow.ellipsis);
       expect(find.bySemanticsLabel('$longName, Available'), findsOneWidget);

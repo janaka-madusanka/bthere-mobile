@@ -1,4 +1,4 @@
-import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
+import 'package:provider_app/app/presentation/provider_navigation_bar.dart';
 
 import 'dart:async';
 
@@ -149,7 +149,9 @@ void main() {
     await pump(tester, f, route: AppRoutes.account);
     expect(find.byType(ProviderAccountScreen), findsOneWidget);
     expect(
-      tester.widget<HomeNavigation>(find.byType(HomeNavigation)).selectedIndex,
+      tester
+          .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
+          .selectedIndex,
       4,
     );
     expect(find.text('test.provider'), findsOneWidget);
@@ -170,7 +172,7 @@ void main() {
     await pump(tester, f, route: null);
     await tester.tap(
       find.descendant(
-        of: find.byType(HomeNavigation),
+        of: find.byType(ProviderNavigationBar),
         matching: find.text('Profile'),
       ),
     );
@@ -228,7 +230,7 @@ void main() {
       expect(f.storage.clears, 1);
       expect(f.storage.session, isNull);
       expect(path(f), AppRoutes.auth);
-      expect(find.byType(HomeNavigation), findsNothing);
+      expect(find.byType(ProviderNavigationBar), findsNothing);
       expect(find.text('provider@example.invalid'), findsNothing);
     },
   );
@@ -272,7 +274,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(HomeNavigation), findsOneWidget);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
     },
   );
 

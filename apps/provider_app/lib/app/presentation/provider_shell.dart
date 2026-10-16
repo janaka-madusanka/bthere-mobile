@@ -2,7 +2,7 @@ import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/home/presentation/provider_home_widgets.dart';
+import 'provider_navigation_bar.dart';
 
 /// Branch navigators retain their own widget and scroll state.
 class ProviderShell extends StatelessWidget {
@@ -20,7 +20,7 @@ class ProviderShell extends StatelessWidget {
         },
         child: Scaffold(
           body: navigationShell,
-          bottomNavigationBar: HomeNavigation(
+          bottomNavigationBar: ProviderNavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onSelect: navigationShell.goBranch,
           ),

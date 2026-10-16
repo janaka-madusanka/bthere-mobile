@@ -627,13 +627,16 @@ class HomeRegisteredService extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () async {
+          if (![
+            ProviderServiceStatus.pendingApproval,
+            ProviderServiceStatus.rejected,
+          ].contains(status)) {
+            // Detail belongs to Services; pushing from Home nests another shell.
+            context.go(AppRoutes.serviceDetail(assignment.providerTypeId));
+            return;
+          }
           await context.push(
-            [
-                  ProviderServiceStatus.pendingApproval,
-                  ProviderServiceStatus.rejected,
-                ].contains(status)
-                ? AppRoutes.serviceStatus(assignment.providerTypeId)
-                : AppRoutes.serviceDetail(assignment.providerTypeId),
+            AppRoutes.serviceStatus(assignment.providerTypeId),
           );
           if (context.mounted) {
             ref.invalidate(providerAssignmentsProvider);
@@ -941,7 +944,7 @@ class HomeCategories extends StatelessWidget {
                           if (service == null) {
                             context.go(AppRoutes.services);
                           } else {
-                            context.push('/services/${service.id}');
+                            context.go(AppRoutes.serviceDetail(service.id));
                           }
                         },
                         child: SizedBox(
@@ -997,122 +1000,6 @@ class HomeCategories extends StatelessWidget {
       ),
     );
   }
-}
-
-class HomeNavigation extends StatelessWidget {
-  const HomeNavigation({
-    super.key,
-    required this.onSelect,
-    this.selectedIndex = 0,
-  });
-  final void Function(int) onSelect;
-  final int selectedIndex;
-  @override
-  Widget build(BuildContext context) => selectedIndex == 4
-      ? _ProfileNavigation(onSelect: onSelect)
-      : DecoratedBox(
-          decoration: homeGradient,
-          child: SafeArea(
-            top: false,
-            child: HomeScale(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(21, 10, 21, 14),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    for (final item in [
-                      (0, 'Home', 'new_imgIcon'),
-                      (2, 'Opportunities', 'new_imgIcon1'),
-                      (1, 'Services', 'new_imgIcon2'),
-                      (3, 'Messages', 'new_imgIcon3'),
-                      (4, 'Profile', 'new_imgIcon4'),
-                    ])
-                      Semantics(
-                        key: ValueKey('provider-tab-${item.$1}'),
-                        button: true,
-                        selected: item.$1 == selectedIndex,
-                        label:
-                            '${item.$2}\nTab ${const [0, 2, 1, 3, 4].indexOf(item.$1) + 1} of 5',
-                        excludeSemantics: true,
-                        child: InkWell(
-                          onTap: () => onSelect(item.$1),
-                          borderRadius: BorderRadius.circular(20),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              minWidth: 64,
-                              maxWidth: 64,
-                              minHeight: 48,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 49,
-                                  height: 33,
-                                  decoration: BoxDecoration(
-                                    color: item.$1 == selectedIndex
-                                        ? Colors.white
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                  child: Center(
-                                    child:
-                                        item.$1 == selectedIndex && item.$1 != 0
-                                        ? ColorFiltered(
-                                            colorFilter: const ColorFilter.mode(
-                                              homeTeal,
-                                              BlendMode.srcIn,
-                                            ),
-                                            child: HomeAsset(
-                                              item.$3,
-                                              width: 25,
-                                              height: 25,
-                                            ),
-                                          )
-                                        : item.$1 == 0 && selectedIndex != 0
-                                        ? const ColorFiltered(
-                                            colorFilter: ColorFilter.mode(
-                                              Color(0xFFB9DFE0),
-                                              BlendMode.srcIn,
-                                            ),
-                                            child: HomeAsset(
-                                              'new_imgIcon',
-                                              width: 25,
-                                              height: 25,
-                                            ),
-                                          )
-                                        : HomeAsset(
-                                            item.$3,
-                                            width: 25,
-                                            height: 25,
-                                          ),
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  item.$2,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'HomeInter',
-                                    fontSize: 9.5,
-                                    height: 1.3,
-                                    letterSpacing: -.285,
-                                    color: item.$1 == selectedIndex
-                                        ? Colors.white
-                                        : const Color(0xFFB9DFE0),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
 }
 
 class HomeCommunity extends StatelessWidget {
@@ -1327,103 +1214,6 @@ class HomeResources extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('Resource content is not available yet.'),
           ],
-        ),
-      ),
-    ),
-  );
-}
-
-/// Profile's navigation uses the icon geometry from its own Figma frame.
-class _ProfileNavigation extends StatelessWidget {
-  const _ProfileNavigation({required this.onSelect});
-  final void Function(int) onSelect;
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: homeGradient,
-    child: SafeArea(
-      top: false,
-      child: HomeScale(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 13),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (final item in [
-                (0, 'Home', 'imgIcon5'),
-                (2, 'Opportunities', 'imgBriefcaseBusiness'),
-                (1, 'Services', 'imgIcon6'),
-                (3, 'Messages', 'imgIcon7'),
-                (4, 'Profile', 'imgIcon8'),
-              ])
-                Semantics(
-                  key: ValueKey('provider-tab-${item.$1}'),
-                  button: true,
-                  selected: item.$1 == 4,
-                  label:
-                      '${item.$2}\nTab ${const [0, 2, 1, 3, 4].indexOf(item.$1) + 1} of 5',
-                  excludeSemantics: true,
-                  child: InkWell(
-                    onTap: () => onSelect(item.$1),
-                    borderRadius: BorderRadius.circular(99),
-                    child: SizedBox(
-                      width: 70,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 54,
-                            height: 33,
-                            decoration: BoxDecoration(
-                              color: item.$1 == 4
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Center(
-                              child: SizedBox(
-                                width: 27,
-                                height: 27,
-                                child: Stack(
-                                  children: [
-                                    SvgPicture.asset(
-                                      'assets/profile/${item.$3}.svg',
-                                      width: 27,
-                                      height: 27,
-                                    ),
-                                    if (item.$1 == 3)
-                                      Positioned(
-                                        left: 8.5,
-                                        top: 11,
-                                        child: SvgPicture.asset(
-                                          'assets/profile/imgMessageDots.svg',
-                                          width: 10,
-                                          height: 2,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.$2,
-                            style: const TextStyle(
-                              fontFamily: 'HomeInter',
-                              fontSize: 10,
-                              height: 1.22,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w400,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
         ),
       ),
     ),

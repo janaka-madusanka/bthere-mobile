@@ -6,7 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/app_routes.dart';
-import '../../../app/presentation/provider_tabs.dart';
 import '../../home/presentation/provider_home_widgets.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
@@ -27,10 +26,6 @@ class ServiceDetailScreen extends ConsumerWidget {
         decoration: homeGradient,
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          bottomNavigationBar: HomeNavigation(
-            selectedIndex: 1,
-            onSelect: (i) => context.go(ProviderTab.values[i].path),
-          ),
           body: SafeArea(
             bottom: false,
             child: Column(
