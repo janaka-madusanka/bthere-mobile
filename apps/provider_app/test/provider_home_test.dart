@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider_app/app/app.dart';
+import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
+import 'package:provider_app/features/services/presentation/service_catalog_visuals.dart';
 import 'package:provider_app/app/router/app_routes.dart';
 import 'package:provider_app/features/onboarding/data/provider_completion_response.dart';
 import 'package:provider_app/features/onboarding/services/data/provider_service_response.dart';
@@ -16,17 +18,33 @@ import 'service_first_test.dart' show ServiceFixture, pump;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('home uses catalog artwork and existing popular services', (
+    tester,
+  ) async {
+    final f = ServiceFixture(existing: true);
+    await pump(tester, f, route: AppRoutes.home);
+    final photo = tester.widget<HomeServicePhoto>(
+      find.byType(HomeServicePhoto),
+    );
+    expect(photo.service?.id, 3);
+    final popular = find.descendant(
+      of: find.byType(HomeCategories),
+      matching: find.byType(ServiceCatalogSymbol),
+    );
+    expect(
+      tester.widgetList<ServiceCatalogSymbol>(popular).map((s) => s.service.id),
+      [3, 9],
+    );
+    expect(find.text('Household Support'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   for (final scale in [1.0, 1.5]) {
     testWidgets('registered service opens overview at text scale $scale', (
       tester,
     ) async {
       tester.platformDispatcher.textScaleFactorTestValue = scale;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      await pump(
-        tester,
-        ServiceFixture(existing: true),
-        route: AppRoutes.home,
-      );
+      await pump(tester, ServiceFixture(existing: true), route: AppRoutes.home);
 
       await tester.tap(find.text('Home Nurse').first);
       await tester.pumpAndSettle();

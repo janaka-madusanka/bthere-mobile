@@ -9,6 +9,7 @@ import '../../../app/router/app_routes.dart';
 import '../../onboarding/domain/provider_completion.dart';
 import '../../onboarding/services/domain/provider_service_assignment.dart';
 import '../../onboarding/services/domain/provider_service_type.dart';
+import '../../onboarding/services/application/provider_service_catalog_controller.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../../services/domain/provider_service_status.dart';
 import '../../services/application/service_providers.dart';
@@ -612,6 +613,12 @@ class HomeRegisteredService extends ConsumerWidget {
     final options = result is Success<List<ProviderSelectedOption>>
         ? result.value
         : null;
+    final catalog = ref.watch(providerServiceCatalogProvider).asData?.value;
+    final service = catalog is Success<List<ProviderServiceType>>
+        ? catalog.value
+              .where((s) => s.id == assignment.providerTypeId)
+              .firstOrNull
+        : null;
     final status = productServiceStatus(assignment, completion);
     final active =
         status == ProviderServiceStatus.approved &&
@@ -650,7 +657,7 @@ class HomeRegisteredService extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                HomeServicePhoto(name: assignment.providerTypeName),
+                HomeServicePhoto(service: service),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Padding(
@@ -778,116 +785,33 @@ class HomeRegisteredService extends ConsumerWidget {
   );
 }
 
-/// Only the three photograph slots from the supplied Figma export are visible.
+/// Registered services share the catalog artwork, matched by service ID.
 class HomeServicePhoto extends StatelessWidget {
-  const HomeServicePhoto({super.key, required this.name});
-  final String name;
+  const HomeServicePhoto({super.key, required this.service});
+  final ProviderServiceType? service;
   @override
-  Widget build(BuildContext context) {
-    final visual = serviceVisualStyle(
-      ProviderServiceType(
-        id: name.hashCode.abs() + 1,
-        name: name,
-        status: 'ACTIVE',
-      ),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 84,
-        height: 61,
-        child: ColoredBox(
-          color: visual.surface,
-          child: Center(
-            child: Icon(
-              Icons.miscellaneous_services,
-              color: const Color(0xFF008B91),
-              size: 30,
-            ),
-          ),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: SizedBox(
+      width: 84,
+      height: 61,
+      child: ColoredBox(
+        color: service == null
+            ? const Color(0xFFF0FCFB)
+            : serviceVisualStyle(service!).surface,
+        child: Center(
+          child: service == null
+              ? const Icon(
+                  Icons.miscellaneous_services,
+                  color: homeTeal,
+                  size: 30,
+                )
+              : ServiceCatalogSymbol(service: service!),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
-
-// Static category taxonomy and presentation assets from each Figma frame.
-// Navigation resolves backend IDs by name, never by a fabricated service ID.
-typedef _Category = (String, String, Color, Color?, double);
-const _newCategories = <_Category>[
-  ('Caregiving', 'new_imgCategorySymbol', Color(0xFFF0FCFA), null, 44),
-  ('Home Services', 'new_imgIcon6', Color(0xFFEFF9FE), Color(0xFFDEF5FF), 26),
-  ('Pet Care', 'new_imgIcon7', Color(0xFFFFF9F4), Color(0xFFFFF0E4), 26),
-  ('Childcare', 'new_imgCategorySymbol1', Color(0xFFFFF6F9), null, 44),
-  ('Handyman', 'new_imgIcon8', Color(0xFFF9F5FF), Color(0xFFF0E8FF), 26),
-  ('Vehicle Services', 'new_imgCategorySymbol2', Color(0xFFFFFBF0), null, 44),
-  (
-    'Errands & Delivery',
-    'new_imgIcon9',
-    Color(0xFFEEFCFE),
-    Color(0xFFD7FAFD),
-    26,
-  ),
-  (
-    'Wellness & Lifestyle',
-    'new_imgIcon10',
-    Color(0xFFF0FCF3),
-    Color(0xFFDDFFE5),
-    26,
-  ),
-];
-const _registeredCategories = <_Category>[
-  (
-    'Home Services',
-    'existing_imgSymbol5',
-    Color(0xFFF1FAFF),
-    Color(0xFFDFF3FF),
-    25,
-  ),
-  (
-    'Childcare',
-    'existing_imgChildcareSymbol',
-    Color(0xFFFFF3F7),
-    Color(0xFFFFE1EB),
-    25,
-  ),
-  (
-    'Household Support',
-    'existing_imgSprayCan',
-    Color(0xFFF0FCF9),
-    Color(0xFFD7FBF6),
-    25,
-  ),
-  (
-    'Mobility Assistance',
-    'existing_imgMobilityAssistanceSymbol',
-    Color(0xFFFFF9F1),
-    Color(0xFFFFF0DC),
-    25,
-  ),
-  (
-    'Vehicle Services',
-    'existing_imgCarFront',
-    Color(0xFFFFFBEB),
-    Color(0xFFFFF4CD),
-    25,
-  ),
-  (
-    'Errands & Delivery',
-    'existing_imgSymbol6',
-    Color(0xFFEEFCFE),
-    Color(0xFFD7FAFD),
-    25,
-  ),
-  ('Handyman', 'existing_imgSymbol7', Color(0xFFF8F1FF), Color(0xFFF0E0FF), 25),
-  (
-    'Wellness & Lifestyle',
-    'existing_imgSymbol8',
-    Color(0xFFF0FCF3),
-    Color(0xFFDDFBE7),
-    25,
-  ),
-];
 
 class HomeCategories extends StatelessWidget {
   const HomeCategories({
@@ -899,7 +823,8 @@ class HomeCategories extends StatelessWidget {
   final List<ProviderServiceType> services;
   @override
   Widget build(BuildContext context) {
-    final categories = registered ? _registeredCategories : _newCategories;
+    final categories = services.take(8).toList();
+    if (categories.isEmpty) return const SizedBox.shrink();
     final gap = registered ? 8.0 : 11.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -922,31 +847,20 @@ class HomeCategories extends StatelessWidget {
             ),
           ),
           SizedBox(height: registered ? 8 : 12),
-          for (final row in [categories.take(4), categories.skip(4)]) ...[
+          for (var offset = 0; offset < categories.length; offset += 4) ...[
             Row(
               children: [
-                for (final (index, category) in row.indexed) ...[
+                for (final (index, category)
+                    in categories.skip(offset).take(4).indexed) ...[
                   if (index > 0) SizedBox(width: gap),
                   Expanded(
                     child: Material(
-                      color: category.$3,
+                      color: serviceVisualStyle(category).surface,
                       borderRadius: BorderRadius.circular(registered ? 10 : 12),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          final service = services
-                              .where(
-                                (s) =>
-                                    s.name.toLowerCase() ==
-                                    category.$1.toLowerCase(),
-                              )
-                              .firstOrNull;
-                          if (service == null) {
-                            context.go(AppRoutes.services);
-                          } else {
-                            context.go(AppRoutes.serviceDetail(service.id));
-                          }
-                        },
+                        onTap: () =>
+                            context.go(AppRoutes.serviceDetail(category.id)),
                         child: SizedBox(
                           height:
                               (registered ? 66 : 82) +
@@ -958,25 +872,25 @@ class HomeCategories extends StatelessWidget {
                                 width: registered ? 37 : 44,
                                 height: registered ? 37 : 44,
                                 decoration: BoxDecoration(
-                                  color: category.$4,
+                                  color: serviceVisualStyle(category).badge,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
-                                  child: HomeAsset(
-                                    category.$2,
-                                    width: category.$5,
-                                    height: category.$5,
+                                  child: ServiceCatalogSymbol(
+                                    service: category,
                                   ),
                                 ),
                               ),
                               SizedBox(height: registered ? 4 : 5),
                               Text(
-                                category.$1,
+                                category.name,
                                 maxLines: _textGrowth(context) > 0 ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: registered
                                       ? 8.3
-                                      : category.$1.length > 16
+                                      : category.name.length > 16
                                       ? 9
                                       : 9.7,
                                   height: registered ? 1.2 : 1.3,
@@ -991,9 +905,17 @@ class HomeCategories extends StatelessWidget {
                     ),
                   ),
                 ],
+                for (
+                  var empty = categories.skip(offset).take(4).length;
+                  empty < 4;
+                  empty++
+                ) ...[
+                  SizedBox(width: gap),
+                  const Expanded(child: SizedBox.shrink()),
+                ],
               ],
             ),
-            if (row.first == categories.first)
+            if (offset + 4 < categories.length)
               SizedBox(height: registered ? 8 : 9),
           ],
         ],
