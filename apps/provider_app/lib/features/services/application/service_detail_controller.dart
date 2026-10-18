@@ -10,6 +10,9 @@ import '../../onboarding/services/domain/provider_service_type.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../domain/sub_service_rules.dart';
+import '../documents/documents_controller.dart'
+    show documentsRepositoryProvider;
+import '../documents/document_models.dart';
 import 'service_providers.dart';
 import 'service_draft_store.dart';
 
@@ -25,6 +28,7 @@ final class ServiceDetailState {
     this.failure,
     this.inconsistent = false,
     this.registered = const [],
+    this.incompleteRegistrationIds = const {},
   }) : selected = Set.unmodifiable(selected);
   final ProviderServiceType service;
   final ProviderOnboardingSchema schema;
@@ -34,6 +38,7 @@ final class ServiceDetailState {
   final bool busy, saved, inconsistent;
   final AppFailure? failure;
   final List<ProviderSelectedOption> registered;
+  final Set<int> incompleteRegistrationIds;
   String? get validation => inconsistent
       ? 'Some saved sub-services are no longer available. Retry to reload your service.'
       : validateSubServices(schema, selected) ??
@@ -56,6 +61,7 @@ final class ServiceDetailState {
     failure: failure,
     inconsistent: inconsistent,
     registered: registered,
+    incompleteRegistrationIds: incompleteRegistrationIds,
   );
 }
 
@@ -70,6 +76,8 @@ final serviceDetailControllerProvider = AsyncNotifierProvider.autoDispose
         providerOptionsRepositoryProvider,
         providerCompletionControllerProvider,
         serviceDraftStoreProvider,
+        documentsRepositoryProvider,
+        clockProvider,
       ],
     );
 
@@ -114,6 +122,54 @@ final class ServiceDetailController
         ids = selected.value.map((s) => s.optionId).toSet();
         registered = selected.value;
       }
+      final incompleteRegistrationIds = <int>{};
+      final pendingOptions = registered.where(
+        (option) =>
+            option.verificationStatus == 'PENDING' &&
+            option.providerStatus != 'INACTIVE' &&
+            option.adminStatus != 'INACTIVE',
+      );
+      if (pendingOptions.isNotEmpty) {
+        try {
+          final documents = ref.watch(documentsRepositoryProvider);
+          final results = await Future.wait([
+            documents.requirements(serviceTypeId),
+            documents.documents(),
+          ]);
+          if (!ref.mounted) return _failure();
+          final requirements = results[0];
+          final uploads = results[1];
+          // Only known missing documents imply an unfinished registration.
+          // Failed refreshes must not relabel existing review/approval states.
+          if (requirements is Success<List<DocumentRequirement>> &&
+              uploads is Success<List<ProviderDocument>>) {
+            final now = ref.read(clockProvider)();
+            for (final option in pendingOptions) {
+              if (requirements.value
+                  .where(
+                    (requirement) =>
+                        requirement.required &&
+                        (requirement.optionId == null ||
+                            requirement.optionId == option.optionId),
+                  )
+                  .any(
+                    (requirement) => !uploads.value.any(
+                      (document) =>
+                          document.typeId == requirement.id &&
+                          [
+                            'Approved',
+                            'Pending approval',
+                          ].contains(document.status(now)),
+                    ),
+                  )) {
+                incompleteRegistrationIds.add(option.optionId);
+              }
+            }
+          }
+        } catch (_) {
+          // Document availability must not hide the existing service overview.
+        }
+      }
       final valid = schema.value.options.map((o) => o.optionId).toSet();
       final draft = await ref
           .read(serviceDraftStoreProvider)
@@ -128,6 +184,9 @@ final class ServiceDetailController
               assignment?.experienceYears.toString() ??
               (draft?['experience'] as String? ?? ''),
           registered: registered,
+          incompleteRegistrationIds: Set.unmodifiable(
+            incompleteRegistrationIds,
+          ),
           assignment: assignment,
           inconsistent: !valid.containsAll(ids),
         ),

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Take photos of your verification documents and a selfie.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Select photos for your verification documents.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Use your current location to help you choose where you provide services.</string>
 	<key>BThereDartDefines</key>

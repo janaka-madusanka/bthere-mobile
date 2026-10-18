@@ -18,6 +18,8 @@ class DocumentRequirement {
   final String? description;
   final bool hasExpiry, required, requiresApproval;
   final int? optionId;
+  bool get isSelfie =>
+      RegExp(r'self[ -]?ie', caseSensitive: false).hasMatch(name);
 }
 
 class ProviderDocument {

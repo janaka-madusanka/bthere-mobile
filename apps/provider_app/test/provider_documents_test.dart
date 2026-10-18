@@ -702,10 +702,15 @@ void main() {
         find.widgetWithText(TextFormField, 'Document number'),
         'My number',
       );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)'),
-        '2020-01-01',
+      final issued = find.widgetWithText(
+        TextFormField,
+        'Issued date (YYYY-MM-DD)',
       );
+      await tester.ensureVisible(issued);
+      await tester.tap(issued);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
       f.repo.registerResult = const Failure(AppFailure(message: 'secret'));
       await c.submit();
       await tester.pumpAndSettle();

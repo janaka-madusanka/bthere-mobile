@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:bthere_common/bthere_common.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/app_providers.dart';
@@ -48,6 +51,54 @@ final documentPickerProvider = Provider<DocumentPicker>(
   (ref) => NativeDocumentPicker(),
 );
 
+abstract interface class DocumentCamera {
+  Future<DocumentFile?> capture({required bool selfie});
+}
+
+class NativeDocumentCamera implements DocumentCamera {
+  NativeDocumentCamera({
+    ImagePicker? picker,
+    Future<void> Function()? ensurePermission,
+  }) : _picker = picker ?? ImagePicker(),
+       _ensurePermission = ensurePermission ?? _requestCameraPermission;
+  final ImagePicker _picker;
+  final Future<void> Function() _ensurePermission;
+
+  static Future<void> _requestCameraPermission() async {
+    // iOS image_picker requests authorization itself. Android needs an explicit
+    // runtime request now that CAMERA is declared in the manifest.
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    var status = await Permission.camera.status;
+    if (status.isDenied) status = await Permission.camera.request();
+    if (status.isGranted) return;
+    throw PlatformException(
+      code: status.isPermanentlyDenied || status.isRestricted
+          ? 'camera_access_denied_permanently'
+          : 'camera_permission_denied',
+    );
+  }
+
+  @override
+  Future<DocumentFile?> capture({required bool selfie}) async {
+    await _ensurePermission();
+    final photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: selfie ? CameraDevice.front : CameraDevice.rear,
+      requestFullMetadata: false,
+    );
+    if (photo == null) return null;
+    return DocumentFile(
+      photo.name,
+      await photo.length(),
+      () => photo.openRead(),
+    );
+  }
+}
+
+final documentCameraProvider = Provider<DocumentCamera>(
+  (ref) => NativeDocumentCamera(),
+);
+
 class DocumentDraft {
   DocumentDraft(this.requirement) : name = requirement.name;
   final DocumentRequirement requirement;
@@ -61,6 +112,7 @@ class DocumentsState {
   List<DocumentRequirement>? requirements;
   List<ProviderDocument>? documents;
   String? requirementsError, documentsError, operationError, notice;
+  bool cameraSettingsRequired = false;
   bool requirementsLoading = true, documentsLoading = true, busy = false;
   String? phase;
   double? progress;
@@ -79,6 +131,7 @@ final documentsControllerProvider = NotifierProvider.autoDispose
       dependencies: [
         documentsRepositoryProvider,
         documentPickerProvider,
+        documentCameraProvider,
         serviceSetupControllerProvider,
         providerCompletionControllerProvider,
         clockProvider,
@@ -196,6 +249,7 @@ class DocumentsController extends Notifier<DocumentsState> {
           previous.expiryDate?.toIso8601String().substring(0, 10) ?? '';
     }
     state.operationError = state.notice = null;
+    state.cameraSettingsRequired = false;
     emit();
   }
 
@@ -203,6 +257,7 @@ class DocumentsController extends Notifier<DocumentsState> {
     if (!state.busy) {
       state.draft = null;
       state.operationError = null;
+      state.cameraSettingsRequired = false;
       emit();
     }
   }
@@ -211,7 +266,7 @@ class DocumentsController extends Notifier<DocumentsState> {
     _documentTrace(event);
   }
 
-  Future<void> pick() async {
+  Future<void> pick({bool camera = false}) async {
     if (!ref.mounted) return;
     if (state.busy || state.draft == null) {
       state.operationError = state.busy
@@ -221,12 +276,17 @@ class DocumentsController extends Notifier<DocumentsState> {
       return;
     }
     state.busy = true;
-    state.phase = 'Selecting file';
+    state.phase = camera ? 'Opening camera' : 'Selecting file';
+    state.cameraSettingsRequired = false;
     state.operationError = null;
     trace('pick.start');
     emit();
     try {
-      final file = await ref.read(documentPickerProvider).pick();
+      final file = camera
+          ? await ref
+                .read(documentCameraProvider)
+                .capture(selfie: state.draft!.requirement.isSelfie)
+          : await ref.read(documentPickerProvider).pick();
       if (!ref.mounted) return;
       trace(file == null ? 'pick.cancelled' : 'pick.returned');
       if (file != null) {
@@ -238,10 +298,31 @@ class DocumentsController extends Notifier<DocumentsState> {
           state.draft!.errors.remove('file');
         }
       }
+    } on PlatformException catch (error) {
+      trace('pick.platform_error code=${error.code}');
+      if (ref.mounted) {
+        final code = error.code.toLowerCase();
+        state.cameraSettingsRequired =
+            camera &&
+            (code.contains('permanently') ||
+                code == 'camera_access_denied' ||
+                code == 'camera_access_restricted');
+        state.operationError = !camera
+            ? 'Unable to select the file. Please retry.'
+            : state.cameraSettingsRequired
+            ? 'Camera access is disabled. Open Settings to allow camera access, then try again.'
+            : code.contains('denied')
+            ? 'Camera permission is needed to take a photo. Tap the camera button to try again, or choose a file.'
+            : code == 'no_available_camera'
+            ? 'No camera is available on this device. Please choose a file.'
+            : 'Unable to open the camera. Please retry or choose a file.';
+      }
     } catch (_) {
       trace('pick.failed');
       if (ref.mounted) {
-        state.operationError = 'Unable to select the file. Please retry.';
+        state.operationError = camera
+            ? 'Unable to open the camera. Please retry or choose a file.'
+            : 'Unable to select the file. Please retry.';
       }
     } finally {
       if (ref.mounted) {

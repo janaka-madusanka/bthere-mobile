@@ -52,10 +52,13 @@ class ServiceDetailScreen extends ConsumerWidget {
                                   final option = result.value.registered
                                       .where((option) => option.optionId == id)
                                       .firstOrNull;
-                                  final inReview = [
-                                    'PENDING',
-                                    'REJECTED',
-                                  ].contains(option?.verificationStatus);
+                                  final inReview =
+                                      [
+                                        'PENDING',
+                                        'REJECTED',
+                                      ].contains(option?.verificationStatus) &&
+                                      !result.value.incompleteRegistrationIds
+                                          .contains(id);
                                   context.push(
                                     option?.verificationStatus == 'APPROVED' &&
                                             option?.providerStatus !=
@@ -142,7 +145,10 @@ class _Overview extends StatelessWidget {
   );
   @override
   Widget build(BuildContext context) {
-    final registeredIds = value.registered.map((o) => o.optionId).toSet();
+    final registeredIds = value.registered
+        .map((o) => o.optionId)
+        .where((id) => !value.incompleteRegistrationIds.contains(id))
+        .toSet();
     final registered = value.schema.options
         .where((o) => registeredIds.contains(o.optionId))
         .toList();
@@ -347,7 +353,13 @@ class _Overview extends StatelessWidget {
                 color: servicesMuted,
               ),
               const SizedBox(height: 7),
-              for (final option in available) row(option),
+              for (final option in available)
+                row(
+                  option,
+                  registered: value.registered
+                      .where((saved) => saved.optionId == option.optionId)
+                      .firstOrNull,
+                ),
               if (available.isEmpty)
                 text(
                   'All available sub-services are registered.',
@@ -359,7 +371,7 @@ class _Overview extends StatelessWidget {
             ],
           ),
         ),
-        if (registered.isEmpty)
+        if (value.registered.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(17, 38, 17, 26),
             child: SizedBox(
@@ -401,9 +413,12 @@ class _Overview extends StatelessWidget {
     ProviderSelectedOption? registered,
   }) {
     final incomplete =
-        registered == null && value.selected.contains(option.optionId);
+        value.incompleteRegistrationIds.contains(option.optionId) ||
+        (registered == null && value.selected.contains(option.optionId));
     final description = 'View details and registration requirements.';
-    final status = registered == null
+    final status = incomplete
+        ? 'Incomplete'
+        : registered == null
         ? null
         : registered.providerStatus == 'INACTIVE' ||
               registered.adminStatus == 'INACTIVE'
@@ -455,7 +470,9 @@ class _Overview extends StatelessWidget {
                         text(option.name, 10.8, bold: true),
                         const SizedBox(height: 3),
                         text(
-                          registered == null
+                          incomplete && registered != null
+                              ? 'Continue registration'
+                              : registered == null
                               ? description
                               : 'Registered · Manage',
                           10.6,
@@ -465,7 +482,6 @@ class _Overview extends StatelessWidget {
                     ),
                   ),
                   if (status != null) badge(status, teal: status == 'Active'),
-                  if (incomplete) badge('Incomplete'),
                   if (registered != null ||
                       value.assignment != null ||
                       incomplete)
