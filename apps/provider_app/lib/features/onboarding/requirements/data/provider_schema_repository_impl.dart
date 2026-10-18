@@ -13,11 +13,12 @@ final class ProviderSchemaRepositoryImpl implements ProviderSchemaRepository {
   Future<Result<ProviderOnboardingSchema>> loadSchema(int serviceTypeId) async {
     try {
       integer(serviceTypeId, positive: true);
+      final schema = parseProviderSchema(
+        await remote.loadSchema(serviceTypeId),
+        serviceTypeId,
+      );
       return Success(
-        parseProviderSchema(
-          await remote.loadSchema(serviceTypeId),
-          serviceTypeId,
-        ),
+        applyPublicOptions(schema, await remote.loadOptions(serviceTypeId)),
       );
     } on NetworkException catch (e) {
       return Failure(e.toAppFailure());

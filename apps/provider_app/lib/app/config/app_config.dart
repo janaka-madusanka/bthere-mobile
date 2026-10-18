@@ -4,6 +4,7 @@ final class AppConfig {
   AppConfig({
     required this.apiBaseUrl,
     this.googleServerClientId = '',
+    this.googleMapsApiKey = '',
     bool allowHttp = kDebugMode,
   }) {
     final uri = Uri.tryParse(apiBaseUrl);
@@ -25,8 +26,13 @@ final class AppConfig {
   /// Web OAuth client ID matching the backend's Google ID-token audience.
   final String googleServerClientId;
 
+  final String googleMapsApiKey;
+
   factory AppConfig.fromEnvironment() => AppConfig(
     apiBaseUrl: const String.fromEnvironment('BTHERE_API_BASE_URL'),
+    googleMapsApiKey: const String.fromEnvironment(
+      'BTHERE_GOOGLE_MAPS_API_KEY',
+    ),
     googleServerClientId: const String.fromEnvironment(
       'BTHERE_GOOGLE_SERVER_CLIENT_ID',
     ),

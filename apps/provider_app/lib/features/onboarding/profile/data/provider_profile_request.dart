@@ -10,8 +10,8 @@ Map<String, dynamic> serializeProviderProfile(ProviderProfileInput input) {
   return {
     'firstName': input.firstName.trim(),
     'lastName': input.lastName.trim(),
-    'nicNumber': null,
-    'passportNumber': null,
+    'nicNumber': optional(input.nicNumber),
+    'passportNumber': optional(input.passportNumber),
     'dateOfBirth':
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
     'gender': input.gender.wireValue,

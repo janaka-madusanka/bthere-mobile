@@ -10,12 +10,16 @@ class DocumentRequirement {
     this.description,
     this.hasExpiry,
     this.required,
-    this.requiresApproval,
-  );
+    this.requiresApproval, {
+    this.optionId,
+  });
   final int id;
   final String name;
   final String? description;
   final bool hasExpiry, required, requiresApproval;
+  final int? optionId;
+  bool get isSelfie =>
+      RegExp(r'self[ -]?ie', caseSensitive: false).hasMatch(name);
 }
 
 class ProviderDocument {
@@ -103,6 +107,7 @@ class DocumentRegistration {
 abstract interface class DocumentsRepository {
   Future<Result<List<DocumentRequirement>>> requirements(int serviceTypeId);
   Future<Result<List<ProviderDocument>>> documents();
+  Future<Result<Uri>> viewUrl(String key);
   Future<Result<DocumentUpload>> upload(
     DocumentFile file,
     void Function(int, int) progress,

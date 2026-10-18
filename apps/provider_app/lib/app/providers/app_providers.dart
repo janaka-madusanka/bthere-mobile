@@ -21,8 +21,10 @@ import 'package:bthere_auth/bthere_auth.dart';
 import 'package:bthere_network/bthere_network.dart';
 import 'package:bthere_session/bthere_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/auth/session_access_token_provider.dart';
+import '../../core/auth/provider_session_api.dart';
 import '../../core/session/app_session_state.dart';
 import '../config/app_config.dart';
 import '../../features/auth/domain/google_identity_provider.dart';
@@ -46,8 +48,13 @@ final accessTokenProvider = Provider<AccessTokenProvider>(
   (ref) => SessionAccessTokenProvider(
     ref.watch(sessionStorageProvider),
     now: ref.watch(clockProvider),
+    refreshSession: ref.watch(providerSessionApiProvider).refresh,
   ),
-  dependencies: [sessionStorageProvider, clockProvider],
+  dependencies: [
+    sessionStorageProvider,
+    clockProvider,
+    providerSessionApiProvider,
+  ],
 );
 
 final networkConfigProvider = Provider<NetworkConfig>((ref) {
@@ -60,6 +67,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   final client = ApiClient(
     config: ref.watch(networkConfigProvider),
     tokenProvider: ref.watch(accessTokenProvider),
+    diagnosticLogger: kDebugMode ? (message) => debugPrint(message) : null,
   );
   ref.onDispose(() => client.close(force: true));
   return client;
@@ -74,15 +82,39 @@ final providerAuthRepositoryProvider = Provider<ProviderAuthRepository>(
   dependencies: [apiClientProvider, sessionStorageProvider, clockProvider],
 );
 
-final appSessionStateProvider = FutureProvider<AppSessionState>((ref) async {
-  if (ref.watch(appConfigProvider) == null) {
-    return AppSessionState.configurationFailure;
-  }
-  return restoreAppSession(
-    ref.watch(sessionStorageProvider),
-    now: ref.watch(clockProvider),
-  );
-}, dependencies: [appConfigProvider, sessionStorageProvider, clockProvider]);
+final appSessionStateProvider = FutureProvider<AppSessionState>(
+  (ref) async {
+    if (ref.watch(appConfigProvider) == null) {
+      return AppSessionState.configurationFailure;
+    }
+    try {
+      final session = await ref.watch(sessionStorageProvider).read();
+      if (!ref.mounted || session == null) {
+        return AppSessionState.unauthenticated;
+      }
+      if (!session.isExpiredAt(ref.read(clockProvider)())) {
+        return AppSessionState.authenticated;
+      }
+      final refreshed = await ref
+          .read(providerSessionApiProvider)
+          .refresh(session);
+      if (!ref.mounted || refreshed == null) {
+        return AppSessionState.unauthenticated;
+      }
+      return refreshed.isExpiredAt(ref.read(clockProvider)())
+          ? AppSessionState.unauthenticated
+          : AppSessionState.authenticated;
+    } catch (_) {
+      return AppSessionState.restorationFailure;
+    }
+  },
+  dependencies: [
+    appConfigProvider,
+    sessionStorageProvider,
+    clockProvider,
+    providerSessionApiProvider,
+  ],
+);
 
 final providerCompletionRepositoryProvider =
     Provider<ProviderCompletionRepository>(

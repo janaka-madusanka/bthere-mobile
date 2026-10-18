@@ -10,7 +10,11 @@ import '../../onboarding/services/domain/provider_service_type.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../domain/sub_service_rules.dart';
+import '../documents/documents_controller.dart'
+    show documentsRepositoryProvider;
+import '../documents/document_models.dart';
 import 'service_providers.dart';
+import 'service_draft_store.dart';
 
 final class ServiceDetailState {
   ServiceDetailState({
@@ -23,6 +27,8 @@ final class ServiceDetailState {
     this.saved = false,
     this.failure,
     this.inconsistent = false,
+    this.registered = const [],
+    this.incompleteRegistrationIds = const {},
   }) : selected = Set.unmodifiable(selected);
   final ProviderServiceType service;
   final ProviderOnboardingSchema schema;
@@ -31,6 +37,8 @@ final class ServiceDetailState {
   final ProviderServiceAssignment? assignment;
   final bool busy, saved, inconsistent;
   final AppFailure? failure;
+  final List<ProviderSelectedOption> registered;
+  final Set<int> incompleteRegistrationIds;
   String? get validation => inconsistent
       ? 'Some saved sub-services are no longer available. Retry to reload your service.'
       : validateSubServices(schema, selected) ??
@@ -52,6 +60,8 @@ final class ServiceDetailState {
     saved: saved,
     failure: failure,
     inconsistent: inconsistent,
+    registered: registered,
+    incompleteRegistrationIds: incompleteRegistrationIds,
   );
 }
 
@@ -65,6 +75,9 @@ final serviceDetailControllerProvider = AsyncNotifierProvider.autoDispose
         providerServiceRepositoryProvider,
         providerOptionsRepositoryProvider,
         providerCompletionControllerProvider,
+        serviceDraftStoreProvider,
+        documentsRepositoryProvider,
+        clockProvider,
       ],
     );
 
@@ -98,6 +111,7 @@ final class ServiceDetailController
           .where((a) => a.providerTypeId == serviceTypeId)
           .firstOrNull;
       Set<int> ids = {};
+      List<ProviderSelectedOption> registered = [];
       if (assignment != null) {
         final selected = await ref
             .watch(providerOptionsRepositoryProvider)
@@ -106,14 +120,73 @@ final class ServiceDetailController
           return _failure();
         }
         ids = selected.value.map((s) => s.optionId).toSet();
+        registered = selected.value;
+      }
+      final incompleteRegistrationIds = <int>{};
+      final pendingOptions = registered.where(
+        (option) =>
+            option.verificationStatus == 'PENDING' &&
+            option.providerStatus != 'INACTIVE' &&
+            option.adminStatus != 'INACTIVE',
+      );
+      if (pendingOptions.isNotEmpty) {
+        try {
+          final documents = ref.watch(documentsRepositoryProvider);
+          final results = await Future.wait([
+            documents.requirements(serviceTypeId),
+            documents.documents(),
+          ]);
+          if (!ref.mounted) return _failure();
+          final requirements = results[0];
+          final uploads = results[1];
+          // Only known missing documents imply an unfinished registration.
+          // Failed refreshes must not relabel existing review/approval states.
+          if (requirements is Success<List<DocumentRequirement>> &&
+              uploads is Success<List<ProviderDocument>>) {
+            final now = ref.read(clockProvider)();
+            for (final option in pendingOptions) {
+              if (requirements.value
+                  .where(
+                    (requirement) =>
+                        requirement.required &&
+                        (requirement.optionId == null ||
+                            requirement.optionId == option.optionId),
+                  )
+                  .any(
+                    (requirement) => !uploads.value.any(
+                      (document) =>
+                          document.typeId == requirement.id &&
+                          [
+                            'Approved',
+                            'Pending approval',
+                          ].contains(document.status(now)),
+                    ),
+                  )) {
+                incompleteRegistrationIds.add(option.optionId);
+              }
+            }
+          }
+        } catch (_) {
+          // Document availability must not hide the existing service overview.
+        }
       }
       final valid = schema.value.options.map((o) => o.optionId).toSet();
+      final draft = await ref
+          .read(serviceDraftStoreProvider)
+          .read(serviceTypeId);
+      final draftIds = (draft?['selected'] as List?)?.whereType<int>().toSet();
       return Success(
         ServiceDetailState(
           service: service,
           schema: schema.value,
-          selected: ids.intersection(valid),
-          experience: assignment?.experienceYears.toString() ?? '',
+          selected: {...ids, ...?draftIds}.intersection(valid),
+          experience:
+              assignment?.experienceYears.toString() ??
+              (draft?['experience'] as String? ?? ''),
+          registered: registered,
+          incompleteRegistrationIds: Set.unmodifiable(
+            incompleteRegistrationIds,
+          ),
           assignment: assignment,
           inconsistent: !valid.containsAll(ids),
         ),
@@ -140,6 +213,7 @@ final class ServiceDetailController
     final ids = Set<int>.of(result.value.selected);
     if (!ids.remove(id)) ids.add(id);
     state = AsyncData(Success(result.value.copy(selected: ids)));
+    _saveDraft();
   }
 
   void experience(String text) {
@@ -150,6 +224,31 @@ final class ServiceDetailController
       return;
     }
     state = AsyncData(Success(result.value.copy(experience: text)));
+    _saveDraft();
+  }
+
+  void _saveDraft() {
+    final result = state.asData?.value;
+    if (result is! Success<ServiceDetailState>) return;
+    final store = ref.read(serviceDraftStoreProvider);
+    store
+        .write(serviceTypeId, result.value.selected, result.value.experience)
+        .catchError((Object _) {
+          if (ref.mounted) {
+            final latest = state.asData?.value;
+            if (latest is Success<ServiceDetailState>) {
+              state = AsyncData(
+                Success(
+                  latest.value.copy(
+                    failure: const AppFailure(
+                      message: 'Unable to save progress on this device. Please try again.',
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+        });
   }
 
   void retry() {
@@ -161,11 +260,14 @@ final class ServiceDetailController
     container.invalidate(serviceDetailControllerProvider(serviceTypeId));
   }
 
-  Future<void> continueSetup() async {
+  Future<bool> continueSetup() async {
     final result = state.asData?.value;
-    if (result is! Success<ServiceDetailState>) return;
+    if (result is! Success<ServiceDetailState>) return false;
     var current = result.value;
-    if (current.busy || current.saved || current.validation != null) return;
+    if (current.saved) return true;
+    if (current.busy || current.validation != null) {
+      return false;
+    }
     final generation = _generation, container = ref.container;
     final services = ref.read(providerServiceRepositoryProvider),
         options = ref.read(providerOptionsRepositoryProvider);
@@ -174,7 +276,7 @@ final class ServiceDetailController
     try {
       if (current.assignment == null) {
         final recovered = await services.loadAssignments();
-        if (!ref.mounted || generation != _generation) return;
+        if (!ref.mounted || generation != _generation) return false;
         if (recovered is! Success<List<ProviderServiceAssignment>>) {
           state = AsyncData(
             Success(
@@ -185,7 +287,7 @@ final class ServiceDetailController
               ),
             ),
           );
-          return;
+          return false;
         }
         var assignment = recovered.value
             .where((a) => a.providerTypeId == serviceTypeId)
@@ -199,7 +301,7 @@ final class ServiceDetailController
               )!,
             ),
           );
-          if (!ref.mounted || generation != _generation) return;
+          if (!ref.mounted || generation != _generation) return false;
           if (created is Failure<ProviderServiceAssignment>) {
             state = AsyncData(
               Success(
@@ -211,7 +313,7 @@ final class ServiceDetailController
                 ),
               ),
             );
-            return;
+            return false;
           }
           assignment = (created as Success<ProviderServiceAssignment>).value;
         }
@@ -229,7 +331,7 @@ final class ServiceDetailController
         current.assignment!.assignmentId,
         ids,
       );
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       if (saved is Failure<void>) {
         state = AsyncData(
           Success(
@@ -241,12 +343,15 @@ final class ServiceDetailController
             ),
           ),
         );
-        return;
+        return false;
       }
+      await ref.read(serviceDraftStoreProvider).clear(serviceTypeId);
+      if (!ref.mounted || generation != _generation) return false;
       state = AsyncData(Success(current.copy(saved: true)));
       completion.reload();
       container.invalidate(providerAssignmentsProvider);
       container.invalidate(serviceSchemaProvider(serviceTypeId));
+      return true;
     } catch (_) {
       if (ref.mounted && generation == _generation) {
         state = AsyncData(
@@ -260,5 +365,6 @@ final class ServiceDetailController
         );
       }
     }
+    return false;
   }
 }

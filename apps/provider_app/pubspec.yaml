@@ -43,9 +43,14 @@ dependencies:
   bthere_design_system: ^0.0.1
   bthere_common: ^0.0.1
   google_sign_in: ^7.2.0
+  permission_handler: ^12.0.1
+  image_picker: ^1.2.4
   file_picker: ^13.1.0
   flutter_svg: ^2.3.0
   xml: ^7.0.1
+  google_maps_flutter: ^2.19.0
+  geocoding: ^5.0.0
+  geolocator: ^14.0.1
 
 dev_dependencies:
   dio: ^5.9.2
@@ -64,12 +69,33 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
+    - family: HomeInter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: HomeLato
+      fonts:
+        - asset: assets/fonts/Lato-Regular.ttf
+        - asset: assets/fonts/Lato-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Lato-Black.ttf
+          weight: 900
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/navigation/
+    - assets/registration/
+    - assets/application_status/
+    - assets/home/
+    - assets/profile/
+    - assets/services/
+    - assets/service_detail/
     - assets/branding/bthere_logo_care_promise.svg
     - assets/branding/google_logo.svg
     - assets/branding/apple_logo.svg

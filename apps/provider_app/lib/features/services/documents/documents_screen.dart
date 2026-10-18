@@ -3,6 +3,7 @@ import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/providers/app_providers.dart';
 import '../../../app/router/app_routes.dart';
@@ -348,12 +349,45 @@ class _DocumentEditorSheetState extends ConsumerState<DocumentEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (draft != null) ...[
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
                   Text(
                     'Submit ${draft.requirement.name}',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  const Text('PDF, JPG, JPEG, PNG or WebP. Maximum 100 MB.'),
+                  Text(
+                    draft.requirement.isSelfie
+                        ? 'Take a clear selfie with your face fully visible and good lighting.'
+                        : 'Photograph the full document. Keep all text clear and avoid glare.',
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    icon: Icon(
+                      draft.requirement.isSelfie
+                          ? Icons.add_a_photo_outlined
+                          : Icons.camera_alt_outlined,
+                    ),
+                    label: Text(
+                      draft.requirement.isSelfie ? 'Take selfie' : 'Take photo',
+                    ),
+                    onPressed: state.busy
+                        ? null
+                        : () {
+                            FocusScope.of(context).unfocus();
+                            controller.pick(camera: true);
+                          },
+                  ),
+                  const SizedBox(height: 8),
                   BThereButton(
                     label: 'Choose file',
                     enabled: !state.busy,
@@ -362,7 +396,37 @@ class _DocumentEditorSheetState extends ConsumerState<DocumentEditorSheet> {
                       controller.pick();
                     },
                   ),
-                  if (draft.file != null) Text(draft.file!.name),
+                  const SizedBox(height: 8),
+                  Text(
+                    'PDF, JPG, JPEG, PNG or WebP. Maximum 100 MB.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (draft.file != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(draft.file!.name)),
+                          Text(
+                            '${(draft.file!.size / 1000000).toStringAsFixed(1)} MB',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'Document details',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 16),
                   DocumentMetadataForm(
                     key: ObjectKey(draft),
                     draft: draft,
@@ -383,6 +447,25 @@ class _DocumentEditorSheetState extends ConsumerState<DocumentEditorSheet> {
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
+                  ),
+                if (state.cameraSettingsRequired)
+                  TextButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () async {
+                            final opened = await openAppSettings();
+                            if (!opened && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Open your phone Settings and allow camera access for this app.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Open Settings'),
                   ),
                 const SizedBox(height: 16),
                 if (draft != null)
@@ -419,41 +502,125 @@ class DocumentMetadataForm extends StatelessWidget {
   final bool enabled;
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      TextFormField(
-        initialValue: draft.name,
-        enabled: enabled,
-        decoration: InputDecoration(
-          labelText: 'Document name',
-          errorText: draft.errors['name'],
-        ),
-        onChanged: (v) => draft.name = v,
+    children:
+        [
+              TextFormField(
+                initialValue: draft.name,
+                enabled: enabled,
+                decoration: InputDecoration(
+                  labelText: 'Document name',
+                  errorText: draft.errors['name'],
+                ),
+                onChanged: (v) => draft.name = v,
+              ),
+              TextFormField(
+                initialValue: draft.number,
+                enabled: enabled,
+                decoration: const InputDecoration(labelText: 'Document number'),
+                onChanged: (v) => draft.number = v,
+              ),
+              DocumentDateField(
+                value: draft.issued,
+                enabled: enabled,
+                label: 'Issued date (YYYY-MM-DD)',
+                error: draft.errors['issued'],
+                onChanged: (value) => draft.issued = value,
+              ),
+              if (draft.requirement.hasExpiry)
+                DocumentDateField(
+                  value: draft.expiry,
+                  enabled: enabled,
+                  label: 'Expiry date (YYYY-MM-DD)',
+                  error: draft.errors['expiry'],
+                  onChanged: (value) => draft.expiry = value,
+                ),
+            ]
+            .map(
+              (field) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: field,
+              ),
+            )
+            .toList(),
+  );
+}
+
+class DocumentDateField extends StatefulWidget {
+  const DocumentDateField({
+    required this.value,
+    required this.enabled,
+    required this.label,
+    required this.onChanged,
+    this.error,
+    super.key,
+  });
+  final String value, label;
+  final String? error;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+  @override
+  State<DocumentDateField> createState() => _DocumentDateFieldState();
+}
+
+class _DocumentDateFieldState extends State<DocumentDateField> {
+  late final TextEditingController _text = TextEditingController(
+    text: widget.value,
+  );
+  bool _picking = false;
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant DocumentDateField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _text.text) _text.text = widget.value;
+  }
+
+  Future<void> _choose() async {
+    if (_picking || !widget.enabled) return;
+    _picking = true;
+    FocusScope.of(context).unfocus();
+    try {
+      final first = DateTime(1900);
+      final last = DateTime(2200, 12, 31);
+      final parsed = DateTime.tryParse(_text.text) ?? DateTime.now();
+      final date = await showDatePicker(
+        context: context,
+        helpText: widget.label.split(' (').first,
+        initialDate: parsed.isBefore(first)
+            ? first
+            : (parsed.isAfter(last) ? last : parsed),
+        firstDate: first,
+        lastDate: last,
+      );
+      if (date != null && mounted) {
+        final value = date.toIso8601String().substring(0, 10);
+        _text.text = value;
+        widget.onChanged(value);
+        setState(() {});
+      }
+    } finally {
+      _picking = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    controller: _text,
+    enabled: widget.enabled,
+    readOnly: true,
+    onTap: _choose,
+    decoration: InputDecoration(
+      labelText: widget.label,
+      errorText: widget.error,
+      suffixIcon: IconButton(
+        tooltip: 'Choose ${widget.label.split(' (').first.toLowerCase()}',
+        onPressed: widget.enabled ? _choose : null,
+        icon: const Icon(Icons.calendar_today_outlined),
       ),
-      TextFormField(
-        initialValue: draft.number,
-        enabled: enabled,
-        decoration: const InputDecoration(labelText: 'Document number'),
-        onChanged: (v) => draft.number = v,
-      ),
-      TextFormField(
-        initialValue: draft.issued,
-        enabled: enabled,
-        decoration: InputDecoration(
-          errorText: draft.errors['issued'],
-          labelText: 'Issued date (YYYY-MM-DD)',
-        ),
-        onChanged: (v) => draft.issued = v,
-      ),
-      if (draft.requirement.hasExpiry)
-        TextFormField(
-          initialValue: draft.expiry,
-          enabled: enabled,
-          decoration: InputDecoration(
-            errorText: draft.errors['expiry'],
-            labelText: 'Expiry date (YYYY-MM-DD)',
-          ),
-          onChanged: (v) => draft.expiry = v,
-        ),
-    ],
+    ),
   );
 }

@@ -25,6 +25,35 @@ void main() {
   });
   tearDown(() => client.close());
 
+  test('diagnostics report requests without credentials or queries', () async {
+    final messages = <String>[];
+    final loggedClient = ApiClient(
+      config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
+      adapter: adapter,
+      diagnosticLogger: messages.add,
+    );
+    addTearDown(loggedClient.close);
+    await loggedClient.post<Object?>(
+      '/auth/register?secret=hidden',
+      data: {'password': 'private-password'},
+      options: Options(headers: {'X-Private': 'private-header'}),
+    );
+    expect(messages, [
+      '[HTTP] POST https://example.invalid/api/v1/auth/register',
+      '[HTTP] POST /auth/register -> 200',
+    ]);
+  });
+
+  test('a failing diagnostic sink does not fail a request', () async {
+    final loggedClient = ApiClient(
+      config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
+      adapter: adapter,
+      diagnosticLogger: (_) => throw StateError('logging failed'),
+    );
+    addTearDown(loggedClient.close);
+    expect((await loggedClient.get<Object?>('/items')).statusCode, 200);
+  });
+
   test('applies base URL, timeouts, Accept, and no redirects', () async {
     await client.get<Map<String, dynamic>>('/items');
     final request = adapter.requests.single;

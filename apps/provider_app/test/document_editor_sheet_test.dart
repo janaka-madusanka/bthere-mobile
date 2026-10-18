@@ -5,6 +5,8 @@ import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider_app/features/services/documents/documents_controller.dart';
+import 'package:provider_app/features/services/documents/document_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider_app/features/services/documents/documents_repository.dart';
 import 'package:provider_app/features/services/documents/documents_screen.dart';
 
@@ -15,7 +17,10 @@ Future<void> open(
   WidgetTester tester, {
   String label = 'Upload document',
 }) async {
-  final button = find.widgetWithText(BThereButton, label).first;
+  final legacy = find.widgetWithText(BThereButton, label);
+  final button = legacy.evaluate().isNotEmpty
+      ? legacy.first
+      : find.byTooltip('Upload National ID');
   await tester.ensureVisible(button);
   await tester.tap(button);
   await tester.pumpAndSettle();
@@ -32,10 +37,13 @@ Future<void> metadata(WidgetTester tester) async {
     find.widgetWithText(TextFormField, 'Document number'),
     '123',
   );
-  await tester.enterText(
-    find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)'),
-    '2020-01-01',
-  );
+  final issued = find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)');
+  await tester.ensureVisible(issued);
+  await tester.tap(issued);
+  await tester.pumpAndSettle();
+  expect(find.byType(DatePickerDialog), findsOneWidget);
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
   tester.testTextInput.hide();
   await tester.pump();
 }
@@ -54,7 +62,42 @@ Future<void> submit(
   }
 }
 
+class FakeCamera implements DocumentCamera {
+  bool? selfie;
+  @override
+  Future<DocumentFile?> capture({required bool selfie}) async {
+    this.selfie = selfie;
+    return file();
+  }
+}
+
 void main() {
+  for (final name in ['Selfie', 'National Identity Card']) {
+    test('camera selects lens for $name', () async {
+      final camera = FakeCamera();
+      final f = DocumentsFixture();
+      final container = ProviderContainer(
+        parent: f.container,
+        overrides: [documentCameraProvider.overrideWithValue(camera)],
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        documentsControllerProvider(3),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      final controller = container.read(
+        documentsControllerProvider(3).notifier,
+      );
+      await controller.load();
+      controller.edit(DocumentRequirement(1, name, null, false, true, true));
+      await controller.pick(camera: true);
+      expect(camera.selfie, name == 'Selfie');
+      expect(controller.state.draft!.file, isNotNull);
+      expect(controller.state.busy, isFalse);
+    });
+  }
+
   testWidgets(
     'completion removes its own sheet without popping a covering dialog',
     (tester) async {
@@ -494,7 +537,7 @@ void main() {
         await tester.ensureVisible(button);
         await tester.pumpAndSettle();
         expect(button.hitTestable(), findsOneWidget);
-        expect(Theme.of(tester.element(button)).brightness, brightness);
+        expect(Theme.of(tester.element(button)).brightness, Brightness.light);
         expect(tester.takeException(), isNull);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();

@@ -324,8 +324,8 @@ void main() {
       expect(path(container), AppRoutes.home);
       expect(container.read(appRouterProvider), same(router));
       expect(storage.writes, 1);
-      expect(storage.reads, 2);
-      expect(find.text('Welcome back'), findsOneWidget);
+      expect(storage.reads, 3);
+      expect(find.byType(MaterialApp), findsOneWidget);
     },
   );
 

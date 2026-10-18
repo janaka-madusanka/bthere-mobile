@@ -1,3 +1,8 @@
+import org.gradle.api.file.Directory
+import org.gradle.api.tasks.Delete
+import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.repositories
+
 allprojects {
     repositories {
         google()

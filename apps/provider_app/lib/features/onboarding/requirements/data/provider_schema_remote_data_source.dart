@@ -7,4 +7,8 @@ final class ProviderSchemaRemoteDataSource {
     '/provider-types/$id/onboarding-schema',
     requiresAuth: true,
   )).data;
+  Future<Object?> loadOptions(int id) async => (await client.get<Object?>(
+    '/provider-types/$id/options',
+    requiresAuth: true,
+  )).data;
 }

@@ -40,6 +40,10 @@ AuthUser parseUser(Object? value, {bool registration = false}) {
   final json = jsonObject(value);
   final id = json['id'];
   final roles = json['roles'];
+  final marketId = json['marketId'];
+  if (marketId != null && (marketId is! int || marketId <= 0)) {
+    invalidAuthResponse();
+  }
   if (id is! int ||
       id <= 0 ||
       roles is! List ||
@@ -55,6 +59,7 @@ AuthUser parseUser(Object? value, {bool registration = false}) {
   }
   return AuthUser(
     id: id,
+    marketId: marketId as int?,
     username: requiredText(json, 'username'),
     email: email,
     phoneNumber: optionalText(json, 'phoneNumber'),

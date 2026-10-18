@@ -8,6 +8,7 @@ import 'bthere_session_test.dart' show FakeSecureStore;
 void main() {
   final user = SessionUser(
     id: 25,
+    marketId: 1,
     username: 'provider',
     status: 'ACTIVE',
     email: 'provider@example.invalid',
@@ -34,6 +35,7 @@ void main() {
       expect(restored.user!.toJson(), user.toJson());
       expect(restored.expiresAt, session().expiresAt);
       expect(restored.user!.phoneNumber, isNull);
+      expect(restored.user!.marketId, 1);
       expect(restored.user!.phoneVerified, isNull);
       expect(restored.user.toString(), isNot(contains(user.email!)));
       expect(() => restored.user!.roles.add('ADMIN'), throwsUnsupportedError);
@@ -49,6 +51,15 @@ void main() {
     );
     expect((await storage.read())!.user, isNull);
   });
+  test('missing and null marketId remain readable', () async {
+    final legacyUser = Map<String, Object?>.from(user.toJson())
+      ..remove('marketId');
+    expect(SessionUser.fromJson(legacyUser).marketId, isNull);
+    final driver = FakeSecureStore();
+    final storage = SecureSessionStorage(store: driver);
+    await storage.write(session(user: SessionUser.fromJson(legacyUser)));
+    expect((await storage.read())!.user!.marketId, isNull);
+  });
   test(
     'malformed stored user never restores a partial authenticated record',
     () async {
@@ -61,6 +72,8 @@ void main() {
         42,
         {},
         {...user.toJson(), 'id': 0},
+        for (final marketId in [0, -1, '1', 1.5, true])
+          {...user.toJson(), 'marketId': marketId},
         {
           ...user.toJson(),
           'roles': ['SERVICE_PROVIDER', 123],

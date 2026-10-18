@@ -34,6 +34,8 @@ import 'support/fake_completion_repository.dart';
 import 'support/fake_profile_repository.dart';
 import 'support/fake_session_storage.dart';
 
+import 'package:provider_app/features/onboarding/profile/data/provider_profile_reader.dart';
+
 ProviderProfileInput input({
   int marketId = 7,
   String first = ' Jane ',
@@ -55,6 +57,7 @@ ProviderProfileInput input({
 final class ProfileAdapter implements HttpClientAdapter {
   int status = 200;
   Object? body = {'ignored': 'undocumented success body'};
+  Object? Function(RequestOptions)? bodyForRequest;
   RequestOptions? request;
   bool connectionFailure = false;
   @override
@@ -68,7 +71,7 @@ final class ProfileAdapter implements HttpClientAdapter {
       throw StateError('synthetic private transport failure');
     }
     return ResponseBody.fromString(
-      jsonEncode(body),
+      jsonEncode(bodyForRequest?.call(options) ?? body),
       status,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
@@ -452,6 +455,9 @@ void main() {
   }) async {
     final scope = ProviderContainer(
       overrides: [
+        providerProfileDetailsProvider.overrideWith(
+          (_) async => const Success(<String, dynamic>{}),
+        ),
         providerEntryGateProvider.overrideWith(CompletedEntryGate.new),
         providerServiceRepositoryProvider.overrideWithValue(
           configuredServiceRepository(),

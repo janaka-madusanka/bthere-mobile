@@ -55,6 +55,7 @@ class FakeDocuments implements DocumentsRepository {
     ),
   );
   int requirementCalls = 0, documentCalls = 0, uploads = 0, deletes = 0;
+  int viewUrlCalls = 0;
   final registrations = <DocumentRegistration>[];
   Completer<Result<void>>? pending;
   Completer<Result<List<DocumentRequirement>>>? pendingRequirements;
@@ -69,6 +70,12 @@ class FakeDocuments implements DocumentsRepository {
   Future<Result<List<ProviderDocument>>> documents() async {
     documentCalls++;
     return pendingDocuments?.future ?? documentsResult;
+  }
+
+  @override
+  Future<Result<Uri>> viewUrl(String key) async {
+    viewUrlCalls++;
+    return Success(Uri.parse('https://example.invalid/view'));
   }
 
   @override

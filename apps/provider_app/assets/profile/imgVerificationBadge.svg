@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Verification badge" clip-path="url(#clip0_0_50)">
+<path id="Verification shield" d="M6.5 0L13 3V8C12.3333 10.6667 10.1667 12.6667 6.5 14C2.83333 12.6667 0.666667 10.6667 0 8V3L6.5 0Z" fill="#008A8D"/>
+<g id="Verified check">
+<path id="Vector" d="M9.5 5.25L5.375 9.375L3.5 7.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_50">
+<rect width="13" height="14" fill="white"/>
+</clipPath>
+</defs>
+</svg>
