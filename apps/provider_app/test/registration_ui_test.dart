@@ -506,6 +506,7 @@ void main() {
     final f = ServiceFixture(existing: true);
     await pump(tester, f, route: '/services/3/register?optionId=12');
     expect(find.text('Service Details'), findsOneWidget);
+    expect(find.text('Step 1 of 4'), findsOneWidget);
     expect(find.text('What service do you offer?'), findsNothing);
   });
 
@@ -533,6 +534,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RegistrationOptionEditor), findsOneWidget);
       expect(find.text('Save Work type 13 Details'), findsOneWidget);
+      expect(find.text('Step 1 of 4'), findsOneWidget);
       expect(find.byType(RegistrationDetails), findsNothing);
       expect(
         f.container.read(serviceDetailControllerProvider(3)).asData!.value
@@ -582,6 +584,7 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(find.text('Upload Required Documents'), findsOneWidget);
+      expect(find.text('Step 2 of 4'), findsOneWidget);
       expect(find.byType(RegistrationDetails), findsNothing);
       expect(store.drafts[3]!['languages'], original['languages']);
       expect(

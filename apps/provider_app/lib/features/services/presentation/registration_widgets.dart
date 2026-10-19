@@ -71,6 +71,7 @@ class RegistrationPage extends StatelessWidget {
     this.busy = false,
     this.title = 'Register a Service',
     this.showProgress = true,
+    this.firstStep = 1,
     this.alwaysScrollable = false,
     this.contentPadding = const EdgeInsets.fromLTRB(26, 20, 26, 28),
     this.footer,
@@ -78,6 +79,7 @@ class RegistrationPage extends StatelessWidget {
     super.key,
   });
   final int step;
+  final int firstStep;
   final Widget child;
   final VoidCallback onBack;
   final bool busy, showProgress, alwaysScrollable;
@@ -186,7 +188,7 @@ class RegistrationPage extends StatelessWidget {
                                       if (showProgress) ...[
                                         Center(
                                           child: registrationText(
-                                            'Step $step of 5',
+                                            'Step ${step - firstStep + 1} of ${6 - firstStep}',
                                             11,
                                             color: registrationMuted,
                                           ),
@@ -199,11 +201,11 @@ class RegistrationPage extends StatelessWidget {
                                               : 9,
                                         ),
                                         Semantics(
-                                          label: 'Registration step $step of 5',
+                                          label: 'Registration step ${step - firstStep + 1} of ${6 - firstStep}',
                                           child: Row(
                                             children: [
-                                              for (var i = 1; i <= 5; i++) ...[
-                                                if (i > 1)
+                                              for (var i = firstStep; i <= 5; i++) ...[
+                                                if (i > firstStep)
                                                   const SizedBox(width: 5),
                                                 Expanded(
                                                   child: Container(
