@@ -21,17 +21,16 @@ class ProviderNavigationBar extends StatelessWidget {
     (ProviderTab.requests, 'opportunities'),
     (ProviderTab.services, 'services'),
     (ProviderTab.messages, 'messages'),
-    (ProviderTab.profile, 'profile'),
+    (ProviderTab.wallet, 'wallet'),
   ];
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: const BoxDecoration(
-      gradient: RadialGradient(
-        center: Alignment(-.04, -.2),
-        radius: .75,
-        colors: [Color(0xFF008F93), Color(0xFF007277), Color(0xFF00555B)],
-        stops: [0, .5, 1],
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF00888C), Color(0xFF00656B)],
       ),
     ),
     // The device supplies its own gesture indicator and bottom inset.
@@ -61,15 +60,10 @@ class ProviderNavigationBar extends StatelessWidget {
 
   Widget _destination(ProviderTab tab, String asset, int position) {
     final selected = tab.index == selectedIndex;
-    final size = tab == ProviderTab.profile
-        ? 33.0
-        : tab == ProviderTab.requests && selected
-        ? 27.0
-        : 26.0;
     final icon = SvgPicture.asset(
       'assets/navigation/$asset${selected ? '_selected' : ''}.svg',
-      width: tab == ProviderTab.profile && selected ? 24 : size,
-      height: tab == ProviderTab.profile && selected ? 25 : size,
+      width: 26,
+      height: 26,
     );
     return Semantics(
       key: ValueKey('provider-tab-${tab.index}'),
@@ -92,19 +86,7 @@ class ProviderNavigationBar extends StatelessWidget {
                   color: selected ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: Center(
-                  child: tab == ProviderTab.profile && selected
-                      ? SizedBox(
-                          width: 33,
-                          height: 33,
-                          child: Stack(
-                            children: [
-                              Positioned(left: 5, top: 5, child: icon),
-                            ],
-                          ),
-                        )
-                      : icon,
-                ),
+                child: Center(child: icon),
               ),
               const SizedBox(height: 3),
               Text(

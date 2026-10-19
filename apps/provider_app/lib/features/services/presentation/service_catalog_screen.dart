@@ -150,6 +150,10 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
         )
         .toList();
     final registered = owned.isNotEmpty;
+    final defaultView = query.isEmpty && _filter == _ServiceFilter.all;
+    final remaining = registered && defaultView
+        ? visible.where((s) => !registeredIds.contains(s.id)).toList()
+        : visible;
     final featured = registered
         ? [
             for (final a in owned)
@@ -179,18 +183,25 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
         if (featured.isNotEmpty &&
             query.isEmpty &&
             _filter == _ServiceFilter.all)
-          ServiceFeaturedCarousel(
-            key: ValueKey('featured-$registered'),
-            services: featured,
-            registered: registered,
-            onSelect: open,
-          ),
+          if (registered)
+            ServiceRegisteredGrid(
+              services: featured,
+              statuses: statuses,
+              onSelect: open,
+            )
+          else
+            ServiceFeaturedCarousel(
+              key: ValueKey('featured-$registered'),
+              services: featured,
+              registered: false,
+              onSelect: open,
+            ),
         Padding(
           padding: EdgeInsets.fromLTRB(23 * scale, 0, 20 * scale, 20 * scale),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _sectionHeading(),
+              _sectionHeading(remaining: registered && defaultView),
               if (types.isEmpty)
                 const BThereStateView(
                   title: 'No services are available right now.',
@@ -208,10 +219,18 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
                     child: const Text('Clear search and filters'),
                   ),
                 )
+              else if (remaining.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'All available services are registered.',
+                    style: TextStyle(color: servicesMuted, fontSize: 12),
+                  ),
+                )
               else
                 ServiceCatalogGrid(
                   children: [
-                    for (final service in visible)
+                    for (final service in remaining)
                       ServiceCatalogCard(
                         service: service,
                         status: statuses[service.id],
@@ -226,7 +245,7 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
     );
   }
 
-  Widget _sectionHeading() => SizedBox(
+  Widget _sectionHeading({bool remaining = false}) => SizedBox(
     height: 38,
     child: Row(
       children: [
@@ -235,10 +254,12 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
         Expanded(
           child: Semantics(
             header: true,
-            child: const Text(
-              'All Services',
+            child: Text(
+              remaining ? 'Remaining Services' : 'All Services',
               style: TextStyle(
-                fontSize: 15.5,
+                fontSize:
+                    15.5 *
+                    (MediaQuery.sizeOf(context).width / 430).clamp(.65, 1.0),
                 fontWeight: FontWeight.w700,
                 color: servicesInk,
               ),
@@ -270,15 +291,15 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
       24 * scale,
       23 * scale,
       18 * scale,
-      30 * scale,
+      24 * scale,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'SERVICES',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 10 * scale,
             height: 1.3,
             fontWeight: FontWeight.w600,
             color: servicesMuted,
@@ -287,10 +308,10 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
         const SizedBox(height: 7),
         Semantics(
           header: true,
-          child: const Text(
+          child: Text(
             'Explore Services',
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 26 * scale,
               height: 32 / 26,
               fontWeight: FontWeight.w800,
               color: servicesInk,
@@ -298,13 +319,17 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
           ),
         ),
         const SizedBox(height: 5),
-        const Text(
+        Text(
           'Discover the services you can offer and make a difference.',
-          style: TextStyle(fontSize: 13, height: 18 / 13, color: servicesMuted),
+          style: TextStyle(
+            fontSize: 13 * scale,
+            height: 18 / 13,
+            color: servicesMuted,
+          ),
         ),
         const SizedBox(height: 12),
         Container(
-          height: 39,
+          height: 39 * scale,
           decoration: BoxDecoration(
             color: const Color(0xFFF7F8FA),
             borderRadius: BorderRadius.circular(8),
@@ -320,9 +345,9 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
                   key: const ValueKey('search-services'),
                   controller: _search,
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'HomeInter',
-                    fontSize: 13,
+                    fontSize: 13 * scale,
                     height: 1.2,
                     letterSpacing: 0,
                     color: servicesInk,

@@ -1,4 +1,5 @@
 import java.util.Base64
+import groovy.json.JsonSlurper
 
 plugins {
     id("com.android.application")
@@ -11,6 +12,18 @@ val dartDefines = (project.findProperty("dart-defines") as? String).orEmpty()
     .split(",").filter { it.isNotBlank() }.mapNotNull {
         runCatching { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }.getOrNull()
     }.associate { it.substringBefore("=") to it.substringAfter("=", "") }
+
+// A plain debug launch must not replace a configured installation with an empty
+// Maps key. Release builds still require explicit build definitions.
+val isDebugBuild = gradle.startParameter.taskNames.any { it.contains("debug", ignoreCase = true) }
+val localProviderConfig = rootProject.file("../../../config/provider.local.json")
+val localMapsKey = if (isDebugBuild && localProviderConfig.isFile) {
+    runCatching {
+        val config = JsonSlurper().parse(localProviderConfig) as Map<*, *>
+        (config["BTHERE_GOOGLE_MAPS_API_KEY"] as? String).orEmpty().trim()
+    }.getOrDefault("")
+} else ""
+val mapsApiKey = dartDefines["BTHERE_GOOGLE_MAPS_API_KEY"] ?: localMapsKey
 
 android {
     namespace = "com.bthere.provider"
@@ -25,7 +38,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.bthere.provider"
-        manifestPlaceholders["BTHERE_GOOGLE_MAPS_API_KEY"] = dartDefines["BTHERE_GOOGLE_MAPS_API_KEY"].orEmpty()
+        manifestPlaceholders["BTHERE_GOOGLE_MAPS_API_KEY"] = mapsApiKey
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

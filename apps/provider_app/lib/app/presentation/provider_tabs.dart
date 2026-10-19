@@ -26,11 +26,11 @@ enum ProviderTab {
     Icons.chat_bubble,
     'Your conversations will appear here.',
   ),
-  profile(
-    AppRoutes.account,
-    'Profile',
-    Icons.person_outline,
-    Icons.person,
+  wallet(
+    AppRoutes.wallet,
+    'Wallet',
+    Icons.account_balance_wallet_outlined,
+    Icons.account_balance_wallet,
     null,
   );
 

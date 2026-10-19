@@ -217,7 +217,7 @@ void main() {
     );
   }
   test(
-    '100 MB boundary accepted',
+    '5 MB boundary accepted',
     () => expect(file(size: maximumDocumentBytes).validation, isNull),
   );
   late DocumentAdapter adapter;
@@ -313,7 +313,7 @@ void main() {
     expect(progress, isNotEmpty);
   });
   test(
-    'registration exact six keys uses key not URL and accepts 201',
+    'registration omits absent metadata and uses storage key with 201',
     () async {
       adapter.status = 201;
       adapter.body = documentJson();
@@ -333,7 +333,6 @@ void main() {
         'documentNumber': '123',
         'documentKey': 'upload-key',
         'issuedDate': '2020-01-01',
-        'expiryDate': null,
       });
     },
   );
@@ -535,7 +534,7 @@ void main() {
       findsOneWidget,
     );
   });
-  testWidgets('error retry and metadata form no expiry when not required', (
+  testWidgets('error retry opens a name-only document upload', (
     tester,
   ) async {
     final f = DocumentsFixture();
@@ -549,7 +548,8 @@ void main() {
     await tester.ensureVisible(find.text('Upload document'));
     await tester.tap(find.text('Upload document'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TextFormField, 'Document name'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Document name'), findsNothing);
+    expect(find.text('National ID'), findsWidgets);
     expect(
       find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
       findsNothing,
@@ -698,32 +698,12 @@ void main() {
       await tester.pumpAndSettle();
       await c.pick();
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Document number'),
-        'My number',
-      );
-      final issued = find.widgetWithText(
-        TextFormField,
-        'Issued date (YYYY-MM-DD)',
-      );
-      await tester.ensureVisible(issued);
-      await tester.tap(issued);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
+      c.state.draft!.number = 'My number';
       f.repo.registerResult = const Failure(AppFailure(message: 'secret'));
       await c.submit();
       await tester.pumpAndSettle();
-      expect(
-        tester
-                .widget<TextFormField>(
-                  find.widgetWithText(TextFormField, 'Document number'),
-                )
-                .controller
-                ?.text ??
-            c.state.draft!.number,
-        'My number',
-      );
+      expect(c.state.draft!.number, 'My number');
+      expect(find.byType(DocumentMetadataForm), findsNothing);
       expect(find.text('Retry registration'), findsOneWidget);
       expect(c.state.draft!.upload!.key, 'upload-key');
       f.repo.registerResult = const Success(null);
@@ -732,7 +712,9 @@ void main() {
       expect(f.repo.uploads, 1);
     },
   );
-  testWidgets('expiry input follows backend requirement', (tester) async {
+  testWidgets('expiry requirement keeps compact name-only upload', (
+    tester,
+  ) async {
     final f = DocumentsFixture();
     f.repo.requirementsResult = Success(
       parseRequirements([requirementJson(expiry: true)]),
@@ -743,7 +725,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
-      findsOneWidget,
+      findsNothing,
     );
   });
   testWidgets('delete confirmation cancellation then success refresh', (

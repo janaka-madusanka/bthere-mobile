@@ -1,7 +1,7 @@
 import 'package:bthere_common/bthere_common.dart';
 
-const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
-const maximumDocumentBytes = 100000000;
+const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+const maximumDocumentBytes = 5000000;
 
 class DocumentRequirement {
   const DocumentRequirement(
@@ -67,10 +67,10 @@ class DocumentFile {
   final Stream<List<int>> Function() openRead;
   String? get validation {
     if (!documentExtensions.contains(name.split('.').last.toLowerCase())) {
-      return 'Choose a PDF, JPG, JPEG, PNG or WebP file.';
+      return 'Choose a PDF, JPG, JPEG or PNG file.';
     }
     if (size <= 0 || size > maximumDocumentBytes) {
-      return 'Choose a file up to 100 MB.';
+      return 'Choose a file up to 5 MB.';
     }
     return null;
   }
@@ -97,10 +97,10 @@ class DocumentRegistration {
   Map<String, Object?> toJson() => {
     'documentTypeId': typeId,
     'documentName': name,
-    'documentNumber': number,
+    if (number.trim().isNotEmpty) 'documentNumber': number,
     'documentKey': key,
-    'issuedDate': issuedDate,
-    'expiryDate': expiryDate,
+    if (issuedDate.isNotEmpty) 'issuedDate': issuedDate,
+    if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
   };
 }
 

@@ -64,6 +64,20 @@ class ServiceCatalogSymbol extends StatelessWidget {
     }
 
     final visual = serviceVisualStyle(service);
+    final name = service.name.toLowerCase();
+    final icon = switch (name) {
+      final n when n.contains('mobility') => Icons.assist_walker,
+      final n when n.contains('transport') => Icons.directions_bus_outlined,
+      final n when n.contains('medication') => Icons.medication_outlined,
+      final n when n.contains('pet') => Icons.pets,
+      final n when n.contains('child') => Icons.child_care,
+      final n when n.contains('handyman') => Icons.build_outlined,
+      final n when n.contains('garden') => Icons.eco_outlined,
+      final n when n.contains('shopping') => Icons.shopping_bag_outlined,
+      final n when n.contains('meal') => Icons.restaurant,
+      final n when n.contains('care') => Icons.volunteer_activism_outlined,
+      _ => Icons.miscellaneous_services,
+    };
     return Container(
       width: 44,
       height: 44,
@@ -72,11 +86,7 @@ class ServiceCatalogSymbol extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: Center(
-        child: Icon(
-          Icons.miscellaneous_services,
-          size: 26,
-          color: const Color(0xFF008B91),
-        ),
+        child: Icon(icon, size: 26, color: const Color(0xFF008B91)),
       ),
     );
   }

@@ -171,7 +171,7 @@ class _Overview extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(26, 0, 17, 12),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -184,18 +184,84 @@ class _Overview extends StatelessWidget {
                     text(
                       value.service.description ??
                           'Service details are available from the backend.',
-                      13.5,
+                      11.5,
                       color: servicesMuted,
                     ),
+                    if (value.service.responsibilities.isNotEmpty ||
+                        [
+                          'caregiving',
+                          'caregiver',
+                        ].contains(value.service.name.trim().toLowerCase()))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFFBFC),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Stack(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    text(
+                                      'Key Responsibilities',
+                                      13,
+                                      bold: true,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    for (final line
+                                        in value.service.responsibilities
+                                            .map(
+                                              (item) => item.description == null
+                                                  ? item.title
+                                                  : '${item.title}: ${item.description}',
+                                            )
+                                            .toList())
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const SizedBox(
+                                              width: 13,
+                                              height: 13,
+                                              child: _Asset('imgCheckBadge'),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: text(
+                                                line,
+                                                11.1,
+                                                color: servicesMuted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  width: 143,
-                  height: 143,
+                  width: 128,
+                  height: 128,
                   color: serviceVisualStyle(value.service).surface,
                   child: value.service.usableCoverUri != null
                       ? Image.network(
@@ -216,74 +282,11 @@ class _Overview extends StatelessWidget {
             ],
           ),
         ),
-        if (value.service.responsibilities.isNotEmpty ||
-            [
-              'caregiving',
-              'caregiver',
-            ].contains(value.service.name.trim().toLowerCase()))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(17, 8, 17, 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFFBFC),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  const Positioned(
-                    right: -13,
-                    top: -8,
-                    width: 111,
-                    height: 150,
-                    child: _Asset('imgBotanicalMotif'),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 17,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        text('Key Responsibilities', 14.5, bold: true),
-                        const SizedBox(height: 9),
-                        for (final line
-                            in value.service.responsibilities
-                                .map(
-                                  (item) => item.description == null
-                                      ? item.title
-                                      : '${item.title}: ${item.description}',
-                                )
-                                .toList())
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6.5),
-                            child: Row(
-                              children: [
-                                const SizedBox(
-                                  width: 13,
-                                  height: 13,
-                                  child: _Asset('imgCheckBadge'),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: text(line, 11.1, color: servicesMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         if (value.service.gallery.any((item) => item.usableUri != null))
           SizedBox(
-            height: 112,
+            height: 88,
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(17, 0, 17, 10),
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
               scrollDirection: Axis.horizontal,
               itemCount: value.service.gallery.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),
@@ -296,10 +299,10 @@ class _Overview extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         child: Image.network(
                           uri.toString(),
-                          width: 150,
+                          width: 112,
                           fit: BoxFit.cover,
                           semanticLabel: media.altText,
-                          errorBuilder: (_, _, _) => const SizedBox(width: 150),
+                          errorBuilder: (_, _, _) => const SizedBox(width: 112),
                         ),
                       );
               },
@@ -307,7 +310,7 @@ class _Overview extends StatelessWidget {
           ),
         if (registered.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(17, 0, 17, 10),
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -346,13 +349,13 @@ class _Overview extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               text('Sub Services', 16, bold: true),
-              const SizedBox(height: 7),
+              const SizedBox(height: 5),
               text(
                 'This service includes the following areas.',
                 12,
                 color: servicesMuted,
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 5),
               for (final option in available)
                 row(
                   option,
@@ -373,7 +376,7 @@ class _Overview extends StatelessWidget {
         ),
         if (value.registered.isEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(17, 38, 17, 26),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
             child: SizedBox(
               height: 44,
               child: FilledButton(
@@ -415,7 +418,8 @@ class _Overview extends StatelessWidget {
     final incomplete =
         value.incompleteRegistrationIds.contains(option.optionId) ||
         (registered == null && value.selected.contains(option.optionId));
-    final description = 'View details and registration requirements.';
+    final description =
+        option.description ?? 'View details and registration requirements.';
     final status = incomplete
         ? 'Incomplete'
         : registered == null
@@ -448,7 +452,7 @@ class _Overview extends StatelessWidget {
               : () => manage(option.optionId),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: registered == null ? 61 : 49,
+              minHeight: registered == null ? 58 : 49,
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(
@@ -458,8 +462,8 @@ class _Overview extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: registered == null ? 46 : 42,
-                    height: registered == null ? 46 : 42,
+                    width: registered == null ? 42 : 38,
+                    height: registered == null ? 42 : 38,
                     child: symbol(option.name),
                   ),
                   const SizedBox(width: 12),

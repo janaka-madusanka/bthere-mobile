@@ -59,6 +59,7 @@ class _DocumentsState extends ConsumerState<RegistrationDocuments> {
     try {
       await showModalBottomSheet<void>(
         context: context,
+        backgroundColor: Colors.transparent,
         useSafeArea: true,
         isScrollControlled: true,
         isDismissible: false,

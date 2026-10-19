@@ -82,6 +82,7 @@ class _DocumentsContentState extends ConsumerState<DocumentsContent> {
     try {
       await showModalBottomSheet<void>(
         context: context,
+        backgroundColor: Colors.transparent,
         isScrollControlled: true,
         useSafeArea: true,
         isDismissible: false,
@@ -342,149 +343,276 @@ class _DocumentEditorSheetState extends ConsumerState<DocumentEditorSheet> {
           padding: EdgeInsets.only(
             bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (draft != null) ...[
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 680;
+              final content = Container(
+                padding: EdgeInsets.fromLTRB(18, 10, 18, compact ? 16 : 24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (draft != null) ...[
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xffcfd7e5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Text(
-                    'Submit ${draft.requirement.name}',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    draft.requirement.isSelfie
-                        ? 'Take a clear selfie with your face fully visible and good lighting.'
-                        : 'Photograph the full document. Keep all text clear and avoid glare.',
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    icon: Icon(
-                      draft.requirement.isSelfie
-                          ? Icons.add_a_photo_outlined
-                          : Icons.camera_alt_outlined,
-                    ),
-                    label: Text(
-                      draft.requirement.isSelfie ? 'Take selfie' : 'Take photo',
-                    ),
-                    onPressed: state.busy
-                        ? null
-                        : () {
-                            FocusScope.of(context).unfocus();
-                            controller.pick(camera: true);
-                          },
-                  ),
-                  const SizedBox(height: 8),
-                  BThereButton(
-                    label: 'Choose file',
-                    enabled: !state.busy,
-                    onPressed: () {
-                      FocusScope.of(context).unfocus();
-                      controller.pick();
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'PDF, JPG, JPEG, PNG or WebP. Maximum 100 MB.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (draft.file != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
+                      Row(
                         children: [
-                          const Icon(Icons.check_circle_outline),
+                          const _UploadIcon(icon: Icons.description_outlined),
                           const SizedBox(width: 12),
-                          Expanded(child: Text(draft.file!.name)),
-                          Text(
-                            '${(draft.file!.size / 1000000).toStringAsFixed(1)} MB',
+                          Expanded(
+                            child: Text(
+                              'Upload Document',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xff101747),
+                                  ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close upload',
+                            onPressed: state.busy ? null : controller.cancel,
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xfff0f5fa),
+                              foregroundColor: const Color(0xff7d87a9),
+                            ),
+                            icon: const Icon(Icons.close, size: 20),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Text(
-                    'Document details',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  DocumentMetadataForm(
-                    key: ObjectKey(draft),
-                    draft: draft,
-                    enabled: !state.busy,
-                  ),
-                ],
-                if (state.phase != null) Text(state.phase!),
-                if (state.busy)
-                  LinearProgressIndicator(
-                    value: state.phase == 'Uploading document'
-                        ? state.progress
-                        : null,
-                  ),
-                if (state.operationError != null)
-                  Text(
-                    state.operationError!,
-                    key: _errorKey,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                if (state.cameraSettingsRequired)
-                  TextButton.icon(
-                    onPressed: state.busy
-                        ? null
-                        : () async {
-                            final opened = await openAppSettings();
-                            if (!opened && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Open your phone Settings and allow camera access for this app.',
+                      const SizedBox(height: 8),
+                      Text(
+                        draft.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      SizedBox(height: compact ? 12 : 18),
+                      Material(
+                        color: const Color(0xffeffafa),
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: state.busy
+                              ? null
+                              : () {
+                                  FocusScope.of(context).unfocus();
+                                  controller.pick();
+                                },
+                          child: CustomPaint(
+                            painter: _UploadBorder(),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: compact ? 12 : 24,
+                                horizontal: 16,
+                              ),
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.cloud_upload_outlined,
+                                    size: 44,
+                                    color: Color(0xff008e95),
                                   ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Tap to upload',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xff101747),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'JPG, PNG or PDF \u2022 Max 5 MB',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: compact ? 8 : 14),
+                      const Row(
+                        children: [
+                          Expanded(child: Divider()),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('or'),
+                          ),
+                          Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _UploadSource(
+                              icon: Icons.camera_alt_outlined,
+                              label: draft.requirement.isSelfie
+                                  ? 'Take selfie'
+                                  : 'Camera',
+                              onTap: state.busy
+                                  ? null
+                                  : () {
+                                      FocusScope.of(context).unfocus();
+                                      controller.pick(camera: true);
+                                    },
+                            ),
+                          ),
+                          Expanded(
+                            child: _UploadSource(
+                              icon: Icons.photo_library_outlined,
+                              label: 'Gallery',
+                              onTap: state.busy
+                                  ? null
+                                  : () {
+                                      FocusScope.of(context).unfocus();
+                                      controller.pick(gallery: true);
+                                    },
+                            ),
+                          ),
+                          Expanded(
+                            child: _UploadSource(
+                              icon: Icons.insert_drive_file_outlined,
+                              label: 'Files',
+                              onTap: state.busy
+                                  ? null
+                                  : () {
+                                      FocusScope.of(context).unfocus();
+                                      controller.pick();
+                                    },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (draft.file != null) ...[
+                        SizedBox(height: compact ? 12 : 20),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xfff0f7fa),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              _UploadIcon(
+                                icon:
+                                    draft.file!.name.toLowerCase().endsWith(
+                                      '.pdf',
+                                    )
+                                    ? Icons.picture_as_pdf_outlined
+                                    : Icons.image_outlined,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      draft.file!.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${(draft.file!.size / 1000000).toStringAsFixed(1)} MB',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
+                                  ],
                                 ),
-                              );
-                            }
-                          },
-                    icon: const Icon(Icons.settings_outlined),
-                    label: const Text('Open Settings'),
-                  ),
-                const SizedBox(height: 16),
-                if (draft != null)
-                  BThereButton(
-                    label: draft.upload != null
-                        ? 'Retry registration'
-                        : 'Upload and submit',
-                    loading: state.busy,
-                    onPressed: () {
-                      FocusScope.of(context).unfocus();
-                      controller.submit();
-                    },
-                  ),
-                TextButton(
-                  onPressed: state.busy ? null : controller.cancel,
-                  child: const Text('Cancel'),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove selected file',
+                                onPressed: state.busy
+                                    ? null
+                                    : controller.removeFile,
+                                icon: const Icon(Icons.cancel_outlined),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                    if (state.phase != null) Text(state.phase!),
+                    if (state.busy)
+                      LinearProgressIndicator(
+                        value: state.phase == 'Uploading document'
+                            ? state.progress
+                            : null,
+                      ),
+                    if (state.operationError != null)
+                      Text(
+                        state.operationError!,
+                        key: _errorKey,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    if (state.cameraSettingsRequired)
+                      TextButton.icon(
+                        onPressed: state.busy
+                            ? null
+                            : () async {
+                                final opened = await openAppSettings();
+                                if (!opened && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Open your phone Settings and allow camera access for this app.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: const Icon(Icons.settings_outlined),
+                        label: const Text('Open Settings'),
+                      ),
+                    const SizedBox(height: 16),
+                    if (draft != null)
+                      BThereButton(
+                        label: draft.upload != null
+                            ? 'Retry registration'
+                            : 'Upload',
+                        loading: state.busy,
+                        onPressed: () {
+                          FocusScope.of(context).unfocus();
+                          controller.submit();
+                        },
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              );
+              // Keep accessibility text and exceptionally short windows usable.
+              if (MediaQuery.textScalerOf(context).scale(14) > 19 ||
+                  constraints.maxHeight < 500) {
+                return SingleChildScrollView(child: content);
+              }
+              return content;
+            },
           ),
         ),
       ),
@@ -623,4 +751,64 @@ class _DocumentDateFieldState extends State<DocumentDateField> {
       ),
     ),
   );
+}
+
+class _UploadIcon extends StatelessWidget {
+  const _UploadIcon({required this.icon});
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 48,
+    height: 48,
+    decoration: const BoxDecoration(
+      color: Color(0xffeaf9f8),
+      shape: BoxShape.circle,
+    ),
+    child: Icon(icon, color: const Color(0xff008e95), size: 27),
+  );
+}
+
+class _UploadSource extends StatelessWidget {
+  const _UploadSource({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => TextButton(
+    onPressed: onTap,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _UploadIcon(icon: icon),
+        const SizedBox(height: 6),
+        Text(label),
+      ],
+    ),
+  );
+}
+
+class _UploadBorder extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
+      );
+    final paint = Paint()
+      ..color = const Color(0xff7bd8d8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final metric in path.computeMetrics()) {
+      for (double distance = 0; distance < metric.length; distance += 9) {
+        canvas.drawPath(metric.extractPath(distance, distance + 5), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _UploadBorder oldDelegate) => false;
 }

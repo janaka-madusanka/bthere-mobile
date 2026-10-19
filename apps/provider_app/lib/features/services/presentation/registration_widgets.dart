@@ -74,6 +74,7 @@ class RegistrationPage extends StatelessWidget {
     this.alwaysScrollable = false,
     this.contentPadding = const EdgeInsets.fromLTRB(26, 20, 26, 28),
     this.footer,
+    this.bodyBuilder,
     super.key,
   });
   final int step;
@@ -83,6 +84,7 @@ class RegistrationPage extends StatelessWidget {
   final String title;
   final EdgeInsets contentPadding;
   final Widget? footer;
+  final Widget Function(BuildContext, BoxConstraints)? bodyBuilder;
   @override
   Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
     value: SystemUiOverlayStyle.light.copyWith(
@@ -167,73 +169,82 @@ class RegistrationPage extends StatelessWidget {
                         top: Radius.circular(25),
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: SingleChildScrollView(
-                        key: ValueKey('registration-scroll-$step'),
-                        physics: alwaysScrollable
-                            ? const AlwaysScrollableScrollPhysics()
-                            : null,
-                        child: HomeScale(
-                          child: Padding(
-                            padding: contentPadding,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (showProgress) ...[
-                                  Center(
-                                    child: registrationText(
-                                      'Step $step of 5',
-                                      11,
-                                      color: registrationMuted,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    height: step == 5
-                                        ? 4
-                                        : step == 1
-                                        ? 13
-                                        : 9,
-                                  ),
-                                  Semantics(
-                                    label: 'Registration step $step of 5',
-                                    child: Row(
-                                      children: [
-                                        for (var i = 1; i <= 5; i++) ...[
-                                          if (i > 1) const SizedBox(width: 5),
-                                          Expanded(
-                                            child: Container(
-                                              height: 6.5,
-                                              decoration: BoxDecoration(
-                                                color: i <= step
-                                                    ? registrationTeal
-                                                    : const Color(0xFFDCE1E8),
-                                                borderRadius:
-                                                    BorderRadius.circular(99),
-                                              ),
-                                            ),
+                      child: bodyBuilder != null
+                          ? LayoutBuilder(builder: bodyBuilder!)
+                          : SingleChildScrollView(
+                              key: ValueKey('registration-scroll-$step'),
+                              physics: alwaysScrollable
+                                  ? const AlwaysScrollableScrollPhysics()
+                                  : null,
+                              child: HomeScale(
+                                child: Padding(
+                                  padding: contentPadding,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (showProgress) ...[
+                                        Center(
+                                          child: registrationText(
+                                            'Step $step of 5',
+                                            11,
+                                            color: registrationMuted,
                                           ),
-                                        ],
+                                        ),
+                                        SizedBox(
+                                          height: step == 5
+                                              ? 4
+                                              : step == 1
+                                              ? 13
+                                              : 9,
+                                        ),
+                                        Semantics(
+                                          label: 'Registration step $step of 5',
+                                          child: Row(
+                                            children: [
+                                              for (var i = 1; i <= 5; i++) ...[
+                                                if (i > 1)
+                                                  const SizedBox(width: 5),
+                                                Expanded(
+                                                  child: Container(
+                                                    height: 6.5,
+                                                    decoration: BoxDecoration(
+                                                      color: i <= step
+                                                          ? registrationTeal
+                                                          : const Color(
+                                                              0xFFDCE1E8,
+                                                            ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            99,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          height: step == 5
+                                              ? 25
+                                              : step == 3
+                                              ? 19
+                                              : step == 4
+                                              ? 38
+                                              : 40,
+                                        ),
                                       ],
-                                    ),
+                                      child,
+                                      SizedBox(
+                                        height: MediaQuery.paddingOf(context)
+                                            .bottom,
+                                      ),
+                                    ],
                                   ),
-                                  SizedBox(
-                                    height: step == 5
-                                        ? 25
-                                        : step == 3
-                                        ? 19
-                                        : step == 4
-                                        ? 38
-                                        : 40,
-                                  ),
-                                ],
-                                child,
-                                SizedBox(
-                                  height: MediaQuery.paddingOf(context).bottom,
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ],
