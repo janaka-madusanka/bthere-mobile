@@ -102,6 +102,7 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
           String? saveError;
           return StatefulBuilder(
             builder: (context, update) => RegistrationOptionEditor(
+              isServiceUpdate: true,
               option: ProviderSchemaOption(
                 optionId: option.optionId,
                 code: option.code,

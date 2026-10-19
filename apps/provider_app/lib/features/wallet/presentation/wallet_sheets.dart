@@ -167,6 +167,19 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             Text(
               'Available: LKR ${value.snapshot.balance.available.formatted}',
             ),
+            if (widget.topup && (!caps.topups || !caps.cardLinking)) ...[
+              const _WalletMessage(
+                text: 'Top-ups are currently disabled by the payment service. Refresh availability after the service is enabled.',
+              ),
+              TextButton.icon(
+                onPressed: value.busy
+                    ? null
+                    : () =>
+                          ref.read(walletControllerProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh availability'),
+              ),
+            ],
             const SizedBox(height: 16),
             if (value.request == null) ...[
               TextField(

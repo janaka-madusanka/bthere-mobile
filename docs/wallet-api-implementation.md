@@ -78,4 +78,6 @@ Validation for the completed controls: all 24 wallet tests passed, including the
 
 ## Pre-top-up balance banner
 
+The banner entry button remains clickable when server funding flags are disabled. It opens the top-up sheet with a service-status explanation and Refresh availability. Payment submission still enforces capabilities, reconciliation, wallet status and unresolved-request guards. All 26 wallet tests passed after this navigation correction; analyzer was clean.
+
 Wallets with fundingMode UNFUNDED show the compact teal balance banner with the visibility toggle, native wallet/coins illustration and an inline white Top Up Wallet button. The button opens the existing top-up sheet and follows payment capabilities, reconciliation and pending-operation guards. Funded wallets retain the detailed available/pending/reserved card. The server balance is displayed directly; reference amounts are not hardcoded. Twenty-five wallet tests passed and analyzer was clean after this presentation update.

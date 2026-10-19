@@ -115,6 +115,42 @@ void main() {
     },
   );
 
+  testWidgets('top-up entry opens even when the server disables payments', (
+    tester,
+  ) async {
+    final fixture = ServiceFixture()..storage.session = walletSession();
+    final repository = fixture.container.read(
+      walletRepositoryProvider,
+    ) as FakeWalletRepository;
+    final original = walletSnapshot(enabled: false, empty: true);
+    repository.snapshot = WalletSnapshot(
+      capabilities: original.capabilities,
+      balance: WalletBalance.fromJson(
+        walletBalanceJson(available: '0', mode: 'UNFUNDED'),
+      ),
+      methods: [],
+      history: original.history,
+      balanced: true,
+    );
+    await pump(tester, fixture, route: AppRoutes.wallet);
+    await tester.tap(find.text('Top Up Wallet'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('wallet-payment-amount')), findsOneWidget);
+    expect(
+      find.textContaining('Top-ups are currently disabled'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Create test top-up'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(repository.creates, 0);
+  });
+
   testWidgets('wallet error fills the page and retry recovers live content', (
     tester,
   ) async {

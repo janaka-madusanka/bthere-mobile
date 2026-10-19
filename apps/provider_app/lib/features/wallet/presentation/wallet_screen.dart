@@ -144,7 +144,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen>
                               balance: snapshot.balance,
                               scale: scale,
                               compact: starter,
-                              onTopup: canAct && caps.topups && caps.cardLinking
+                              onTopup: !value.busy
                                   ? () => _payment(true)
                                   : null,
                             ),
