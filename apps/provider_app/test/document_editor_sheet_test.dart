@@ -27,30 +27,24 @@ Future<void> open(
 }
 
 Future<void> choose(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('Choose file'));
-  await tester.tap(find.text('Choose file'));
+  await tester.ensureVisible(find.text('Files'));
+  await tester.tap(find.text('Files'));
   await tester.pumpAndSettle();
 }
 
+// Seed legacy metadata to verify retries and picker cancellation preserve it.
 Future<void> metadata(WidgetTester tester) async {
-  await tester.enterText(
-    find.widgetWithText(TextFormField, 'Document number'),
-    '123',
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(DocumentEditorSheet)),
   );
-  final issued = find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)');
-  await tester.ensureVisible(issued);
-  await tester.tap(issued);
-  await tester.pumpAndSettle();
-  expect(find.byType(DatePickerDialog), findsOneWidget);
-  await tester.tap(find.text('OK'));
-  await tester.pumpAndSettle();
-  tester.testTextInput.hide();
-  await tester.pump();
+  final draft = container.read(documentsControllerProvider(3)).draft!;
+  draft.number = '123';
+  draft.issued = '2026-10-19';
 }
 
 Future<void> submit(
   WidgetTester tester, {
-  String label = 'Upload and submit',
+  String label = 'Upload',
   bool settle = true,
 }) async {
   await tester.ensureVisible(find.text(label));
@@ -141,72 +135,53 @@ void main() {
     expect(f.repo.uploads, 0);
     expect(f.container.read(documentsControllerProvider(3)).busy, isFalse);
   });
-  testWidgets('issued and expiry errors are inline and do not upload', (
+  testWidgets(
+    'expiry requirements upload with name and file without asking for dates',
+    (tester) async {
+      final f = DocumentsFixture();
+      f.repo.requirementsResult = Success(
+        parseRequirements([requirementJson(expiry: true)]),
+      );
+      await f.pump(tester);
+      await open(tester);
+      await choose(tester);
+      await submit(tester);
+      expect(f.repo.uploads, 1);
+      final payload = f.repo.registrations.single.toJson();
+      expect(payload['documentName'], 'National ID');
+      expect(payload.containsKey('documentNumber'), isFalse);
+      expect(payload.containsKey('issuedDate'), isFalse);
+      expect(payload.containsKey('expiryDate'), isFalse);
+    },
+  );
+  testWidgets('picker relinquishes focus and preserves legacy metadata', (
     tester,
   ) async {
     final f = DocumentsFixture();
-    f.repo.requirementsResult = Success(
-      parseRequirements([requirementJson(expiry: true)]),
-    );
     await f.pump(tester);
     await open(tester);
-    await choose(tester);
-    await submit(tester);
-    final issued = tester.widget<TextField>(
-      find.descendant(
-        of: find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)'),
-        matching: find.byType(TextField),
-      ),
-    );
-    final expiry = tester.widget<TextField>(
-      find.descendant(
-        of: find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
-        matching: find.byType(TextField),
-      ),
-    );
+    await metadata(tester);
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    FocusScope.of(tester.element(find.byType(DocumentEditorSheet)))
+        .requestFocus(focus);
+    await tester.pump();
+    expect(focus.hasFocus, isTrue);
+    f.picker.pending = Completer();
+    await tester.ensureVisible(find.text('Files'));
+    await tester.tap(find.text('Files'));
+    await tester.pump();
+    expect(f.picker.calls, 1);
+    expect(find.text('Selecting file'), findsOneWidget);
+    expect(focus.hasFocus, isFalse);
+    f.picker.pending!.complete(null);
+    await tester.pumpAndSettle();
+    expect(f.container.read(documentsControllerProvider(3)).busy, isFalse);
     expect(
-      issued.decoration!.errorText,
-      'Enter a valid issued date (YYYY-MM-DD).',
+      f.container.read(documentsControllerProvider(3)).draft!.number,
+      '123',
     );
-    expect(
-      expiry.decoration!.errorText,
-      'Enter a valid expiry date (YYYY-MM-DD).',
-    );
-    expect(f.repo.uploads, 0);
   });
-  testWidgets(
-    'focused metadata relinquishes focus before a pending native picker',
-    (tester) async {
-      final f = DocumentsFixture();
-      await f.pump(tester);
-      await open(tester);
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Document number'),
-        '123',
-      );
-      final editing = tester.widget<EditableText>(
-        find.descendant(
-          of: find.widgetWithText(TextFormField, 'Document number'),
-          matching: find.byType(EditableText),
-        ),
-      );
-      expect(editing.focusNode.hasFocus, isTrue);
-      f.picker.pending = Completer();
-      await tester.ensureVisible(find.text('Choose file'));
-      await tester.tap(find.text('Choose file'));
-      await tester.pump();
-      expect(f.picker.calls, 1);
-      expect(find.text('Selecting file'), findsOneWidget);
-      expect(editing.focusNode.hasFocus, isFalse);
-      f.picker.pending!.complete(null);
-      await tester.pumpAndSettle();
-      expect(f.container.read(documentsControllerProvider(3)).busy, isFalse);
-      expect(
-        f.container.read(documentsControllerProvider(3)).draft!.number,
-        '123',
-      );
-    },
-  );
   testWidgets(
     'picker exception recovers actions and exposes safe visible error',
     (tester) async {
@@ -234,7 +209,7 @@ void main() {
     await open(tester);
     f.picker.pending = Completer();
     final chooseButton = tester
-        .widget<BThereButton>(find.widgetWithText(BThereButton, 'Choose file'))
+        .widget<TextButton>(find.widgetWithText(TextButton, 'Files'))
         .onPressed!;
     chooseButton();
     chooseButton();
@@ -284,7 +259,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(DocumentEditorSheet), findsOneWidget);
-      expect(find.text('Submit National ID').hitTestable(), findsOneWidget);
+      expect(find.text('Upload Document').hitTestable(), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(DocumentsContent),
@@ -292,7 +267,7 @@ void main() {
         ),
         findsNothing,
       );
-      expect(find.byType(DocumentMetadataForm), findsOneWidget);
+      expect(find.byType(DocumentMetadataForm), findsNothing);
     },
   );
   testWidgets('replace opens immediately with existing metadata and expiry', (
@@ -316,7 +291,7 @@ void main() {
     expect(draft.expiry, '2031-01-01');
     expect(
       find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
-      findsOneWidget,
+      findsNothing,
     );
   });
   testWidgets('choose calls picker and renders selected filename in sheet', (
@@ -358,6 +333,30 @@ void main() {
       isNull,
     );
   });
+  testWidgets(
+    'removing a selection preserves metadata and requires a new file',
+    (tester) async {
+      final f = DocumentsFixture();
+      await f.pump(tester);
+      await open(tester);
+      await choose(tester);
+      await metadata(tester);
+      await tester.ensureVisible(find.byTooltip('Remove selected file'));
+      await tester.tap(find.byTooltip('Remove selected file'));
+      await tester.pumpAndSettle();
+      final draft = f.container.read(documentsControllerProvider(3)).draft!;
+      expect(draft.file, isNull);
+      expect(draft.upload, isNull);
+      expect(draft.number, '123');
+      await submit(tester);
+      expect(
+        find.textContaining('Please choose a document file.').hitTestable(),
+        findsOneWidget,
+      );
+      expect(f.repo.uploads, 0);
+    },
+  );
+
   testWidgets('Cancel closes sheet discards draft and can reopen', (
     tester,
   ) async {
@@ -365,8 +364,7 @@ void main() {
     await f.pump(tester);
     await open(tester);
     await metadata(tester);
-    await tester.ensureVisible(find.text('Cancel'));
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.byTooltip('Close upload'));
     await tester.pumpAndSettle();
     expect(find.byType(DocumentEditorSheet), findsNothing);
     expect(f.container.read(documentsControllerProvider(3)).draft, isNull);
@@ -469,15 +467,18 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(
         tester
-            .widget<BThereButton>(
-              find.widgetWithText(BThereButton, 'Choose file'),
-            )
-            .enabled,
-        isFalse,
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Files'))
+            .onPressed,
+        isNull,
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is IconButton && widget.tooltip == 'Close upload',
+              ),
+            )
             .onPressed,
         isNull,
       );
@@ -515,6 +516,36 @@ void main() {
     expect(find.byType(DocumentEditorSheet), findsNothing);
     expect(find.text('Status: Pending approval'), findsOneWidget);
   });
+  testWidgets(
+    'selected file and all actions fit without scrolling on a small phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = DocumentsFixture();
+      await f.pump(tester);
+      await open(tester);
+      await choose(tester);
+      expect(find.text('Upload Document').hitTestable(), findsOneWidget);
+      expect(find.text('scan.pdf').hitTestable(), findsOneWidget);
+      expect(find.text('Upload').hitTestable(), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(DocumentEditorSheet),
+          matching: find.byType(Scrollable),
+        ),
+        findsNothing,
+      );
+      expect(find.byType(DocumentMetadataForm), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  test('file size and types match the reference', () {
+    expect(file(size: 5000000).validation, isNull);
+    expect(file(size: 5000001).validation, 'Choose a file up to 5 MB.');
+    expect(file(name: 'image.webp').validation, isNotNull);
+  });
   for (final brightness in [Brightness.light, Brightness.dark]) {
     testWidgets(
       'keyboard narrow large-text sheet does not overflow ${brightness.name}',
@@ -533,7 +564,7 @@ void main() {
         await open(tester);
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
         await tester.pumpAndSettle();
-        final button = find.text('Upload and submit');
+        final button = find.text('Upload');
         await tester.ensureVisible(button);
         await tester.pumpAndSettle();
         expect(button.hitTestable(), findsOneWidget);

@@ -1,17 +1,30 @@
 ﻿# Provider service locations and Google Maps
 
 The Step 2 subservice editor follows Figma frame `216:2902`. Experience and
-additional fields use the selected option's onboarding schema. No service names,
-answers, supported modes, locations, or radius values are populated with samples
-in application code. Design fixtures exist only in tests.
+additional fields use the selected option's onboarding schema. No service names, answers, supported modes, or locations are populated with samples
+in application code. New provider-to-customer areas start with an editable 5 km
+radius; existing saved radii are preserved. Design fixtures exist only in tests.
 
 ## Configure the Maps key
 
 Replace the sample `BTHERE_GOOGLE_MAPS_API_KEY` in `config/provider.local.json`
-with your Google Maps key. This file is ignored by Git. The committed
+with your Google Maps key. Change only the JSON value; do not replace strings
+in `MainActivity.kt` or `AppConfig`. In particular, an availability check must not
+compare against and reject your actual key. This file is ignored by Git. The committed
 `config/provider.example.json` provides the same configuration format.
 
-From `apps/provider_app`, run:
+For a connected Android phone, launch from the workspace root with:
+
+```powershell
+.\scripts\run-provider.ps1 -DeviceId <device-id>
+```
+
+This launcher requires the local config and a Google-format Maps key; it never
+silently launches without them. It uses the API URL in that file and does not
+require a locally running backend. `run-provider-local.ps1` is the separate
+launcher for a backend running on your computer.
+
+Alternatively, from `apps/provider_app`, run:
 
 ```powershell
 flutter run --dart-define-from-file=../../config/provider.local.json
@@ -24,6 +37,9 @@ Maps SDK for Android and/or Maps SDK for iOS for the intended target. Use the
 appropriate app restrictions for the native key. Platform setup follows
 [Google's Flutter setup guide](https://developers.google.com/maps/flutter-package/config).
 
+The committed sample key is `YOUR_GOOGLE_MAPS_API_KEY`, a nonfunctional placeholder.
+It is treated as unconfigured rather than opening an unauthorized native map.
+Keep your existing sandbox key in the ignored local JSON.
 The sample key is a placeholder. Live map tiles need a valid configured key.
 Android and iOS are supported; the provider app does not currently target web.
 
@@ -69,8 +85,11 @@ location permission or continuous tracking is used. This follows the
 [geolocator setup and permission flow](https://pub.dev/packages/geolocator).
 
 The picker and coverage overview use the registration theme, white panels, teal
-controls, and fixed bottom confirmation buttons. Travel distance offers quick
-choices and custom entry only when the provider visits customers. View in Map
+controls, and fixed bottom confirmation buttons. The compact map supports pan/pinch, tapping and pin dragging inside the scrolling
+page. Travel radius offers 5/10/15/25/50 km choices, a slider in half-kilometre
+steps, and exact custom decimal entry only when the provider visits customers.
+The coverage circle and map zoom follow the selected radius. Custom values above
+50 km expand the slider range; the slider is not a backend radius limit. View in Map
 shows saved locations, coverage circles, a selectable address list, and Show all
 locations. Viewing coverage does not request device location or change saved data.
 
@@ -105,3 +124,50 @@ stale-reply handling, radius conversion, and coordinate payloads without live Ma
 requests. A separate editor test verifies weekday changes preserve other days'
 times. Visual fixtures cover the updated subservice form. A placeholder key cannot
 verify live map authorization, billing, or actual address-service availability.
+
+## Missing native key diagnosis
+
+A Dart config change alone does not update the Android manifest in an already
+installed APK. A build made without the local-config flag can have a working
+API base URL but an empty `com.google.android.geo.API_KEY` entry. Rebuild and
+install using the launcher above. Do not copy a real key into AndroidManifest.xml
+or the committed example config. Keep both the Dart defines and native manifest
+in the same build so that the picker and the Maps SDK use the same configuration.
+
+## Blank tiles with Google authorization failure
+
+If the Google logo/zoom controls render but tiles remain blank, check native
+logs for `Google Android Maps SDK: Authorization failure`. This is distinct from
+the app's missing-key fallback. Replacing Flutter UI or the geocoder does not
+resolve a Google authorization rejection.
+
+In the Google Cloud project that owns the key:
+
+1. Enable **Maps SDK for Android** (`maps-android-backend.googleapis.com`).
+   Enabling only Maps JavaScript API or Geocoding API is insufficient.
+2. Under APIs & Services ? Credentials, open the key used by the local config.
+3. If application restrictions are enabled, select Android apps and add the
+   installed app's exact package name (`com.bthere.provider`) and signing SHA-1.
+4. If API restrictions are enabled, allow Maps SDK for Android.
+5. Confirm billing is active on that same project.
+6. Save changes, allow time for propagation, then close and reopen the app.
+   A native rebuild is required only if the key itself changed.
+
+The installed debug build investigated on 18 October 2026 reported this SHA-1:
+`61:7D:72:00:37:3A:04:5C:FE:A5:40:5B:4D:54:4E:29:F5:85:50:F7`.
+This fingerprint is machine/build specific; obtain it again for another signing
+key or a release build. Google logs report the package/fingerprint pair expected
+for the current installation. Never copy the API key line into diagnostics.
+
+[Official Android SDK setup](https://developers.google.com/maps/documentation/android-sdk/start)
+
+## Android debug-launch fallback
+
+Android debug builds now read `BTHERE_GOOGLE_MAPS_API_KEY` from the ignored
+`config/provider.local.json` if no Maps key build define was supplied. An explicit
+Maps define takes precedence. Release builds continue to require explicit defines.
+The app queries a native method channel for whether the installed manifest has a
+key, so a debug build with native configuration does not show the missing-key
+fallback merely because the Dart key define was omitted. The channel returns only
+a boolean and never returns or logs the API key. This does not bypass Google's
+SDK enablement, application restrictions, API restrictions, or billing checks.

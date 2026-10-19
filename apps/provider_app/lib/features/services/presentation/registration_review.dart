@@ -210,11 +210,17 @@ class RegistrationReview extends StatelessWidget {
 
 /// Display after all required data is persisted and completion is refreshed.
 class RegistrationCompleteScreen extends StatelessWidget {
-  const RegistrationCompleteScreen({this.approved = false, super.key});
+  const RegistrationCompleteScreen({
+    this.approved = false,
+    this.firstStep = 1,
+    super.key,
+  });
   final bool approved;
+  final int firstStep;
   @override
   Widget build(BuildContext context) => RegistrationPage(
     step: 5,
+    firstStep: firstStep,
     onBack: () => context.go(AppRoutes.home),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

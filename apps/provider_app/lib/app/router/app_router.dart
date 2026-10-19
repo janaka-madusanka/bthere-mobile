@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../presentation/provider_shell.dart';
+import '../../features/wallet/presentation/wallet_screen.dart';
 import '../presentation/provider_tabs.dart';
 import '../presentation/provider_placeholder_screen.dart';
 import '../../features/home/presentation/provider_home_screen.dart';
@@ -57,6 +58,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
         // Service completion remains status data after account prerequisites.
         if (ProviderTab.values.any((tab) => tab.path == path) ||
+            path == AppRoutes.account ||
             path == '/services/register' ||
             path == AppRoutes.onboarding ||
             (path != AppRoutes.profile &&
@@ -197,15 +199,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          for (final tab in [ProviderTab.requests, ProviderTab.messages])
+          for (final tab in [
+            ProviderTab.requests,
+            ProviderTab.messages,
+            ProviderTab.wallet,
+          ])
             StatefulShellBranch(
               routes: [
                 GoRoute(
                   path: tab.path,
-                  builder: (_, _) => ProviderPlaceholderScreen(tab: tab),
+                  builder: (_, _) => tab == ProviderTab.wallet
+                      ? const WalletScreen()
+                      : ProviderPlaceholderScreen(tab: tab),
                 ),
               ],
             ),
+          // Profile stays available from the header without a navbar item.
           StatefulShellBranch(
             routes: [
               GoRoute(

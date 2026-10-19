@@ -148,12 +148,7 @@ void main() {
     f.storage.session = accountSession();
     await pump(tester, f, route: AppRoutes.account);
     expect(find.byType(ProviderAccountScreen), findsOneWidget);
-    expect(
-      tester
-          .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
-          .selectedIndex,
-      4,
-    );
+    expect(find.byType(ProviderNavigationBar), findsOneWidget);
     expect(find.text('test.provider'), findsOneWidget);
     expect(find.text('My Account'), findsOneWidget);
     await tester.ensureVisible(find.text('Help & Support'));
@@ -170,12 +165,7 @@ void main() {
   ) async {
     final f = ServiceFixture();
     await pump(tester, f, route: null);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(ProviderNavigationBar),
-        matching: find.text('Profile'),
-      ),
-    );
+    await tester.tap(find.byTooltip('Profile'));
     await tester.pumpAndSettle();
     expect(path(f), AppRoutes.account);
     expect(find.text('Provider account'), findsOneWidget);

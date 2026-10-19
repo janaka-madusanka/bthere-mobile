@@ -51,6 +51,26 @@ final documentPickerProvider = Provider<DocumentPicker>(
   (ref) => NativeDocumentPicker(),
 );
 
+class NativeDocumentGallery implements DocumentPicker {
+  @override
+  Future<DocumentFile?> pick() async {
+    final photo = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      requestFullMetadata: false,
+    );
+    if (photo == null) return null;
+    return DocumentFile(
+      photo.name,
+      await photo.length(),
+      () => photo.openRead(),
+    );
+  }
+}
+
+final documentGalleryProvider = Provider<DocumentPicker>(
+  (ref) => NativeDocumentGallery(),
+);
+
 abstract interface class DocumentCamera {
   Future<DocumentFile?> capture({required bool selfie});
 }
@@ -132,6 +152,7 @@ final documentsControllerProvider = NotifierProvider.autoDispose
         documentsRepositoryProvider,
         documentPickerProvider,
         documentCameraProvider,
+        documentGalleryProvider,
         serviceSetupControllerProvider,
         providerCompletionControllerProvider,
         clockProvider,
@@ -266,7 +287,7 @@ class DocumentsController extends Notifier<DocumentsState> {
     _documentTrace(event);
   }
 
-  Future<void> pick({bool camera = false}) async {
+  Future<void> pick({bool camera = false, bool gallery = false}) async {
     if (!ref.mounted) return;
     if (state.busy || state.draft == null) {
       state.operationError = state.busy
@@ -286,7 +307,11 @@ class DocumentsController extends Notifier<DocumentsState> {
           ? await ref
                 .read(documentCameraProvider)
                 .capture(selfie: state.draft!.requirement.isSelfie)
-          : await ref.read(documentPickerProvider).pick();
+          : await ref
+                .read(
+                  gallery ? documentGalleryProvider : documentPickerProvider,
+                )
+                .pick();
       if (!ref.mounted) return;
       trace(file == null ? 'pick.cancelled' : 'pick.returned');
       if (file != null) {
@@ -334,6 +359,14 @@ class DocumentsController extends Notifier<DocumentsState> {
     }
   }
 
+  void removeFile() {
+    if (state.busy || state.draft == null) return;
+    state.draft!.file = null;
+    state.draft!.upload = null;
+    state.operationError = null;
+    emit();
+  }
+
   bool dateValid(String value) {
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) return false;
     final date = DateTime.tryParse(value);
@@ -358,11 +391,15 @@ class DocumentsController extends Notifier<DocumentsState> {
     if (draft.name.trim().isEmpty) {
       draft.errors['name'] = 'Enter the document name.';
     }
-    if (!dateValid(draft.issued)) {
-      draft.errors['issued'] = 'Enter a valid issued date (YYYY-MM-DD).';
+    if (draft.issued.isNotEmpty && !dateValid(draft.issued)) {
+      draft.errors['issued'] =
+          'The saved issued date is invalid. Please reopen the document.';
     }
-    if (draft.requirement.hasExpiry && !dateValid(draft.expiry)) {
-      draft.errors['expiry'] = 'Enter a valid expiry date (YYYY-MM-DD).';
+    if (draft.requirement.hasExpiry &&
+        draft.expiry.isNotEmpty &&
+        !dateValid(draft.expiry)) {
+      draft.errors['expiry'] =
+          'The saved expiry date is invalid. Please reopen the document.';
     }
     if (draft.errors.isNotEmpty) {
       state.operationError = draft.errors.values.join(' ');

@@ -20,6 +20,8 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
     this.commonFields = const [],
     this.assignmentId,
     this.loadSavedLocations = true,
+    this.isServiceUpdate = false,
+    this.firstStep = 1,
     this.onSave,
     this.onBack,
     this.busy = false,
@@ -32,6 +34,8 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
   final List<ProviderRequirementField> commonFields;
   final int? assignmentId;
   final bool loadSavedLocations;
+  final bool isServiceUpdate;
+  final int firstStep;
   final Map<String, dynamic> initial;
   final Future<void> Function(Map<String, dynamic>)? onSave;
   final VoidCallback? onBack;
@@ -430,6 +434,9 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
   @override
   Widget build(BuildContext context) => RegistrationPage(
     step: 2,
+    firstStep: widget.firstStep,
+    title: widget.isServiceUpdate ? 'Update Service' : 'Register a Service',
+    showProgress: !widget.isServiceUpdate,
     onBack: widget.onBack ?? () => Navigator.pop(context),
     busy: widget.busy,
     child: AbsorbPointer(

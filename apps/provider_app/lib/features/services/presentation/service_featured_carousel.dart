@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../onboarding/services/domain/provider_service_type.dart';
 import 'service_catalog_visuals.dart';
+import 'service_registration_badge.dart';
+import '../domain/provider_service_status.dart';
 
 class ServiceFeaturedCarousel extends StatefulWidget {
   const ServiceFeaturedCarousel({
@@ -232,3 +234,152 @@ class _ServicePhoto extends StatelessWidget {
     );
   }
 }
+
+/// Registered services share the page scroll and retain their existing routes.
+class ServiceRegisteredGrid extends StatelessWidget {
+  const ServiceRegisteredGrid({
+    super.key,
+    required this.services,
+    required this.statuses,
+    required this.onSelect,
+  });
+  final List<ProviderServiceType> services;
+  final Map<int, ProviderServiceStatus?> statuses;
+  final ValueChanged<ProviderServiceType> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = (MediaQuery.sizeOf(context).width / 430).clamp(.65, 1.0);
+    final scaler = MediaQuery.textScalerOf(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24 * scale, 0, 20 * scale, 14 * scale),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              'My Registered Services',
+              style: TextStyle(
+                fontSize: 15.5 * scale,
+                fontWeight: FontWeight.w700,
+                color: servicesInk,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, bounds) {
+              final columns = scaler.scale(14) > 23 ? 1 : 2;
+              final width = (bounds.maxWidth - (columns - 1) * 10) / columns;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final service in services)
+                    SizedBox(
+                      width: width,
+                      child: Material(
+                        key: ValueKey(
+                          'service-status-${statuses[service.id]?.name ?? "unknown"}',
+                        ),
+                        color: Colors.white,
+                        elevation: 3,
+                        shadowColor: const Color(0x18293B59),
+                        borderRadius: BorderRadius.circular(11),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          key: ValueKey('featured-service-${service.id}'),
+                          onTap: () => onSelect(service),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SizedBox(
+                                height: 42 * scale,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    _ServicePhoto(
+                                      service: service,
+                                      registered: true,
+                                    ),
+                                    Positioned(
+                                      right: 4,
+                                      top: 4,
+                                      child: ServiceRegistrationBadge(
+                                        serviceTypeId: service.id,
+                                        scale: scale,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(9 * scale),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      service.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10.7 * scale,
+                                        height: 1.2,
+                                        fontWeight: FontWeight.w700,
+                                        color: servicesInk,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4 * scale),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            service.description?.trim() ?? '',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 9.1 * scale,
+                                              height: 1.3,
+                                              color: servicesMuted,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Container(
+                                          width: 23 * scale,
+                                          height: 23 * scale,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFA7F3E9),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: ServicesAsset(
+                                              'imgArrowRight',
+                                              size: 16 * scale,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const homeRegisteredTeal = Color(0xFF009FA5);

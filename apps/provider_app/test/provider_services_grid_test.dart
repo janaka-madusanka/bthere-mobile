@@ -23,7 +23,7 @@ import 'support/fake_session_storage.dart';
 
 void main() {
   for (final tab in [
-    ProviderTab.profile,
+    ProviderTab.wallet,
     ProviderTab.requests,
     ProviderTab.messages,
   ]) {
@@ -138,19 +138,26 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         final f = ServiceFixture(existing: true);
+        f.services.catalog = Success(
+          parseActiveProviderServices([
+            serviceJson(),
+            serviceJson(id: 9, name: 'Other service'),
+            serviceJson(id: 20, name: 'Remaining service'),
+          ]),
+        );
         await pump(tester, f);
         final first = tester.getRect(
-          find.byKey(const ValueKey('main-service-3')),
+          find.byKey(const ValueKey('main-service-9')),
         );
         final second = tester.getRect(
-          find.byKey(const ValueKey('main-service-9')),
+          find.byKey(const ValueKey('main-service-20')),
         );
         expect(first.top, second.top);
         expect(second.left, greaterThan(first.right));
         expect(first.height, second.height);
         expect(first.left, closeTo(23 * width / 430, .01));
         expect(second.left - first.right, 9.5);
-        expect(first.height, greaterThanOrEqualTo(84));
+        expect(first.height, greaterThanOrEqualTo(84 * width / 430));
         expect(find.byType(ServiceStatusBadge), findsNothing);
         expect(
           find.descendant(
@@ -159,7 +166,9 @@ void main() {
           ),
           findsNothing,
         );
-        expect(find.text('Home Nurse'), findsNWidgets(2));
+        expect(find.text('Home Nurse'), findsOneWidget);
+        expect(find.text('Remaining Services'), findsOneWidget);
+        expect(find.byKey(const ValueKey('main-service-3')), findsNothing);
         expect(find.text('Other service'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('service-status-setupRequired')),
@@ -167,7 +176,7 @@ void main() {
         );
         expect(
           find.byKey(const ValueKey('service-status-available')),
-          findsOneWidget,
+          findsNWidgets(2),
         );
         expect(find.byTooltip('Refresh services'), findsOneWidget);
         expect(find.text('Refresh services'), findsNothing);
@@ -195,9 +204,12 @@ void main() {
         ]),
       );
       await pump(tester, f);
-      final title = tester.widget<Text>(find.descendant(
-        of: find.byType(GridView), matching: find.text(longName),
-      ));
+      final title = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(GridView),
+          matching: find.text(longName),
+        ),
+      );
       expect(title.maxLines, 2);
       expect(title.overflow, TextOverflow.ellipsis);
       expect(find.bySemanticsLabel('$longName, Available'), findsOneWidget);
@@ -276,7 +288,7 @@ void main() {
     );
     await tester.ensureVisible(find.byKey(const ValueKey('main-service-9')));
     await tester.pumpAndSettle();
-    expect(find.byType(ServiceCatalogCard), findsNWidgets(2));
+    expect(find.byType(ServiceCatalogCard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

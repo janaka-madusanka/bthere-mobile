@@ -88,7 +88,7 @@ void main() {
       (AppRoutes.requests, 2),
       (AppRoutes.services, 1),
       (AppRoutes.messages, 3),
-      (AppRoutes.account, 4),
+      (AppRoutes.wallet, 4),
       (AppRoutes.serviceDetail(3), 1),
     ]) {
       router.go(route);
@@ -112,9 +112,9 @@ void main() {
       final router = f.container.read(appRouterProvider);
       router.push(AppRoutes.serviceDetail(3));
       await tester.pumpAndSettle();
-      await tester.tap(destination('Profile'));
+      await tester.tap(destination('Wallet'));
       await tester.pumpAndSettle();
-      expect(path(f), AppRoutes.account);
+      expect(path(f), AppRoutes.wallet);
       await tester.tap(destination('Services'));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.services);
@@ -143,7 +143,7 @@ void main() {
         (2, AppRoutes.requests),
         (1, AppRoutes.services),
         (3, AppRoutes.messages),
-        (4, AppRoutes.account),
+        (4, AppRoutes.wallet),
         (0, AppRoutes.home),
       ]) {
         await tester.tap(find.byKey(ValueKey('provider-tab-${item.$1}')));
@@ -177,7 +177,7 @@ void main() {
         ('Home', AppRoutes.home),
         ('Opportunities', AppRoutes.requests),
         ('Messages', AppRoutes.messages),
-        ('Profile', AppRoutes.account),
+        ('Wallet', AppRoutes.wallet),
         ('Services', AppRoutes.services),
       ]) {
         router.go(AppRoutes.services);
@@ -220,7 +220,7 @@ void main() {
       );
       final state = tester.state(find.byType(ServiceCatalogScreen));
       final loads = f.services.loads;
-      expect(find.text('Home Nurse'), findsNWidgets(2));
+      expect(find.text('Home Nurse'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(ServiceCatalogCard),

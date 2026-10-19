@@ -82,7 +82,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       final f = fixture();
       await pump(tester, f);
-      final lastPage = find.bySemanticsLabel('Featured services page 3 of 3');
+      final lastPage = find.bySemanticsLabel('Featured services page 5 of 5');
       await tester.tap(lastPage);
       await tester.pumpAndSettle();
       expect(tester.widget<Semantics>(lastPage).properties.selected, isTrue);
@@ -116,6 +116,20 @@ void main() {
       final f = fixture(registered: true);
       await pump(tester, f);
       expect(find.text('My Registered Services'), findsOneWidget);
+      expect(find.text('Remaining Services'), findsOneWidget);
+      final first = tester.getRect(
+        find.byKey(const ValueKey('featured-service-20')),
+      );
+      final second = tester.getRect(
+        find.byKey(const ValueKey('featured-service-22')),
+      );
+      final third = tester.getRect(
+        find.byKey(const ValueKey('featured-service-40')),
+      );
+      expect(first.top, second.top);
+      expect(second.left, greaterThan(first.right));
+      expect(third.top, greaterThan(first.bottom));
+      expect(find.byKey(const ValueKey('main-service-20')), findsNothing);
       final reads = (f.services.loads, f.services.assignmentLoads);
       await tester.enterText(
         find.byKey(const ValueKey('search-services')),
@@ -139,7 +153,7 @@ void main() {
       expect(find.text('No matching services'), findsOneWidget);
       await tester.tap(find.text('Clear search and filters'));
       await tester.pumpAndSettle();
-      expect(find.byType(ServiceCatalogCard), findsNWidgets(13));
+      expect(find.byType(ServiceCatalogCard), findsNWidgets(10));
       expect((f.services.loads, f.services.assignmentLoads), reads);
       expect(f.services.submissions, 0);
     },

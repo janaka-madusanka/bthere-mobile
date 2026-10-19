@@ -72,6 +72,7 @@ class ServiceCatalogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = (MediaQuery.sizeOf(context).width / 430).clamp(.65, 1.0);
     final radius = BorderRadius.circular(11);
     final visual = serviceVisualStyle(service);
     return Semantics(
@@ -88,12 +89,18 @@ class ServiceCatalogCard extends StatelessWidget {
           borderRadius: radius,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(2, 9, 2, 4),
+            padding: EdgeInsets.fromLTRB(2, 9 * scale, 2, 4 * scale),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                ServiceCatalogSymbol(service: service),
-                const SizedBox(height: 4),
+                SizedBox(
+                  width: 44 * scale,
+                  height: 44 * scale,
+                  child: FittedBox(
+                    child: ServiceCatalogSymbol(service: service),
+                  ),
+                ),
+                SizedBox(height: 4 * scale),
                 Text(
                   service.name,
                   maxLines: 2,
@@ -102,7 +109,7 @@ class ServiceCatalogCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontFamily: 'HomeInter',
                     letterSpacing: 0,
-                    fontSize: 9.5,
+                    fontSize: 9.5 * scale,
                     height: 11.5 / 9.5,
                     fontWeight: FontWeight.w500,
                     color: servicesInk,

@@ -2,6 +2,9 @@ import 'package:provider_app/features/account/application/provider_profile_overv
 
 import 'support/fake_documents_repository.dart';
 import 'support/completed_entry_gate.dart';
+import 'support/fake_wallet_repository.dart';
+
+import 'package:provider_app/features/wallet/data/wallet_repository.dart';
 
 import 'package:provider_app/features/onboarding/application/provider_entry_gate.dart';
 
@@ -100,6 +103,8 @@ class ServiceFixture {
     };
     container = ProviderContainer(
       overrides: [
+        walletRepositoryProvider.overrideWithValue(FakeWalletRepository()),
+        walletJournalProvider.overrideWithValue(MemoryWalletJournal()),
         if (profileSupplementRepository != null)
           profileSupplementRepositoryProvider.overrideWithValue(
             profileSupplementRepository,

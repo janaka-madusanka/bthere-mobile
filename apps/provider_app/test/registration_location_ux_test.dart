@@ -92,6 +92,42 @@ void main() {
     await tester.pump();
   }
 
+  for (final size in [const Size(320, 640), const Size(430, 932)]) {
+    testWidgets(
+      'picker fits map address radius and save without scrolling at $size',
+      (tester) async {
+        await pump(
+          tester,
+          FakeDeviceLocation(),
+          initial: {
+            'latitude': 6.9,
+            'longitude': 79.8,
+            'locationName': 'Kovilakanda, Central Province, Sri Lanka',
+            'radiusKm': 10,
+          },
+        );
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        final scroll = tester.state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('location-picker-scroll')),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        expect(scroll.position.maxScrollExtent, 0);
+        expect(find.text('50 km').hitTestable(), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('location-radius')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(find.text('Save Location').hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'new location uses GPS and resolves an address without coordinate inputs',
     (tester) async {
@@ -111,6 +147,31 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('preset, slider and exact radius update the same map state', (
+    tester,
+  ) async {
+    await pump(tester, FakeDeviceLocation());
+    await tester.pumpAndSettle();
+    expect(rendered.radiusKm, 5);
+    await tester.ensureVisible(find.text('25 km'));
+    await tester.tap(find.text('25 km'));
+    await tester.pumpAndSettle();
+    expect(rendered.radiusKm, 25);
+    final slider = find.byKey(const ValueKey('location-radius-slider'));
+    await tester.ensureVisible(slider);
+    tester.widget<Slider>(slider).onChanged!(12.5);
+    await tester.pumpAndSettle();
+    expect(rendered.radiusKm, 12.5);
+    final input = find.byKey(const ValueKey('location-radius'));
+    expect(tester.widget<TextFormField>(input).controller!.text, '12.5');
+    await tester.ensureVisible(input);
+    await tester.enterText(input, '75.25');
+    await tester.pumpAndSettle();
+    expect(rendered.radiusKm, 75.25);
+    expect(tester.widget<Slider>(slider).max, 75.25);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('late GPS response cannot overwrite a manually selected pin', (
     tester,
   ) async {

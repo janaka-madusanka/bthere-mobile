@@ -1,8 +1,14 @@
 import 'package:flutter/widgets.dart';
 
 import 'app/bootstrap/app_bootstrap.dart';
+import 'app/config/native_maps_configuration.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(AppBootstrap(config: loadAppConfig()));
+  final mapsConfigured = await nativeMapsConfigured();
+  runApp(
+    AppBootstrap(
+      config: loadAppConfig(nativeGoogleMapsConfigured: mapsConfigured),
+    ),
+  );
 }

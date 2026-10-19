@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -22,11 +23,15 @@ Future<Map<String, dynamic>?> showRegistrationLocation(
   ),
 );
 
-double serviceAreaMapZoom(LatLng? point, double? radiusKm) {
+double serviceAreaMapZoom(
+  LatLng? point,
+  double? radiusKm, {
+  double viewportExtent = 180,
+}) {
   if (point == null) return 2;
   if (radiusKm == null || !radiusKm.isFinite || radiusKm <= 0) return 14;
   final scale = 156543.03392 * math.cos(point.latitude * math.pi / 180).abs();
-  return (math.log(scale * 240 / (radiusKm * 2000)) / math.ln2)
+  return (math.log(scale * viewportExtent / (radiusKm * 2000)) / math.ln2)
       .clamp(2, 18)
       .toDouble();
 }
@@ -65,13 +70,22 @@ final registrationMapBuilderProvider =
           (state) => GoogleMap(
             initialCameraPosition: CameraPosition(
               target: state.point ?? const LatLng(0, 0),
-              zoom: serviceAreaMapZoom(state.point, state.radiusKm),
+              zoom: serviceAreaMapZoom(
+                state.point,
+                state.radiusKm,
+                viewportExtent: state.viewportExtent,
+              ),
             ),
             onMapCreated: state.onCreated,
             onTap: state.readOnly ? null : state.onSelect,
             myLocationButtonEnabled: false,
             mapToolbarEnabled: false,
-            zoomControlsEnabled: false,
+            zoomControlsEnabled: true,
+            gestureRecognizers: {
+              Factory<OneSequenceGestureRecognizer>(
+                () => EagerGestureRecognizer(),
+              ),
+            },
             markers:
                 state.markers ??
                 {
@@ -101,11 +115,13 @@ class RegistrationMapState {
     required this.onSelect,
     required this.onCreated,
     this.readOnly = false,
+    this.viewportExtent = 180,
     this.markers,
     this.circles,
   });
   final LatLng? point;
   final double? radiusKm;
+  final double viewportExtent;
   final ValueChanged<LatLng> onSelect;
   final ValueChanged<GoogleMapController> onCreated;
   final bool readOnly;
@@ -132,6 +148,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   late Map<String, dynamic> values;
   LatLng? point;
   GoogleMapController? map;
+  double mapViewportExtent = 180;
   String? error;
   DeviceLocationIssue? locationIssue;
   bool searching = false, resolving = false, locating = false;
@@ -148,7 +165,9 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     super.initState();
     values = Map.of(widget.initial);
     name = TextEditingController(text: values['locationName'] as String? ?? '');
-    radius = TextEditingController(text: values['radiusKm']?.toString() ?? '');
+    radius = TextEditingController(
+      text: values['radiusKm']?.toString() ?? (visitsCustomer ? '5' : ''),
+    );
     point = _areaPoint(values);
     if (point == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -283,7 +302,14 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   void focus() {
     if (point != null) {
       map?.animateCamera(
-        CameraUpdate.newLatLngZoom(point!, serviceAreaMapZoom(point, radiusKm)),
+        CameraUpdate.newLatLngZoom(
+          point!,
+          serviceAreaMapZoom(
+            point,
+            radiusKm,
+            viewportExtent: mapViewportExtent,
+          ),
+        ),
       );
     }
   }
@@ -304,148 +330,204 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   @override
   Widget build(BuildContext context) {
     final canMap =
-        _nativeMaps &&
-        ref.watch(appConfigProvider)?.googleMapsApiKey.isNotEmpty == true;
+        _nativeMaps && ref.watch(appConfigProvider)?.hasGoogleMapsKey == true;
     return RegistrationPage(
       step: 2,
       title: 'Service Location & Area',
       showProgress: false,
+      onBack: () => Navigator.pop(context),
       footer: RegistrationButton(
         'Save Location',
         onPressed: point == null || locating || resolving || searching
             ? null
             : save,
       ),
-      contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-      onBack: () => Navigator.pop(context),
-      child: Form(
-        key: form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            registrationText(
-              'Where do you provide your service?',
-              21,
-              bold: true,
-            ),
-            const SizedBox(height: 6),
-            registrationText(
-              visitsCustomer
-                  ? 'Choose a location and how far you can travel.'
-                  : 'Choose the place where customers will visit you.',
-              12,
-              color: registrationMuted,
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              key: const ValueKey('location-search'),
-              controller: search,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => find(),
-              decoration: InputDecoration(
-                hintText: 'Search city or address',
-                prefixIcon: const Icon(Icons.search, color: registrationTeal),
-                suffixIcon: searching
-                    ? const Padding(
-                        padding: EdgeInsets.all(15),
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : IconButton(
-                        tooltip: 'Search locations',
-                        onPressed: find,
-                        icon: const Icon(
-                          Icons.arrow_forward,
-                          color: registrationTeal,
+      child: const SizedBox.shrink(),
+      bodyBuilder: (context, bounds) {
+        final largeText = MediaQuery.textScalerOf(context).scale(14) > 18;
+        final mapHeight = math.max(
+          130.0,
+          bounds.maxHeight - (visitsCustomer ? 336 : 205),
+        );
+        mapViewportExtent = math.min(180, mapHeight - 36);
+        return SingleChildScrollView(
+          key: const ValueKey('location-picker-scroll'),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+          child: Form(
+            key: form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                registrationText('Set your service area', 19, bold: true),
+                const SizedBox(height: 2),
+                registrationText(
+                  visitsCustomer
+                      ? 'Choose your location and travel radius.'
+                      : 'Choose where customers will visit you.',
+                  11,
+                  color: registrationMuted,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey('location-search'),
+                        controller: search,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => find(),
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search city or address',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: registrationTeal,
+                            size: 20,
+                          ),
+                          suffixIcon: searching
+                              ? const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: 'Search locations',
+                                  onPressed: find,
+                                  icon: const Icon(
+                                    Icons.arrow_forward,
+                                    color: registrationTeal,
+                                    size: 20,
+                                  ),
+                                ),
                         ),
                       ),
-              ),
-            ),
-            for (final (index, result) in results.indexed)
-              ListTile(
-                key: ValueKey('location-result-$index'),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                leading: const Icon(
-                  Icons.place_outlined,
-                  color: registrationTeal,
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: IconButton.filledTonal(
+                        key: const ValueKey('use-current-location'),
+                        tooltip: 'Use my current location',
+                        onPressed: locating ? null : useCurrentLocation,
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFFE5F6F3),
+                          foregroundColor: registrationTeal,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: locating
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.my_location, size: 21),
+                      ),
+                    ),
+                  ],
                 ),
-                title: registrationText('${result['locationName']}', 13),
-                trailing: const Icon(Icons.north_west, size: 17),
-                onTap: () => select(
-                  _areaPoint(result)!,
-                  label: result['locationName'] as String?,
-                ),
-              ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const ValueKey('use-current-location'),
-                onPressed: locating ? null : useCurrentLocation,
-                icon: locating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.my_location, size: 18),
-                label: Text(
-                  locating
-                      ? 'Finding your location…'
-                      : 'Use my current location',
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            _MapCard(
-              available: canMap,
-              child: ref.watch(registrationMapBuilderProvider)(
-                RegistrationMapState(
-                  point: point,
-                  radiusKm: radiusKm,
-                  onSelect: select,
-                  onCreated: (controller) {
-                    if (!mounted) {
-                      controller.dispose();
-                      return;
-                    }
-                    map = controller;
-                    focus();
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            registrationText(
-              'Tap the map or drag the pin to adjust your location.',
-              11,
-              color: registrationMuted,
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 12),
-              RegistrationNotice(error!, warning: true),
-              if (locationIssue == DeviceLocationIssue.deniedForever)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => ref
-                        .read(registrationDeviceLocationProvider)
-                        .openSettings(),
-                    child: const Text('Open Settings'),
+                if (results.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 132),
+                    child: ListView(
+                      shrinkWrap: true,
+                      primary: false,
+                      children: [
+                        for (final (index, result) in results.indexed)
+                          ListTile(
+                            key: ValueKey('location-result-$index'),
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            leading: const Icon(
+                              Icons.place_outlined,
+                              color: registrationTeal,
+                              size: 20,
+                            ),
+                            title: Text(
+                              '${result['locationName']}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: const Icon(Icons.north_west, size: 17),
+                            onTap: () => select(
+                              _areaPoint(result)!,
+                              label: result['locationName'] as String?,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                _MapCard(
+                  available: canMap,
+                  height: mapHeight,
+                  child: ref.watch(registrationMapBuilderProvider)(
+                    RegistrationMapState(
+                      point: point,
+                      radiusKm: radiusKm,
+                      viewportExtent: mapViewportExtent,
+                      onSelect: select,
+                      onCreated: (controller) {
+                        if (!mounted) {
+                          controller.dispose();
+                          return;
+                        }
+                        map = controller;
+                        focus();
+                      },
+                    ),
                   ),
                 ),
-            ],
-            const SizedBox(height: 18),
-            RegistrationPanel(
-              padding: const EdgeInsets.all(14),
-              color: const Color(0xFFEFFBFA),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+                const SizedBox(height: 4),
+                registrationText(
+                  'Tap the map or drag the pin to adjust.',
+                  10,
+                  color: registrationMuted,
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 6),
+                  RegistrationNotice(error!, warning: true),
+                  if (locationIssue == DeviceLocationIssue.deniedForever)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => ref
+                            .read(registrationDeviceLocationProvider)
+                            .openSettings(),
+                        child: const Text('Open Settings'),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFFBFA),
+                    border: Border.all(color: const Color(0xFFDDEFEA)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
                     children: [
                       const Icon(
                         Icons.location_on_outlined,
@@ -453,91 +535,156 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
                         size: 20,
                       ),
                       const SizedBox(width: 8),
-                      registrationText('Selected location', 13, bold: true),
+                      Expanded(
+                        child: point == null
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: registrationText(
+                                  'Select an address or tap the map.',
+                                  11,
+                                  color: registrationMuted,
+                                ),
+                              )
+                            : TextFormField(
+                                key: const ValueKey('location-name'),
+                                controller: name,
+                                maxLines: 2,
+                                minLines: 1,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  height: 1.3,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'Name this location (optional)',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  filled: false,
+                                ),
+                              ),
+                      ),
+                      if (resolving)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                     ],
                   ),
-                  if (resolving)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: LinearProgressIndicator(),
-                    ),
-                  if (point == null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: registrationText(
-                        'Search for an address or select a place on the map.',
-                        12,
-                        color: registrationMuted,
+                ),
+                if (visitsCustomer) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: registrationText(
+                          'How far can you travel?',
+                          13,
+                          bold: true,
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: largeText ? 125 : 100,
+                        child: TextFormField(
+                          key: const ValueKey('location-radius'),
+                          controller: radius,
+                          onChanged: (_) {
+                            setState(() {});
+                            focus();
+                          },
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Radius',
+                            suffixText: 'km',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                          ),
+                          validator: (_) =>
+                              radiusKm == null ? 'Enter a radius > 0' : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (largeText)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final km in [5, 10, 15, 25, 50]) _radiusChoice(km),
+                      ],
                     )
                   else
-                    TextFormField(
-                      key: const ValueKey('location-name'),
-                      controller: name,
-                      maxLines: 2,
-                      minLines: 1,
-                      decoration: const InputDecoration(
-                        hintText: 'Name this location (optional)',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                      ),
+                    Row(
+                      children: [
+                        for (final km in [5, 10, 15, 25, 50]) ...[
+                          if (km != 5) const SizedBox(width: 5),
+                          Expanded(child: _radiusChoice(km)),
+                        ],
+                      ],
                     ),
-                ],
-              ),
-            ),
-            if (visitsCustomer) ...[
-              const SizedBox(height: 20),
-              registrationText('How far can you travel?', 15, bold: true),
-              const SizedBox(height: 5),
-              registrationText(
-                'Your service area is shown around the pin.',
-                11,
-                color: registrationMuted,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  for (final km in [5, 10, 15, 25, 50])
-                    ChoiceChip(
-                      label: Text('$km km'),
-                      selected: radiusKm == km,
-                      onSelected: (_) {
-                        setState(() => radius.text = '$km');
+                  SizedBox(
+                    height: 30,
+                    child: Slider(
+                      key: const ValueKey('location-radius-slider'),
+                      min: .5,
+                      max: math.max(50, radiusKm ?? 5),
+                      value: (radiusKm ?? 5).clamp(
+                        .5,
+                        math.max(50, radiusKm ?? 5),
+                      ),
+                      label: '${radiusKm ?? 5} km',
+                      semanticFormatterCallback: (value) =>
+                          '${value.toStringAsFixed(1)} kilometres',
+                      onChanged: (value) {
+                        final km = (value * 2).round() / 2;
+                        setState(
+                          () => radius.text = km.toString().replaceFirst(
+                            RegExp(r'\.0$'),
+                            '',
+                          ),
+                        );
                         focus();
                       },
                     ),
+                  ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                key: const ValueKey('location-radius'),
-                controller: radius,
-                onChanged: (_) {
-                  setState(() {});
-                  focus();
-                },
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Travel distance',
-                  suffixText: 'km',
-                ),
-                validator: (_) => radiusKm == null
-                    ? 'Choose a travel distance greater than zero.'
-                    : null,
-              ),
-            ],
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
+
+  Widget _radiusChoice(int km) => ChoiceChip(
+    label: Text('$km km', style: const TextStyle(fontSize: 11)),
+    selected: radiusKm == km,
+    showCheckmark: false,
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    labelPadding: const EdgeInsets.symmetric(horizontal: 3),
+    visualDensity: VisualDensity.compact,
+    onSelected: (_) {
+      setState(() => radius.text = '$km');
+      focus();
+    },
+  );
 }
 
 class _MapCard extends StatelessWidget {
@@ -682,8 +829,7 @@ class _AreaOverviewState extends ConsumerState<_AreaOverview> {
   Widget build(BuildContext context) {
     final valid = areas;
     final available =
-        _nativeMaps &&
-        ref.watch(appConfigProvider)?.googleMapsApiKey.isNotEmpty == true;
+        _nativeMaps && ref.watch(appConfigProvider)?.hasGoogleMapsKey == true;
     return RegistrationPage(
       step: 2,
       title: 'Your Service Areas',

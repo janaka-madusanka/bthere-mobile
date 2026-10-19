@@ -51,6 +51,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
   bool approved = false;
   bool allApproved = true;
   bool detailsReady = false;
+  int get firstStep => widget.initialStep == 1 || step == 1 ? 1 : 2;
   @override
   void initState() {
     super.initState();
@@ -466,7 +467,9 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     if (selected != null && step >= 3) {
       ref.watch(documentsControllerProvider(selected!));
     }
-    if (step == 5) return RegistrationCompleteScreen(approved: approved);
+    if (step == 5) {
+      return RegistrationCompleteScreen(approved: approved, firstStep: firstStep);
+    }
     final saving =
         busy || (result is Success<ServiceDetailState> && result.value.busy);
     final focusedOption = cached?.schema.options
@@ -475,6 +478,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     if (step == 2 && widget.optionId != null && !detailsReady && busy) {
       return RegistrationPage(
         step: 2,
+        firstStep: firstStep,
         onBack: back,
         busy: true,
         child: const BThereLoadingState(label: 'Loading sub-service details'),
@@ -497,6 +501,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       final options = Map<String, dynamic>.from(draft['options'] as Map? ?? {});
       return RegistrationOptionEditor(
         key: ValueKey('direct-option-${focusedOption.optionId}'),
+        firstStep: firstStep,
         option: ProviderSchemaOption(
           optionId: focusedOption.optionId,
           code: focusedOption.code,
@@ -619,6 +624,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     }
     return RegistrationPage(
       step: step,
+      firstStep: firstStep,
       onBack: back,
       busy: saving,
       child: Column(
