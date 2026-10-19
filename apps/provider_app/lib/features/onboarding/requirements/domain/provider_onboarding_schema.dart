@@ -86,12 +86,21 @@ final class ProviderSchemaOption {
     this.description,
     this.icon,
     this.deliveryModes = const [],
+    this.locationEnabled = true,
+    this.defaultCapacity,
+    this.bookingMode,
   }) : fields = List.unmodifiable(fields);
   final int optionId;
   final String code, name;
   final String? description;
   final ProviderServiceMedia? icon;
   final List<String> deliveryModes;
+  final bool locationEnabled;
+  final int? defaultCapacity;
+  final String? bookingMode;
+
+  bool usesServiceAreas(ProviderServiceSetup setup) =>
+      setup.serviceAreasEnabled && locationEnabled;
   final List<ProviderRequirementField> fields;
 }
 

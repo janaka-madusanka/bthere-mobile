@@ -105,7 +105,7 @@ class RegistrationOptionSummary extends StatelessWidget {
         (option.deliveryModes.isEmpty || option.deliveryModes.contains(mode));
     final areas = (optionData['areas'] as List? ?? []).whereType<Map>();
     final locationComplete =
-        !schema.serviceSetup.serviceAreasEnabled ||
+        !option.usesServiceAreas(schema.serviceSetup) ||
         (modeValid &&
             (mode == 'ONLINE' ||
                 areas.isNotEmpty &&
@@ -159,7 +159,7 @@ class RegistrationOptionSummary extends StatelessWidget {
               complete: skillsComplete,
               action: onSkills,
             ),
-          if (schema.serviceSetup.serviceAreasEnabled)
+          if (option.usesServiceAreas(schema.serviceSetup))
             (
               label: 'Location & Area',
               asset: 'imgLocation',

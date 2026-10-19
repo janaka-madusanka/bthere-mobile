@@ -233,9 +233,7 @@ class _BalanceCardState extends State<_BalanceCard> {
                     ),
                     const SizedBox(height: 6),
                     _walletText(
-                      balance.mock
-                          ? 'Test funds · No real money'
-                          : 'Earnings from your services',
+                      'Available wallet balance',
                       11 * s,
                       color: const Color(0xFFD2F5F1),
                     ),
@@ -630,7 +628,7 @@ class _MethodRow extends StatelessWidget {
               _walletText(method.label, 10.5 * scale, bold: true),
               const SizedBox(height: 3),
               _walletText(
-                method.usable ? 'Test method · No real payment' : method.status,
+                method.usable ? 'Ready to use' : method.status,
                 9 * scale,
                 color: _walletMuted,
               ),
@@ -828,7 +826,7 @@ class _PendingPayment extends ConsumerWidget {
             ),
             if (test && value.snapshot.canMove) ...[
               const Text(
-                'Test payment only. These controls simulate a result; no real money moves.',
+                'Choose a result to complete this payment.',
                 style: TextStyle(fontSize: 11),
               ),
               Wrap(
@@ -838,13 +836,13 @@ class _PendingPayment extends ConsumerWidget {
                     onPressed: value.busy
                         ? null
                         : () => controller.simulate('SUCCESS'),
-                    child: const Text('Simulate success'),
+                    child: const Text('Confirm payment'),
                   ),
                   TextButton(
                     onPressed: value.busy
                         ? null
                         : () => controller.simulate('FAILURE'),
-                    child: const Text('Simulate failure'),
+                    child: const Text('Decline payment'),
                   ),
                   TextButton(
                     onPressed: value.busy

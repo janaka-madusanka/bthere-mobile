@@ -24,7 +24,7 @@ class _MethodsSheet extends ConsumerWidget {
             _walletText('Payment & Withdrawal Methods', 20, bold: true),
             const SizedBox(height: 8),
             const Text(
-              'Current setup creates test methods only. No card number or bank details are required.',
+              'Add a payment method to use with your wallet.',
               style: TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 16),
@@ -43,7 +43,7 @@ class _MethodsSheet extends ConsumerWidget {
               OutlinedButton.icon(
                 onPressed: enabled ? () => controller.addMethod('CARD') : null,
                 icon: const Icon(Icons.credit_card),
-                label: const Text('Add test card'),
+                label: const Text('Add card'),
               ),
             if (c.bankLinking)
               OutlinedButton.icon(
@@ -51,7 +51,7 @@ class _MethodsSheet extends ConsumerWidget {
                     ? () => controller.addMethod('BANK_ACCOUNT')
                     : null,
                 icon: const Icon(Icons.account_balance_outlined),
-                label: const Text('Add test bank account'),
+                label: const Text('Add bank account'),
               ),
             if (!c.cardLinking && !c.bankLinking)
               const _WalletMessage(
@@ -160,7 +160,7 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Test payment only. No real card charge or bank payout will occur.',
+              'Select a payment method and enter an amount to continue.',
               style: TextStyle(fontSize: 12, color: _walletTeal),
             ),
             const SizedBox(height: 12),
@@ -200,7 +200,7 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                 initialValue: _methodId,
                 isExpanded: true,
                 decoration: InputDecoration(
-                  labelText: widget.topup ? 'Test card' : 'Test bank account',
+                  labelText: widget.topup ? 'Card' : 'Bank account',
                   border: const OutlineInputBorder(),
                 ),
                 items: [
@@ -229,8 +229,8 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                         ),
                   child: Text(
                     widget.topup
-                        ? 'Add a test card first'
-                        : 'Add a test bank account first',
+                        ? 'Add a card first'
+                        : 'Add a bank account first',
                   ),
                 ),
               if (_validation != null)
@@ -244,8 +244,8 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                   value.busy
                       ? 'Please wait…'
                       : widget.topup
-                      ? 'Create test top-up'
-                      : 'Create test withdrawal',
+                      ? 'Create top-up'
+                      : 'Create withdrawal',
                 ),
               ),
             ] else

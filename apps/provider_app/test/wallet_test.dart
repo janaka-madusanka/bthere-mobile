@@ -143,7 +143,7 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Create test top-up'),
+            find.widgetWithText(FilledButton, 'Create top-up'),
           )
           .onPressed,
       isNull,
@@ -610,7 +610,7 @@ void main() {
         find.byKey(const ValueKey('wallet-payment-amount')),
         '1000.001',
       );
-      await tester.tap(find.text('Create test top-up'));
+      await tester.tap(find.text('Create top-up'));
       await tester.pumpAndSettle();
       expect(
         find.text('Enter an amount with at most two decimals.'),
@@ -625,16 +625,16 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('TEST CARD **** 4242').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Create test top-up'));
+      await tester.tap(find.text('Create top-up'));
       await tester.pumpAndSettle();
       expect(repository.creates, 1);
       expect(repository.events, 0);
-      expect(find.text('Simulate success'), findsWidgets);
-      await tester.tap(find.text('Simulate success').last);
+      expect(find.text('Confirm payment'), findsWidgets);
+      await tester.tap(find.text('Confirm payment').last);
       await tester.pumpAndSettle();
       expect(repository.events, 1);
       expect(
-        find.text('Test payment completed. No real money moved.'),
+        find.text('Payment completed. Your balance has been refreshed.'),
         findsWidgets,
       );
     },
@@ -652,11 +652,11 @@ void main() {
       await walletScrollTo(tester, 'Add New Payment Method');
       await tester.tap(find.text('Add New Payment Method'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add test card'));
+      await tester.tap(find.text('Add card'));
       await tester.pumpAndSettle();
       expect(repository.setups, 1);
       expect(repository.snapshot.methods.single.card, isTrue);
-      await tester.tap(find.text('Add test bank account'));
+      await tester.tap(find.text('Add bank account'));
       await tester.pumpAndSettle();
       expect(repository.setups, 2);
       expect(repository.snapshot.methods.length, 2);
@@ -676,11 +676,11 @@ void main() {
       await tester.tap(find.text('Add New Payment Method'));
       await tester.pumpAndSettle();
       expect(find.textContaining('The server has disabled'), findsOneWidget);
-      expect(find.text('Add test card'), findsNothing);
+      expect(find.text('Add card'), findsNothing);
       repository.snapshot = walletSnapshot(empty: true);
       await tester.tap(find.text('Refresh availability'));
       await tester.pumpAndSettle();
-      expect(find.text('Add test card'), findsOneWidget);
+      expect(find.text('Add card'), findsOneWidget);
       expect(repository.setups, 0);
     },
   );
@@ -706,17 +706,17 @@ void main() {
     await tester.tap(find.text('Check status'));
     await tester.pumpAndSettle();
     expect(find.text('Status: SUCCEEDED'), findsOneWidget);
-    await tester.ensureVisible(find.text('Refund test top-up'));
-    await tester.tap(find.text('Refund test top-up'));
+    await tester.ensureVisible(find.text('Refund top-up'));
+    await tester.tap(find.text('Refund top-up'));
     await tester.pumpAndSettle();
     expect(repository.events, 0);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(repository.events, 0);
-    await tester.ensureVisible(find.text('Refund test top-up'));
-    await tester.tap(find.text('Refund test top-up'));
+    await tester.ensureVisible(find.text('Refund top-up'));
+    await tester.tap(find.text('Refund top-up'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Simulate refund'));
+    await tester.tap(find.text('Confirm refund'));
     await tester.pumpAndSettle();
     expect(repository.events, 1);
     expect(find.text('Status: REFUNDED'), findsOneWidget);

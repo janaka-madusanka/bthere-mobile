@@ -16,6 +16,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
     required this.values,
     required this.onChanged,
     this.allFields,
+    this.answers,
     this.enabled = true,
     this.compact = false,
     this.submissions = const [],
@@ -24,6 +25,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
   final List<ProviderRequirementField> fields;
   final List<ProviderRequirementField>? allFields;
   final Map<String, dynamic> values;
+  final Map<String, dynamic>? answers;
   final VoidCallback onChanged;
   final bool enabled, compact;
   final List<Map> submissions;
@@ -130,7 +132,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
       ))
         if (registrationFieldVisible(
               field,
-              widget.values,
+              {...?widget.answers, ...widget.values},
               widget.allFields ?? widget.fields,
             ) !=
             false)
@@ -168,7 +170,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
     final unsupported =
         registrationFieldVisible(
           field,
-          widget.values,
+          {...?widget.answers, ...widget.values},
           widget.allFields ?? widget.fields,
         ) ==
         null;

@@ -90,6 +90,9 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
       description: option.description,
       icon: option.icon,
       deliveryModes: option.deliveryModes,
+          locationEnabled: option.locationEnabled,
+          defaultCapacity: option.defaultCapacity,
+          bookingMode: option.bookingMode,
     );
     final current = <String, dynamic>{
       ...?optionDraft(option.optionId),
@@ -97,14 +100,20 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
       'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
       if (draft['availability'] != null) 'availability': draft['availability'],
     };
-    final updated = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(
-        builder: (_) => RegistrationOptionEditor(
+    final updated = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .9,
+        child: RegistrationOptionEditor(
+          asSheet: true,
           option: editableOption,
           service: value.service,
           setup: value.schema.serviceSetup,
           initial: current,
-          commonFields: value.schema.commonFields,
+          commonFields: activeRegistrationFields(value.schema, value.selected),
           assignmentId: value.assignment?.assignmentId,
           loadSavedLocations: value.registered.any(
             (registered) => registered.optionId == option.optionId,
@@ -236,9 +245,15 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
 
   Future<void> availability() async {
     final setup = value.schema.serviceSetup;
-    final updated = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(
-        builder: (_) => RegistrationOptionEditor(
+    final updated = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .9,
+        child: RegistrationOptionEditor(
+          asSheet: true,
           option: ProviderSchemaOption(
             optionId: 0,
             code: 'AVAILABILITY',
@@ -623,6 +638,7 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                             .whereType<Map>()
                             .toList(),
                     fields: value.schema.commonFields,
+                    answers: registrationAnswers(draft),
                     allFields: activeRegistrationFields(
                       value.schema,
                       value.selected,

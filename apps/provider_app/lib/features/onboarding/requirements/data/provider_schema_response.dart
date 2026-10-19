@@ -140,6 +140,9 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
       code: string(o['code']),
       name: string(o['name']),
       description: o['description'] as String?,
+      locationEnabled: o['locationEnabled'] == null ? true : boolean(o['locationEnabled']),
+      defaultCapacity: optionalInt(o['defaultCapacity'], positive: true),
+      bookingMode: o['bookingMode'] as String?,
       icon: parseProviderServiceMedia(o['icon']),
       deliveryModes: List.unmodifiable(
         (o['deliveryModes'] == null ? <dynamic>[] : array(o['deliveryModes']))
@@ -209,6 +212,9 @@ ProviderOnboardingSchema applyPublicOptions(
         code: string(item['code']),
         name: string(item['name']),
         fields: source.fields,
+        locationEnabled: item['locationEnabled'] == null ? source.locationEnabled : boolean(item['locationEnabled']),
+        defaultCapacity: optionalInt(item['defaultCapacity'], positive: true) ?? source.defaultCapacity,
+        bookingMode: item['bookingMode'] as String? ?? source.bookingMode,
         description: item['description'] as String? ?? source.description,
         icon: parseProviderServiceMedia(item['icon']) ?? source.icon,
         deliveryModes: List.unmodifiable(

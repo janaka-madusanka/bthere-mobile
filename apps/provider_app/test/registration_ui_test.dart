@@ -385,6 +385,9 @@ void main() {
         find.byType(RegistrationOptionEditor),
       );
       expect(editor.assignmentId, 14);
+      expect(editor.asSheet, isTrue);
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.byType(RegistrationPage), findsOneWidget);
       expect(editor.loadSavedLocations, isFalse);
       expect(repository.areaLoads, isEmpty);
       expect(find.text('Retry loading locations'), findsNothing);

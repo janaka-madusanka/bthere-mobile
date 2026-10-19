@@ -84,6 +84,19 @@ String? validateRegistrationAnswer(
   ProviderRequirementField field,
   Object? value,
 ) {
+  if (['SELECT', 'MULTI_SELECT'].contains(field.fieldType)) {
+    final raw = field.options;
+    if (raw is! List || raw.isEmpty || raw.any((o) =>
+        o is! String && !(o is Map && o['value'] != null && o['label'] is String))) {
+      return 'The choices for ${field.label} need a supported service configuration.';
+    }
+    final choices = raw.map((o) => o is Map ? o['value'] : o).toSet();
+    if (value != null && value != '' &&
+        (field.fieldType == 'SELECT' ? !choices.contains(value) :
+          value is! List || value.any((v) => !choices.contains(v)))) {
+      return 'Choose valid options for ${field.label}.';
+    }
+  }
   if (value == null || value == '' || (value is List && value.isEmpty)) {
     return field.required ? '${field.label} is required.' : null;
   }
@@ -190,14 +203,13 @@ String? validateRegistrationDraft(
   if (schema.serviceSetup.serviceAreasEnabled) {
     final options = draft['options'] as Map? ?? {};
     for (final id in selected) {
+      final configured = schema.options.where((o) => o.optionId == id).first;
+      if (!configured.usesServiceAreas(schema.serviceSetup)) continue;
       final option = options['$id'];
       if (option is! Map || option['deliveryMode'] == null) {
         return 'Choose the delivery mode for each selected service.';
       }
-      final configured = schema.options
-          .where((option) => option.optionId == id)
-          .firstOrNull;
-      if (configured != null &&
+      if (
           configured.deliveryModes.isNotEmpty &&
           !configured.deliveryModes.contains(option['deliveryMode'])) {
         return 'Choose a supported delivery mode for ${configured.name}.';
@@ -251,8 +263,9 @@ Future<Result<void>> saveRegistrationRequirements(
     }
   }
   if (schema.serviceSetup.serviceAreasEnabled) {
-    final options = draft['options'] as Map;
+    final options = draft['options'] as Map? ?? {};
     for (final id in selected) {
+      if (!schema.options.firstWhere((o) => o.optionId == id).usesServiceAreas(schema.serviceSetup)) continue;
       final option = options['$id'] as Map;
       final mode = option['deliveryMode'] as String;
       if (mode == 'ONLINE') continue;

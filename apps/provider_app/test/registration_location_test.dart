@@ -156,7 +156,12 @@ void main() {
         ),
       );
       await tester.pump();
-      rendered!.onSelect(const LatLng(6, 79));
+      rendered!.onSelect(const LatLng(51.5, -0.1));
+      await tester.pump();
+      expect(rendered!.point, isNull);
+      expect(geocoder.pending, isEmpty);
+      expect(find.text('Choose a location in Sri Lanka.'), findsOneWidget);
+      rendered!.onSelect(const LatLng(6.9, 79.9));
       await tester.pump();
       rendered!.onSelect(const LatLng(7, 80));
       await tester.pump();

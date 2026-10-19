@@ -251,6 +251,10 @@ class RegistrationRepository {
               (radius is! num || !radius.isFinite || radius <= 0))) {
         throw const FormatException('Invalid coordinates');
       }
+      final capacity = area['capacity'];
+      if (capacity != null && (capacity is! int || capacity <= 0)) {
+        throw const FormatException('Invalid location capacity');
+      }
       values.add({
         for (final key in [
           'locationName',

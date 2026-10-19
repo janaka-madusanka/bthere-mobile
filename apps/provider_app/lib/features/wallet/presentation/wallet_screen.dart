@@ -148,10 +148,6 @@ class _WalletScreenState extends ConsumerState<WalletScreen>
                                   ? () => _payment(true)
                                   : null,
                             ),
-                            if (snapshot.balance.mock)
-                              const _WalletMessage(
-                                text: 'Test wallet · These funds are not real money.',
-                              ),
                             if (!snapshot.balanced)
                               const _WalletMessage(
                                 error: true,

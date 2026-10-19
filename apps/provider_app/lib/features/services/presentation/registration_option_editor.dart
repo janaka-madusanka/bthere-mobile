@@ -22,6 +22,7 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
     this.loadSavedLocations = true,
     this.isServiceUpdate = false,
     this.firstStep = 1,
+    this.asSheet = false,
     this.onSave,
     this.onBack,
     this.busy = false,
@@ -36,6 +37,7 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
   final bool loadSavedLocations;
   final bool isServiceUpdate;
   final int firstStep;
+  final bool asSheet;
   final Map<String, dynamic> initial;
   final Future<void> Function(Map<String, dynamic>)? onSave;
   final VoidCallback? onBack;
@@ -100,7 +102,8 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       start = parse(slots.first['startTime'], start);
       end = parse(slots.first['endTime'], end);
     }
-    if (widget.loadSavedLocations &&
+    if (widget.option.usesServiceAreas(widget.setup) &&
+        widget.loadSavedLocations &&
         areas.isEmpty &&
         mode != null &&
         mode != 'ONLINE' &&
@@ -117,7 +120,8 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
   }
 
   Future<void> loadAreas() async {
-    if (!widget.loadSavedLocations ||
+    if (!widget.option.usesServiceAreas(widget.setup) ||
+        !widget.loadSavedLocations ||
         widget.assignmentId == null ||
         mode == null ||
         mode == 'ONLINE') {
@@ -153,7 +157,10 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
     final result = await showRegistrationLocation(
       context,
       initial: index == null
-          ? {'radiusKm': num.tryParse(radiusInput.text)}
+          ? {
+              'radiusKm': num.tryParse(radiusInput.text),
+              if (mode == 'CUSTOMER_TO_PROVIDER') 'capacity': widget.option.defaultCapacity,
+            }
           : areas[index],
       mode: mode!,
     );
@@ -360,7 +367,8 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
   void save() {
     setState(() => error = null);
-    if (widget.loadSavedLocations &&
+    if (widget.option.usesServiceAreas(widget.setup) &&
+        widget.loadSavedLocations &&
         widget.assignmentId != null &&
         mode != null &&
         mode != 'ONLINE' &&
@@ -377,14 +385,14 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       );
       return;
     }
-    if (widget.setup.serviceAreasEnabled &&
+    if (widget.option.usesServiceAreas(widget.setup) &&
         (mode == null ||
             (widget.option.deliveryModes.isNotEmpty &&
                 !widget.option.deliveryModes.contains(mode)))) {
       setState(() => error = 'Select a delivery mode.');
       return;
     }
-    if (widget.setup.serviceAreasEnabled && mode != 'ONLINE' && areas.isEmpty) {
+    if (widget.option.usesServiceAreas(widget.setup) && mode != 'ONLINE' && areas.isEmpty) {
       setState(() => error = 'Add at least one service location.');
       return;
     }
@@ -431,14 +439,34 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
     }
   }
 
+  Widget frame({required Widget child}) {
+    if (widget.asSheet) {
+      return SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            8,
+            24,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: child,
+        ),
+      );
+    }
+    return RegistrationPage(
+      step: 2,
+      firstStep: widget.firstStep,
+      title: widget.isServiceUpdate ? 'Update Service' : 'Register a Service',
+      showProgress: !widget.isServiceUpdate,
+      onBack: widget.onBack ?? () => Navigator.pop(context),
+      busy: widget.busy,
+      child: child,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => RegistrationPage(
-    step: 2,
-    firstStep: widget.firstStep,
-    title: widget.isServiceUpdate ? 'Update Service' : 'Register a Service',
-    showProgress: !widget.isServiceUpdate,
-    onBack: widget.onBack ?? () => Navigator.pop(context),
-    busy: widget.busy,
+  Widget build(BuildContext context) => frame(
     child: AbsorbPointer(
       absorbing: widget.busy,
       child: Form(
@@ -465,7 +493,7 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
                       registrationText(widget.option.name, 20, bold: true),
                       registrationText(
                         widget.option.description ??
-                            'Tell us about the support you offer',
+                            'Tell us about the service you offer',
                         11,
                         color: registrationMuted,
                       ),
@@ -481,7 +509,7 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
                 'Your experience in ${widget.option.name.toLowerCase()}.',
                 experienceFields,
               ),
-            if (widget.setup.serviceAreasEnabled)
+            if (widget.option.usesServiceAreas(widget.setup))
               RegistrationSection(
                 'Service Location & Area',
                 'Where do you provide this service?',

@@ -90,9 +90,9 @@ class _PaymentStatusSheetState extends ConsumerState<_PaymentStatusSheet> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Refund test top-up?'),
+          title: const Text('Refund top-up?'),
           content: const Text(
-            'This removes the test top-up from your available balance. No real card refund occurs.',
+            'This removes the top-up amount from your available balance.',
           ),
           actions: [
             TextButton(
@@ -101,7 +101,7 @@ class _PaymentStatusSheetState extends ConsumerState<_PaymentStatusSheet> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Simulate refund'),
+              child: const Text('Confirm refund'),
             ),
           ],
         ),
@@ -146,7 +146,7 @@ class _PaymentStatusSheetState extends ConsumerState<_PaymentStatusSheet> {
             _walletText('Payment status', 22, bold: true),
             const SizedBox(height: 8),
             const Text(
-              'Check a payment ID or select a payment saved on this device. Test payments do not move real money.',
+              'Check a payment ID or select a payment saved on this device.',
             ),
             const SizedBox(height: 16),
             TextField(
@@ -200,7 +200,7 @@ class _PaymentStatusSheetState extends ConsumerState<_PaymentStatusSheet> {
               if (canRefund)
                 OutlinedButton(
                   onPressed: _busy || state?.busy == true ? null : _refund,
-                  child: const Text('Refund test top-up'),
+                  child: const Text('Refund top-up'),
                 ),
             ],
             TextButton(

@@ -175,7 +175,7 @@ class WalletController extends AsyncNotifier<WalletViewState> {
       snapshot: await _repository.load(),
       request: current.request,
       intent: current.intent,
-      notice: '${method.label} added. This is a test payment method.',
+      notice: '${method.label} added.',
     );
   });
 
@@ -254,11 +254,11 @@ class WalletController extends AsyncNotifier<WalletViewState> {
       request: intent.terminal ? null : request,
       intent: intent,
       notice: intent.status == 'SUCCEEDED'
-          ? 'Test payment completed. No real money moved.'
+          ? 'Payment completed. Your balance has been refreshed.'
           : intent.status == 'FAILED'
-          ? 'Test payment failed. Your balance has been refreshed.'
+          ? 'Payment failed. Your balance has been refreshed.'
           : intent.status == 'REFUNDED'
-          ? 'Test top-up refunded. Your balance has been refreshed.'
+          ? 'Top-up refunded. Your balance has been refreshed.'
           : 'Payment pending. No success has been confirmed.',
     );
   }
@@ -294,14 +294,12 @@ class WalletController extends AsyncNotifier<WalletViewState> {
         !current.snapshot.canMove ||
         !current.snapshot.capabilities.topups ||
         current.snapshot.balance.fundingMode != 'MOCK') {
-      throw const FormatException('A test refund is currently unavailable.');
+      throw const FormatException('A refund is currently unavailable.');
     }
     final intent = await _repository.intent(id);
     _check(epoch);
     if (intent.purpose != 'TOPUP' || intent.status != 'SUCCEEDED') {
-      throw const FormatException(
-        'Only a successful test top-up can be refunded.',
-      );
+      throw const FormatException('Only a successful top-up can be refunded.');
     }
     final result = await _repository.simulate(id, 'REFUND');
     _check(epoch);
@@ -309,7 +307,7 @@ class WalletController extends AsyncNotifier<WalletViewState> {
       snapshot: await _repository.load(),
       intent: result,
       notice: result.status == 'REFUNDED'
-          ? 'Test top-up refunded. No real money moved.'
+          ? 'Top-up refunded. Your balance has been refreshed.'
           : 'Refund status has not been confirmed.',
     );
   });
@@ -330,7 +328,7 @@ class WalletController extends AsyncNotifier<WalletViewState> {
         current.intent?.status != 'PENDING' ||
         !current.snapshot.canMove) {
       throw const FormatException(
-        'This test payment is unavailable. Check its status.',
+        'This payment is unavailable. Check its status.',
       );
     }
     final intent = await _repository.simulate(request!.intentId!, outcome);
