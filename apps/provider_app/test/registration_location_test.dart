@@ -97,7 +97,9 @@ void main() {
         find.byKey(const ValueKey('location-search')),
         'An actual search',
       );
-      await tester.tap(find.byTooltip('Search locations'));
+      await tester.pump(const Duration(milliseconds: 499));
+      expect(geocoder.requests, isEmpty);
+      await tester.pump(const Duration(milliseconds: 1));
       await tester.pumpAndSettle();
       expect(geocoder.requests, ['An actual search']);
       await tester.tap(find.byKey(const ValueKey('location-result-0')));

@@ -153,6 +153,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   DeviceLocationIssue? locationIssue;
   bool searching = false, resolving = false, locating = false;
   int generation = 0;
+  Timer? searchDebounce;
   List<Map<String, dynamic>> results = [];
   bool get visitsCustomer => widget.mode == 'PROVIDER_TO_CUSTOMER';
   double? get radiusKm {
@@ -178,6 +179,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
 
   @override
   void dispose() {
+    searchDebounce?.cancel();
     generation++;
     map?.dispose();
     for (final controller in [search, name, radius]) {
@@ -187,6 +189,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   }
 
   Future<void> useCurrentLocation() async {
+    searchDebounce?.cancel();
     if (locating) return;
     final request = ++generation;
     setState(() {
@@ -225,12 +228,31 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     }
   }
 
-  Future<void> find() async {
-    if (search.text.trim().isEmpty) return;
-    FocusScope.of(context).unfocus();
+  void searchChanged(String query) {
+    searchDebounce?.cancel();
+    generation++;
+    setState(() {
+      results = [];
+      searching = false;
+      resolving = false;
+      locating = false;
+      error = null;
+    });
+    if (query.trim().length < 3) return;
+    searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) unawaited(find(dismissKeyboard: false));
+    });
+  }
+
+  Future<void> find({bool dismissKeyboard = true}) async {
+    searchDebounce?.cancel();
+    final query = search.text.trim();
+    if (query.isEmpty) return;
+    if (dismissKeyboard) FocusScope.of(context).unfocus();
     final request = ++generation;
     setState(() {
       searching = true;
+      results = [];
       resolving = false;
       locating = false;
       error = null;
@@ -239,7 +261,8 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     try {
       final found = await ref
           .read(registrationGeocoderProvider)
-          .search(search.text.trim());
+          .search(query)
+          .timeout(const Duration(seconds: 15));
       if (!mounted || request != generation) return;
       setState(() {
         results = found.where((result) => _areaPoint(result) != null).toList();
@@ -260,6 +283,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   }
 
   Future<void> select(LatLng selected, {String? label}) async {
+    searchDebounce?.cancel();
     final request = ++generation;
     setState(() {
       point = selected;
@@ -376,6 +400,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
                         key: const ValueKey('location-search'),
                         controller: search,
                         textInputAction: TextInputAction.search,
+                        onChanged: searchChanged,
                         onSubmitted: (_) => find(),
                         style: const TextStyle(fontSize: 13),
                         decoration: InputDecoration(
