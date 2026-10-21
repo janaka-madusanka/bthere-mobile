@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/app_routes.dart';
 import '../application/service_detail_controller.dart';
+import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import 'registration_widgets.dart';
 import '../application/registration_payload.dart';
 
@@ -22,19 +23,47 @@ class RegistrationReview extends StatelessWidget {
   final bool busy;
   @override
   Widget build(BuildContext context) {
-    final options = (draft['options'] as Map? ?? {}).entries
-        .where((e) => value.selected.contains(int.tryParse(e.key.toString())))
-        .map((e) => e.value)
-        .whereType<Map>()
-        .toList();
-    final answers = registrationAnswers(draft);
-    final descriptions = activeRegistrationFields(value.schema, value.selected)
-        .where((f) => f.fieldType == 'TEXTAREA')
-        .map((f) => answers['${f.fieldId}'])
-        .whereType<String>()
-        .join('\n');
-    final areas = options
-        .expand((o) => o['areas'] as List? ?? [])
+    final answers = registrationAnswers(draft, selected: value.selected);
+    final fields = activeRegistrationFields(value.schema, value.selected);
+    String answerText(ProviderRequirementField field) {
+      final answer = answers['${field.fieldId}'];
+      if (answer == null) return '';
+      if (answer is bool) return answer ? 'Yes' : 'No';
+      if ([
+        'IMAGE_UPLOAD',
+        'FILE_UPLOAD',
+        'DOCUMENT_UPLOAD',
+      ].contains(field.fieldType)) {
+        final count = registrationFiles(answer)?.length ?? 0;
+        return count == 0 ? '' : '$count uploaded file${count == 1 ? '' : 's'}';
+      }
+      String label(Object? value) {
+        for (final choice
+            in field.options is List ? field.options as List : const []) {
+          if (choice is Map &&
+              choice['value'] == value &&
+              choice['label'] is String) {
+            return choice['label'] as String;
+          }
+        }
+        return value?.toString() ?? '';
+      }
+
+      return answer is List ? answer.map(label).join(', ') : label(answer);
+    }
+
+    final areas = value.schema.options
+        .where((o) => value.selected.contains(o.optionId))
+        .expand(
+          (option) => option
+              .locationGroups(
+                (draft['options'] as Map? ?? {})['${option.optionId}']
+                        as Map? ??
+                    {},
+              )
+              .values,
+        )
+        .expand((group) => group['areas'] as List? ?? [])
         .whereType<Map>()
         .map((a) => a['locationName'] ?? a['city'])
         .whereType<String>()
@@ -159,37 +188,76 @@ class RegistrationReview extends StatelessWidget {
           'imgExperience',
           const Color(0xFFE7F3FF),
         ),
-        row(
-          'Service Description',
-          descriptions,
-          'imgDescription',
-          const Color(0xFFE7FAF7),
-        ),
-        row('Service Location', areas, 'imgLocation', const Color(0xFFF0EAFF)),
-        row('Service Area', areas, 'imgMap', const Color(0xFFFFF1EA)),
-        row(
-          'Skills',
-          skillValues.join(', '),
-          'imgSkills',
-          const Color(0xFFE7FAF7),
-          content: chips(skillValues),
-        ),
-        row(
-          'Certifications',
-          certificates.join(', '),
-          'imgCertificate',
-          const Color(0xFFE7F3FF),
-          step: 3,
-          content: chips(certificates),
-        ),
-        row(
-          'Additional Documents',
-          documents.join(', '),
-          'imgAdditionalDocument',
-          const Color(0xFFFFF1EA),
-          step: 3,
-          content: chips(documents),
-        ),
+        for (final field in fields)
+          if (registrationFieldVisible(field, answers, fields) == true)
+            row(
+              field.label,
+              answerText(field),
+              'imgDescription',
+              const Color(0xFFE7FAF7),
+            ),
+        if (value.schema.options.any(
+          (o) =>
+              value.selected.contains(o.optionId) &&
+              o.usesServiceAreas(value.schema.serviceSetup),
+        ))
+          row(
+            'Service Locations',
+            areas.isEmpty &&
+                    value.schema.options
+                        .where((o) => value.selected.contains(o.optionId))
+                        .every((o) => o.configuredLocationMode() == 'ONLINE')
+                ? 'Online'
+                : areas,
+            'imgLocation',
+            const Color(0xFFF0EAFF),
+          ),
+        if (value.schema.serviceSetup.skills.isNotEmpty)
+          row(
+            'Skills',
+            skillValues.join(', '),
+            'imgSkills',
+            const Color(0xFFE7FAF7),
+            content: chips(skillValues),
+          ),
+        if (value.schema.serviceSetup.certificates.level !=
+            ProviderRequirementLevel.disabled)
+          row(
+            'Certifications',
+            certificates.join(', '),
+            'imgCertificate',
+            const Color(0xFFE7F3FF),
+            step: 3,
+            content: chips(certificates),
+          ),
+        if (value.schema.serviceSetup.documents.isNotEmpty ||
+            documents.isNotEmpty)
+          row(
+            'Additional Documents',
+            documents.join(', '),
+            'imgAdditionalDocument',
+            const Color(0xFFFFF1EA),
+            step: 3,
+            content: chips(documents),
+          ),
+        if (value.schema.serviceSetup.education.level !=
+            ProviderRequirementLevel.disabled)
+          row(
+            'Education',
+            ((draft['server'] as Map? ?? {})['education'] as List? ?? [])
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      e['title'] ??
+                      e['qualification'] ??
+                      e['instituteName'] ??
+                      '',
+                )
+                .join(', '),
+            'imgCertificate',
+            const Color(0xFFE7F3FF),
+            step: 3,
+          ),
         row(
           'Languages',
           languageValues.join(', '),

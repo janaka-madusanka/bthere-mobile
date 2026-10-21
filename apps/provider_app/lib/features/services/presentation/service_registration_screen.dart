@@ -133,10 +133,11 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
               }
               return;
             }
-            restored['options'] = {
-              ...(locations as Success<Map<String, dynamic>>).value,
-              ...(restored['options'] as Map? ?? const {}),
-            };
+            restored['options'] = mergeRegistrationLocations(
+              service.schema,
+              (locations as Success<Map<String, dynamic>>).value,
+              restored['options'] as Map? ?? {},
+            );
           }
         }
       }
@@ -351,7 +352,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       if (service.schema.serviceSetup.serviceAreasEnabled &&
           !completion.serviceAreasCompleted) {
         setState(
-          () => error = 'Your service locations still need attention. Confirm each delivery mode and location.',
+          () => error = 'Your service locations still need attention. Check the locations for each selected service.',
         );
         return;
       }
@@ -468,7 +469,10 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       ref.watch(documentsControllerProvider(selected!));
     }
     if (step == 5) {
-      return RegistrationCompleteScreen(approved: approved, firstStep: firstStep);
+      return RegistrationCompleteScreen(
+        approved: approved,
+        firstStep: firstStep,
+      );
     }
     final saving =
         busy || (result is Success<ServiceDetailState> && result.value.busy);
@@ -510,20 +514,24 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           description: focusedOption.description,
           icon: focusedOption.icon,
           deliveryModes: focusedOption.deliveryModes,
+          displayOrder: focusedOption.displayOrder,
           locationEnabled: focusedOption.locationEnabled,
           defaultCapacity: focusedOption.defaultCapacity,
           bookingMode: focusedOption.bookingMode,
         ),
         service: service.service,
         setup: service.schema.serviceSetup,
-        commonFields: activeRegistrationFields(service.schema, service.selected),
+        commonFields: activeRegistrationFields(
+          service.schema,
+          service.selected,
+        ),
         assignmentId: service.assignment?.assignmentId,
         loadSavedLocations: false,
         initial: {
           ...Map<String, dynamic>.from(
             options['${focusedOption.optionId}'] as Map? ?? {},
           ),
-          'fields': registrationAnswers(draft),
+          'fields': registrationAnswers(draft, selected: service.selected),
           'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
           if (draft['availability'] != null)
             'availability': draft['availability'],

@@ -1,3 +1,5 @@
+import 'registration_option_summary.dart';
+
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
@@ -183,15 +185,11 @@ class _Overview extends StatelessWidget {
                     const SizedBox(height: 6),
                     text(
                       value.service.description ??
-                          'Service details are available from the backend.',
+                          'Explore this service and its available options.',
                       11.5,
                       color: servicesMuted,
                     ),
-                    if (value.service.responsibilities.isNotEmpty ||
-                        [
-                          'caregiving',
-                          'caregiver',
-                        ].contains(value.service.name.trim().toLowerCase()))
+                    if (value.service.responsibilities.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Container(
@@ -348,13 +346,15 @@ class _Overview extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              text('Sub Services', 16, bold: true),
+              if (value.schema.options.isNotEmpty)
+                text('Sub Services', 16, bold: true),
               const SizedBox(height: 5),
-              text(
-                'This service includes the following areas.',
-                12,
-                color: servicesMuted,
-              ),
+              if (value.schema.options.isNotEmpty)
+                text(
+                  'This service includes the following areas.',
+                  12,
+                  color: servicesMuted,
+                ),
               const SizedBox(height: 5),
               for (final option in available)
                 row(
@@ -363,7 +363,7 @@ class _Overview extends StatelessWidget {
                       .where((saved) => saved.optionId == option.optionId)
                       .firstOrNull,
                 ),
-              if (available.isEmpty)
+              if (available.isEmpty && value.schema.options.isNotEmpty)
                 text(
                   'All available sub-services are registered.',
                   12,
@@ -409,8 +409,6 @@ class _Overview extends StatelessWidget {
     ),
     child: text(label, 10, color: teal ? homeTeal : const Color(0xFFBD6100)),
   );
-  Widget symbol(String name) =>
-      const Icon(Icons.volunteer_activism_outlined, color: homeTeal);
   Widget row(
     ProviderSchemaOption option, {
     ProviderSelectedOption? registered,
@@ -464,7 +462,7 @@ class _Overview extends StatelessWidget {
                   SizedBox(
                     width: registered == null ? 42 : 38,
                     height: registered == null ? 42 : 38,
-                    child: symbol(option.name),
+                    child: RegistrationOptionArtwork(option: option),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

@@ -155,14 +155,14 @@ class FakeWalletRepository extends Fake implements WalletRepository {
     events++;
     currentIntent = WalletIntent.fromJson({
       'intentId': id,
-      'purpose': 'TOPUP',
+      'purpose': currentIntent.purpose,
       'status': {
         'SUCCESS': 'SUCCEEDED',
         'FAILURE': 'FAILED',
         'PENDING': 'PENDING',
         'REFUND': 'REFUNDED',
       }[outcome],
-      'amount': '1000.00',
+      'amount': currentIntent.amount.decimal,
     });
     return currentIntent;
   }

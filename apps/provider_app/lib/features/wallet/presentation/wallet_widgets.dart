@@ -796,10 +796,14 @@ class _PendingPayment extends ConsumerWidget {
     final permitted = request.purpose == 'TOPUP'
         ? caps.topups && caps.cardLinking
         : caps.withdrawals;
-    final test =
+    final canConfirm =
         permitted &&
         value.intent?.status == 'PENDING' &&
-        value.snapshot.methods.any((m) => m.id == request.methodId && m.usable);
+        (request.methodId == null
+            ? request.purpose == 'TOPUP'
+            : value.snapshot.methods.any(
+                (m) => m.id == request.methodId && m.usable,
+              ));
     return Card(
       color: const Color(0xFFF0FBFA),
       child: Padding(
@@ -824,7 +828,7 @@ class _PendingPayment extends ConsumerWidget {
                     : 'Check payment status',
               ),
             ),
-            if (test && value.snapshot.canMove) ...[
+            if (canConfirm && value.snapshot.canMove) ...[
               const Text(
                 'Choose a result to complete this payment.',
                 style: TextStyle(fontSize: 11),

@@ -117,7 +117,11 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
     FocusManager.instance.primaryFocus?.unfocus();
     await ref
         .read(walletControllerProvider.notifier)
-        .submit(widget.topup ? 'TOPUP' : 'WITHDRAWAL', amount, _methodId!);
+        .submit(
+          widget.topup ? 'TOPUP' : 'WITHDRAWAL',
+          amount,
+          _methodId == 0 ? null : _methodId,
+        );
   }
 
   @override
@@ -132,7 +136,9 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
     final methods = value.snapshot.methods
         .where((m) => m.usable && m.card == widget.topup)
         .toList();
-    if (_methodId != null && !methods.any((m) => m.id == _methodId)) {
+    if (_methodId != null &&
+        !(widget.topup && _methodId == 0) &&
+        !methods.any((m) => m.id == _methodId)) {
       _methodId = null;
     }
     final caps = value.snapshot.capabilities;
@@ -204,6 +210,11 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                   border: const OutlineInputBorder(),
                 ),
                 items: [
+                  if (widget.topup)
+                    const DropdownMenuItem(
+                      value: 0,
+                      child: Text('Continue without a saved card'),
+                    ),
                   for (final method in methods)
                     DropdownMenuItem(
                       value: method.id,
@@ -217,27 +228,40 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                     ? null
                     : (id) => setState(() => _methodId = id),
               ),
-              if (methods.isEmpty)
-                TextButton(
+              if (widget.topup ? caps.cardLinking : caps.bankLinking)
+                TextButton.icon(
                   onPressed: value.busy
                       ? null
-                      : () => showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          showDragHandle: true,
-                          builder: (_) => const _MethodsSheet(),
-                        ),
-                  child: Text(
+                      : () async {
+                          await ref
+                              .read(walletControllerProvider.notifier)
+                              .addMethod(
+                                widget.topup ? 'CARD' : 'BANK_ACCOUNT',
+                              );
+                          if (!mounted) return;
+                          final updated = ref
+                              .read(walletControllerProvider)
+                              .asData
+                              ?.value;
+                          final method = updated?.snapshot.methods
+                              .where((m) => m.usable && m.card == widget.topup)
+                              .firstOrNull;
+                          if (method != null) {
+                            setState(() => _methodId = method.id);
+                          }
+                        },
+                  icon: Icon(
                     widget.topup
-                        ? 'Add a card first'
-                        : 'Add a bank account first',
+                        ? Icons.credit_card
+                        : Icons.account_balance_outlined,
                   ),
+                  label: Text(widget.topup ? 'Add card' : 'Add bank account'),
                 ),
               if (_validation != null)
                 _WalletMessage(text: _validation!, error: true),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: enabled && methods.isNotEmpty
+                onPressed: enabled && (widget.topup || methods.isNotEmpty)
                     ? () => _submit(value)
                     : null,
                 child: Text(

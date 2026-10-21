@@ -11,6 +11,8 @@ import 'registration_widgets.dart';
 import 'registration_unavailable_dates.dart';
 import 'registration_option_summary.dart';
 
+part 'registration_configured_locations.dart';
+
 class RegistrationOptionEditor extends ConsumerStatefulWidget {
   const RegistrationOptionEditor({
     required this.option,
@@ -50,17 +52,13 @@ class RegistrationOptionEditor extends ConsumerStatefulWidget {
 class _OptionState extends ConsumerState<RegistrationOptionEditor> {
   final form = GlobalKey<FormState>();
   late Map<String, dynamic> values, fields;
-  late List<Map<String, dynamic>> areas;
   late Set<int> days;
-  String? mode, error;
-  Map<String, dynamic>? pendingArea;
-  final radiusInput = TextEditingController();
+  String? error;
+  late List<String> locationModes;
+  final locationKeys = <String, GlobalKey<_ConfiguredLocationState>>{};
   bool anyTime = true, anyDay = false;
-  bool loadingAreas = false;
-  bool areasLoaded = true;
   bool availabilityChanged = false;
   bool timesChanged = false;
-  int areaGeneration = 0;
   TimeOfDay start = const TimeOfDay(hour: 8, minute: 0),
       end = const TimeOfDay(hour: 17, minute: 0);
   @override
@@ -68,16 +66,11 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
     super.initState();
     values = Map.of(widget.initial);
     fields = Map<String, dynamic>.from(values['fields'] as Map? ?? {});
-    areas = (values['areas'] as List? ?? [])
-        .whereType<Map>()
-        .map((v) => Map<String, dynamic>.from(v))
-        .toList();
-    mode = values['deliveryMode'] as String?;
-    if (widget.option.deliveryModes.isNotEmpty &&
-        !widget.option.deliveryModes.contains(mode)) {
-      mode = widget.option.deliveryModes.length == 1
-          ? widget.option.deliveryModes.single
-          : null;
+    locationModes = widget.option.configuredLocationModes(
+      values['deliveryMode'],
+    );
+    for (final mode in locationModes.where((m) => m != 'ONLINE')) {
+      locationKeys[mode] = GlobalKey<_ConfiguredLocationState>();
     }
     final availability = values['availability'] as Map? ?? {};
     anyTime = availability['availableAnyTime'] != false;
@@ -102,101 +95,6 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       start = parse(slots.first['startTime'], start);
       end = parse(slots.first['endTime'], end);
     }
-    if (widget.option.usesServiceAreas(widget.setup) &&
-        widget.loadSavedLocations &&
-        areas.isEmpty &&
-        mode != null &&
-        mode != 'ONLINE' &&
-        widget.assignmentId != null) {
-      areasLoaded = false;
-      Future.microtask(loadAreas);
-    }
-  }
-
-  @override
-  void dispose() {
-    radiusInput.dispose();
-    super.dispose();
-  }
-
-  Future<void> loadAreas() async {
-    if (!widget.option.usesServiceAreas(widget.setup) ||
-        !widget.loadSavedLocations ||
-        widget.assignmentId == null ||
-        mode == null ||
-        mode == 'ONLINE') {
-      return;
-    }
-    final requestedMode = mode!;
-    final request = ++areaGeneration;
-    setState(() {
-      loadingAreas = true;
-      areasLoaded = false;
-      error = null;
-    });
-    final result = await ref
-        .read(registrationRepositoryProvider)
-        .areas(widget.assignmentId!, widget.option.optionId, requestedMode);
-    if (!mounted || mode != requestedMode || request != areaGeneration) return;
-    setState(() {
-      loadingAreas = false;
-      if (result is Success<List<Map<String, dynamic>>>) {
-        areas = result.value;
-        areasLoaded = true;
-      } else {
-        error = 'Unable to load saved locations for this delivery mode. Please retry.';
-      }
-    });
-  }
-
-  Future<void> location({int? index, bool stage = false}) async {
-    if (mode == null) {
-      setState(() => error = 'Choose a delivery mode first.');
-      return;
-    }
-    final result = await showRegistrationLocation(
-      context,
-      initial: index == null
-          ? {
-              'radiusKm': num.tryParse(radiusInput.text),
-              if (mode == 'CUSTOMER_TO_PROVIDER') 'capacity': widget.option.defaultCapacity,
-            }
-          : areas[index],
-      mode: mode!,
-    );
-    if (result != null && mounted) {
-      setState(() {
-        if (index == null && stage) {
-          pendingArea = result;
-          radiusInput.text = result['radiusKm']?.toString() ?? '';
-        } else if (index == null) {
-          areas.add(result);
-        } else {
-          areas[index] = result;
-        }
-      });
-    }
-  }
-
-  void addPendingArea() {
-    if (pendingArea == null) {
-      location(stage: true);
-      return;
-    }
-    final radius = num.tryParse(radiusInput.text);
-    if (mode == 'PROVIDER_TO_CUSTOMER' &&
-        (radius == null || !radius.isFinite || radius <= 0)) {
-      setState(() => error = 'Enter a positive service radius.');
-      return;
-    }
-    setState(() {
-      areas.add({
-        ...pendingArea!,
-        'radiusKm': mode == 'PROVIDER_TO_CUSTOMER' ? radius : null,
-      });
-      pendingArea = null;
-      error = null;
-    });
   }
 
   Future<void> availabilitySettings() => showModalBottomSheet<void>(
@@ -299,14 +197,6 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
     ),
   );
 
-  List<ProviderRequirementField> get experienceFields => widget.option.fields
-      .where(
-        (field) =>
-            field.code.toLowerCase().contains('experience') ||
-            field.label.toLowerCase().contains('experience'),
-      )
-      .toList();
-
   Widget fieldSection(
     String title,
     String description,
@@ -367,34 +257,19 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
   void save() {
     setState(() => error = null);
-    if (widget.option.usesServiceAreas(widget.setup) &&
-        widget.loadSavedLocations &&
-        widget.assignmentId != null &&
-        mode != null &&
-        mode != 'ONLINE' &&
-        !areasLoaded) {
-      setState(
-        () => error = 'Load your saved locations before replacing them.',
-      );
-      return;
-    }
     if (!form.currentState!.validate()) return;
-    if (pendingArea != null) {
-      setState(
-        () => error = 'Tap + to add your selected location before saving.',
-      );
-      return;
-    }
-    if (widget.option.usesServiceAreas(widget.setup) &&
-        (mode == null ||
-            (widget.option.deliveryModes.isNotEmpty &&
-                !widget.option.deliveryModes.contains(mode)))) {
-      setState(() => error = 'Select a delivery mode.');
-      return;
-    }
-    if (widget.option.usesServiceAreas(widget.setup) && mode != 'ONLINE' && areas.isEmpty) {
-      setState(() => error = 'Add at least one service location.');
-      return;
+    if (widget.option.usesServiceAreas(widget.setup)) {
+      if (locationModes.isEmpty) {
+        setState(
+          () => error = 'This service is missing its location configuration. Please reload the service.',
+        );
+        return;
+      }
+      var valid = true;
+      for (final key in locationKeys.values) {
+        if (key.currentState?.validate() != true) valid = false;
+      }
+      if (!valid) return;
     }
     if (widget.setup.availabilityEnabled && !anyDay && days.isEmpty) {
       setState(() => error = 'Select at least one day.');
@@ -408,8 +283,17 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
     final result = <String, dynamic>{
       ...values,
       'fields': fields,
-      'areas': areas,
-      'deliveryMode': mode,
+      if (widget.option.usesServiceAreas(widget.setup)) ...{
+        'locationsByMode': {
+          for (final entry in locationKeys.entries)
+            entry.key: entry.value.currentState!.snapshot,
+        },
+        // Retain the legacy shape for existing single-mode drafts and callers.
+        'deliveryMode': locationModes.length == 1 ? locationModes.single : null,
+        'areas': locationModes.length == 1 && locationKeys.isNotEmpty
+            ? locationKeys.values.single.currentState!.areas
+            : <Map<String, dynamic>>[],
+      },
       'availability': !availabilityChanged && values['availability'] != null
           ? values['availability']
           : {
@@ -432,6 +316,13 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
             },
       'saved': true,
     };
+    if (widget.option.usesServiceAreas(widget.setup)) {
+      final validation = widget.option.validateLocations(result);
+      if (validation != null) {
+        setState(() => error = validation);
+        return;
+      }
+    }
     if (widget.onSave != null) {
       widget.onSave!(result);
     } else {
@@ -479,11 +370,7 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
                 SizedBox(
                   width: 64,
                   height: 64,
-                  child: widget.option.icon?.usableUri != null
-                      ? RegistrationOptionArtwork(option: widget.option)
-                      : widget.option.name.toLowerCase().contains('elder')
-                      ? const RegistrationAsset('option_imgElderlyCareSymbol')
-                      : RegistrationOptionSymbol(widget.option.name),
+                  child: RegistrationOptionArtwork(option: widget.option),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -503,236 +390,28 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
               ],
             ),
             const SizedBox(height: 30),
-            if (experienceFields.isNotEmpty)
-              fieldSection(
-                'Experience',
-                'Your experience in ${widget.option.name.toLowerCase()}.',
-                experienceFields,
-              ),
-            if (widget.option.usesServiceAreas(widget.setup))
-              RegistrationSection(
-                'Service Location & Area',
-                'Where do you provide this service?',
-                trailing: TextButton(
-                  style: TextButton.styleFrom(
-                    minimumSize: Size.zero,
-                    padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: mode == null || mode == 'ONLINE'
-                      ? null
-                      : () => showRegistrationAreas(context, areas, mode!),
-                  child: registrationText(
-                    'View in Map',
-                    11,
-                    color: const Color(0xFF168EFF),
-                  ),
+            if (widget.option.usesServiceAreas(widget.setup)) ...[
+              if (locationModes.isEmpty)
+                const RegistrationNotice(
+                  'This service is missing its location configuration. Please reload the service. If this continues, contact support.',
+                  warning: true,
                 ),
-                child: RegistrationPanel(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (widget.option.deliveryModes.length != 1) ...[
-                        DropdownButtonFormField<String>(
-                          initialValue: mode,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Delivery mode',
-                            isDense: true,
-                          ),
-                          items: [
-                            for (final entry in const {
-                              'PROVIDER_TO_CUSTOMER':
-                                  'I travel to the customer',
-                              'CUSTOMER_TO_PROVIDER':
-                                  'Customers visit my location',
-                              'ONLINE': 'Online',
-                            }.entries)
-                              if (widget.option.deliveryModes.isEmpty ||
-                                  widget.option.deliveryModes.contains(
-                                    entry.key,
-                                  ))
-                                DropdownMenuItem(
-                                  value: entry.key,
-                                  child: registrationText(entry.value, 12),
-                                ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              mode = value;
-                              areas = [];
-                              pendingArea = null;
-                              loadingAreas = false;
-                            });
-                            loadAreas();
-                          },
-                          validator: (value) =>
-                              value == null ? 'Select a delivery mode.' : null,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (loadingAreas) const LinearProgressIndicator(),
-                      if (mode != 'ONLINE') ...[
-                        for (final (index, area) in areas.indexed)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 7),
-                            child: RegistrationPanel(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: loadingAreas
-                                          ? null
-                                          : () => location(index: index),
-                                      child: registrationText(
-                                        '${area['locationName'] ?? area['city'] ?? ''}',
-                                        12,
-                                      ),
-                                    ),
-                                  ),
-                                  if (mode == 'PROVIDER_TO_CUSTOMER' &&
-                                      area['radiusKm'] != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF0F1F8),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: registrationText(
-                                        'Radius: ${area['radiusKm']} km',
-                                        9,
-                                        color: registrationMuted,
-                                      ),
-                                    ),
-                                  IconButton(
-                                    tooltip: 'Remove location',
-                                    onPressed: loadingAreas
-                                        ? null
-                                        : () => setState(
-                                            () => areas.removeAt(index),
-                                          ),
-                                    icon: const Icon(
-                                      Icons.close,
-                                      size: 18,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        if (areas.isNotEmpty)
-                          const Center(
-                            child: SizedBox(
-                              width: 110,
-                              child: Divider(height: 14, thickness: .6),
-                            ),
-                          ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 9,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                onPressed: loadingAreas || mode == null
-                                    ? null
-                                    : () => location(stage: true),
-                                icon: const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: RegistrationAsset(
-                                    'option_imgLocationPin',
-                                  ),
-                                ),
-                                label: Row(
-                                  children: [
-                                    Expanded(
-                                      child: registrationText(
-                                        pendingArea?['locationName']
-                                                as String? ??
-                                            'Select Location',
-                                        11,
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.keyboard_arrow_down,
-                                      size: 17,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            if (mode == 'PROVIDER_TO_CUSTOMER') ...[
-                              const SizedBox(width: 6),
-                              SizedBox(
-                                width: 88,
-                                child: TextFormField(
-                                  controller: radiusInput,
-                                  onChanged: (_) => setState(() {}),
-                                  style: const TextStyle(fontSize: 12),
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: InputDecoration(
-                                    hintText: 'km',
-                                    suffixText: radiusInput.text.isNotEmpty
-                                        ? 'km'
-                                        : null,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(width: 6),
-                            SizedBox(
-                              width: 42,
-                              child: OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                onPressed: loadingAreas ? null : addPendingArea,
-                                child: const Icon(
-                                  Icons.add,
-                                  color: registrationTeal,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else
-                        registrationText(
-                          'This service is provided online.',
-                          12,
-                          color: registrationMuted,
-                        ),
-                    ],
-                  ),
+              for (final entry in locationKeys.entries)
+                _ConfiguredLocationEditor(
+                  key: entry.value,
+                  option: widget.option,
+                  mode: entry.key,
+                  multiple: locationKeys.length > 1,
+                  initial:
+                      widget.option.locationGroups(values)[entry.key] ?? {},
+                  assignmentId: widget.assignmentId,
+                  loadSavedLocations: widget.loadSavedLocations,
                 ),
-              ),
+              if (locationModes.length == 1 && locationModes.single == 'ONLINE')
+                const RegistrationNotice(
+                  'This service is provided online. No physical location is needed.',
+                ),
+            ],
             if (widget.setup.availabilityEnabled)
               RegistrationSection(
                 'Weekly Availability',
@@ -816,30 +495,21 @@ class _OptionState extends ConsumerState<RegistrationOptionEditor> {
                   ],
                 ),
               ),
-            if (widget.option.fields.any(
-              (field) => !experienceFields.contains(field),
-            ))
+            if (widget.option.fields.isNotEmpty)
               fieldSection(
                 'Additional Information',
-                'Additional details for ${widget.option.name.toLowerCase()}.',
-                widget.option.fields
-                    .where((field) => !experienceFields.contains(field))
-                    .toList(),
+                'Additional details for ${widget.option.name}.',
+                widget.option.fields,
               ),
             if (widget.saveError != null)
               RegistrationNotice(widget.saveError!, warning: true),
             if (error != null) ...[
               RegistrationNotice(error!, warning: true),
-              if (!areasLoaded && !loadingAreas)
-                TextButton(
-                  onPressed: loadAreas,
-                  child: const Text('Retry loading locations'),
-                ),
               const SizedBox(height: 12),
             ],
             RegistrationButton(
               'Save ${widget.option.name} Details',
-              onPressed: loadingAreas || widget.busy ? null : save,
+              onPressed: widget.busy ? null : save,
             ),
           ],
         ),

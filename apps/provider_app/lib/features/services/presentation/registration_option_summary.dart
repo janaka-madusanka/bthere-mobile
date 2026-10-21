@@ -6,9 +6,6 @@ import '../application/registration_payload.dart';
 import 'registration_widgets.dart';
 
 Color registrationOptionSurface(ProviderSchemaOption option) {
-  final name = option.name.toLowerCase();
-  if (name.contains('child')) return const Color(0xFFFFF7F9);
-  if (name.contains('hospital')) return const Color(0xFFFBF5FF);
   return const Color(0xFFF0FCFF);
 }
 
@@ -64,17 +61,11 @@ class RegistrationOptionSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fields = activeRegistrationFields(schema, selected);
-    final answers = registrationAnswers(draft);
+    final answers = registrationAnswers(draft, selected: selected);
     final applicable = fields
         .where((field) => field.optionIds.contains(option.optionId))
         .toList();
-    bool isExperience(ProviderRequirementField field) =>
-        field.code.toLowerCase().contains('experience') ||
-        field.label.toLowerCase().contains('experience');
-    final experienceFields = applicable.where(isExperience).toList();
-    final additionalFields = applicable
-        .where((field) => !isExperience(field))
-        .toList();
+    final additionalFields = applicable;
     bool answered(List<ProviderRequirementField> group) => group.every((field) {
       final visible = registrationFieldVisible(field, answers, fields);
       if (visible == null) return false;
@@ -99,27 +90,13 @@ class RegistrationOptionSummary extends StatelessWidget {
         .every((skill) => chosenSkills.contains(skill.metadata['skillId']));
     final optionData =
         (draft['options'] as Map? ?? {})['${option.optionId}'] as Map? ?? {};
-    final mode = optionData['deliveryMode'];
-    final modeValid =
-        mode is String &&
-        (option.deliveryModes.isEmpty || option.deliveryModes.contains(mode));
-    final areas = (optionData['areas'] as List? ?? []).whereType<Map>();
+    final modes = option.configuredLocationModes(optionData['deliveryMode']);
+    final onlineOnly = modes.length == 1 && modes.single == 'ONLINE';
     final locationComplete =
         !option.usesServiceAreas(schema.serviceSetup) ||
-        (modeValid &&
-            (mode == 'ONLINE' ||
-                areas.isNotEmpty &&
-                    areas.every(
-                      (area) =>
-                          area['latitude'] is num &&
-                          area['longitude'] is num &&
-                          (mode != 'PROVIDER_TO_CUSTOMER' ||
-                              area['radiusKm'] is num &&
-                                  (area['radiusKm'] as num) > 0),
-                    )));
-    final experienceComplete = experienceFields.isEmpty
-        ? double.tryParse(experience) != null && double.parse(experience) >= 0
-        : answered(experienceFields) && hasAnswer(experienceFields);
+        option.validateLocations(optionData) == null;
+    final years = double.tryParse(experience);
+    final experienceComplete = years != null && years.isFinite && years >= 0;
     final additionalComplete = answered(additionalFields);
     final availability = draft['availability'] as Map?;
     final availabilityComplete =
@@ -149,7 +126,7 @@ class RegistrationOptionSummary extends StatelessWidget {
             asset: 'imgSquareCheck',
             status: experienceComplete ? 'Added' : 'Not added',
             complete: experienceComplete,
-            action: experienceFields.isEmpty ? onExperience : onEdit,
+            action: onExperience,
           ),
           if (configuredSkills.isNotEmpty)
             (
@@ -159,27 +136,36 @@ class RegistrationOptionSummary extends StatelessWidget {
               complete: skillsComplete,
               action: onSkills,
             ),
+          if (schema.serviceSetup.availabilityEnabled)
+            (
+              label: 'Weekly Availability',
+              asset: 'imgSquareCheck',
+              status: availabilityComplete ? 'Added' : 'Not added',
+              complete: availabilityComplete,
+              action: onEdit,
+            ),
           if (option.usesServiceAreas(schema.serviceSetup))
             (
               label: 'Location & Area',
               asset: 'imgLocation',
               status: locationComplete
-                  ? (mode == 'ONLINE' ? 'Online' : 'Added')
+                  ? (onlineOnly ? 'Online' : 'Added')
                   : 'Not added',
               complete: locationComplete,
               action: onEdit,
             ),
-          (
-            label: 'Additional Information',
-            asset: 'imgFileText',
-            status: additionalFields.isEmpty
-                ? 'Not required'
-                : additionalComplete && hasAnswer(additionalFields)
-                ? 'Added'
-                : 'Not added',
-            complete: additionalComplete,
-            action: onEdit,
-          ),
+          if (additionalFields.isNotEmpty)
+            (
+              label: 'Additional Information',
+              asset: 'imgFileText',
+              status: additionalFields.isEmpty
+                  ? 'Not required'
+                  : additionalComplete && hasAnswer(additionalFields)
+                  ? 'Added'
+                  : 'Not added',
+              complete: additionalComplete,
+              action: onEdit,
+            ),
         ];
     return Stack(
       clipBehavior: Clip.none,
@@ -193,9 +179,7 @@ class RegistrationOptionSummary extends StatelessWidget {
                   Container(
                     width: 49,
                     height: 49,
-                    padding: option.name.toLowerCase().contains('hospital')
-                        ? const EdgeInsets.all(8)
-                        : EdgeInsets.zero,
+                    padding: EdgeInsets.zero,
                     decoration: BoxDecoration(
                       color: registrationOptionSurface(option),
                       shape: BoxShape.circle,

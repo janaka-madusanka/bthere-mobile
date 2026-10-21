@@ -431,6 +431,75 @@ void main() {
     tearDown(() => container.dispose());
 
     test(
+      'top-up without a saved card completes and refreshes server balances',
+      () async {
+        repository.snapshot = walletSnapshot(empty: true);
+        await container.read(walletControllerProvider.future);
+        final controller = container.read(walletControllerProvider.notifier);
+        await controller.submit('TOPUP', WalletMoney.parse('1000'), null);
+        expect(repository.creates, 1);
+        expect(repository.lastRequest!.methodId, isNull);
+        expect(journal.requests[25]!.intentId, 21);
+        expect(repository.events, 0);
+        await controller.simulate('SUCCESS');
+        expect(repository.events, 1);
+        expect(journal.requests, isEmpty);
+        final value = container.read(walletControllerProvider).requireValue;
+        expect(value.intent!.status, 'SUCCEEDED');
+        expect(
+          value.snapshot.balance.available.decimal,
+          repository.snapshot.balance.available.decimal,
+        );
+      },
+    );
+
+    test('resume refresh reads a pending intent and releases the completed request', () async {
+      await container.read(walletControllerProvider.future);
+      final controller = container.read(walletControllerProvider.notifier);
+      await controller.submit('TOPUP', WalletMoney.parse('1000'), 5);
+      repository.currentIntent = WalletIntent.fromJson({
+        'intentId': 21,
+        'purpose': 'TOPUP',
+        'status': 'SUCCEEDED',
+        'amount': '1000',
+      });
+      await controller.refresh();
+      final value = container.read(walletControllerProvider).requireValue;
+      expect(value.request, isNull);
+      expect(value.intent!.status, 'SUCCEEDED');
+      expect(journal.requests, isEmpty);
+      expect(repository.events, 0);
+      expect(await controller.savedIntentIds(), contains(21));
+    });
+
+    test('withdrawal requires bank setup and confirms the returned withdrawal intent', () async {
+      repository.snapshot = walletSnapshot(empty: true);
+      await container.read(walletControllerProvider.future);
+      final controller = container.read(walletControllerProvider.notifier);
+      await controller.submit('WITHDRAWAL', WalletMoney.parse('100'), null);
+      expect(repository.creates, 0);
+      await controller.addMethod('BANK_ACCOUNT');
+      expect(repository.setups, 1);
+      repository.currentIntent = WalletIntent.fromJson({
+        'intentId': 22,
+        'purpose': 'WITHDRAWAL',
+        'status': 'PENDING',
+        'amount': '100',
+      });
+      await controller.submit('WITHDRAWAL', WalletMoney.parse('100'), 6);
+      expect(repository.lastRequest!.methodId, 6);
+      expect(repository.lastRequest!.purpose, 'WITHDRAWAL');
+      expect(journal.requests[25]!.intentId, 22);
+      await controller.simulate('SUCCESS');
+      expect(
+        container.read(walletControllerProvider).requireValue.intent!.purpose,
+        'WITHDRAWAL',
+      );
+      expect(journal.requests, isEmpty);
+      expect(await controller.savedIntentIds(), contains(22));
+    });
+
+    test(
       'concurrent submits create one payment and 503 reloads capabilities',
       () async {
         await container.read(walletControllerProvider.future);
@@ -721,6 +790,46 @@ void main() {
     expect(repository.events, 1);
     expect(find.text('Status: REFUNDED'), findsOneWidget);
   });
+
+  testWidgets(
+    'inline card setup selects the returned method and completes a top-up',
+    (tester) async {
+      final fixture = ServiceFixture();
+      final repository = fixture.container.read(
+        walletRepositoryProvider,
+      ) as FakeWalletRepository;
+      fixture.storage.session = walletSession();
+      repository.snapshot = walletSnapshot(empty: true);
+      await pump(tester, fixture, route: AppRoutes.wallet);
+      await tester.tap(find.text('Top Up Wallet').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add card'));
+      await tester.pumpAndSettle();
+      expect(repository.setups, 1);
+      expect(
+        tester
+            .widget<DropdownButtonFormField<int>>(
+              find.byType(DropdownButtonFormField<int>),
+            )
+            .initialValue,
+        5,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('wallet-payment-amount')),
+        '1000',
+      );
+      await tester.tap(find.text('Create top-up'));
+      await tester.pumpAndSettle();
+      expect(repository.lastRequest!.methodId, 5);
+      await tester.tap(find.text('Confirm payment').last);
+      await tester.pumpAndSettle();
+      expect(repository.events, 1);
+      expect(
+        find.text('Payment completed. Your balance has been refreshed.'),
+        findsWidgets,
+      );
+    },
+  );
 
   testWidgets('wallet details displays server wallets and ledger totals', (
     tester,

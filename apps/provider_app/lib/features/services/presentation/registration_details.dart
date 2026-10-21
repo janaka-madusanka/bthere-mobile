@@ -90,13 +90,14 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
       description: option.description,
       icon: option.icon,
       deliveryModes: option.deliveryModes,
-          locationEnabled: option.locationEnabled,
-          defaultCapacity: option.defaultCapacity,
-          bookingMode: option.bookingMode,
+      displayOrder: option.displayOrder,
+      locationEnabled: option.locationEnabled,
+      defaultCapacity: option.defaultCapacity,
+      bookingMode: option.bookingMode,
     );
     final current = <String, dynamic>{
       ...?optionDraft(option.optionId),
-      'fields': registrationAnswers(draft),
+      'fields': registrationAnswers(draft, selected: value.selected),
       'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
       if (draft['availability'] != null) 'availability': draft['availability'],
     };
@@ -322,17 +323,7 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                     SizedBox(
                       width: 53,
                       height: 53,
-                      child:
-                          value.service.usableIconUri == null &&
-                              [
-                                'caregiving',
-                                'caregiver',
-                                'home nurse',
-                              ].contains(value.service.name.toLowerCase())
-                          ? const RegistrationAsset(
-                              'details_imgCaregivingSymbol',
-                            )
-                          : ServiceCatalogSymbol(service: value.service),
+                      child: ServiceCatalogSymbol(service: value.service),
                     ),
                     const SizedBox(width: 18),
                     Expanded(
@@ -399,7 +390,7 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
             ),
             if (skills.isNotEmpty)
               RegistrationSection(
-                'Required Skills',
+                'Skills',
                 'Select the skills you have for this service.',
                 child: RegistrationPanel(
                   key: _skillsKey,
@@ -540,46 +531,49 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                   ],
                 ),
               ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      registrationText(
-                        'Your Selected Services',
-                        13,
-                        bold: true,
-                      ),
-                      registrationText(
-                        'Complete the additional details for each selected service.',
-                        10.5,
-                        color: registrationMuted,
-                      ),
-                    ],
+            if (value.schema.options.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        registrationText(
+                          'Your Selected Services',
+                          13,
+                          bold: true,
+                        ),
+                        registrationText(
+                          'Complete the additional details for each selected service.',
+                          10.5,
+                          color: registrationMuted,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F8F6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: registrationText(
+                      '${selected.length} selected',
+                      10,
+                      color: registrationTeal,
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F8F6),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: registrationText(
-                    '${selected.length} selected',
-                    10,
-                    color: registrationTeal,
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 12),
-            if (selected.isEmpty)
+            if (selected.isEmpty &&
+                value.schema.options.isNotEmpty &&
+                value.schema.serviceSetup.optionsRequired)
               const Padding(
                 padding: EdgeInsets.only(bottom: 22),
                 child: RegistrationNotice(
@@ -625,7 +619,10 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                   child: const Text('Set Availability'),
                 ),
               ),
-            if (value.schema.commonFields.isNotEmpty)
+            if (activeRegistrationFields(
+              value.schema,
+              value.selected,
+            ).any((f) => f.optionIds.isEmpty))
               RegistrationSection(
                 'Additional Information',
                 'Tell us about your service.',
@@ -638,7 +635,10 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                             .whereType<Map>()
                             .toList(),
                     fields: value.schema.commonFields,
-                    answers: registrationAnswers(draft),
+                    answers: registrationAnswers(
+                      draft,
+                      selected: value.selected,
+                    ),
                     allFields: activeRegistrationFields(
                       value.schema,
                       value.selected,

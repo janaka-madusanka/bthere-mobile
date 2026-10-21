@@ -693,11 +693,18 @@ void main() {
     final experience = find.byKey(const ValueKey('option-12-Experience'));
     final location = find.byKey(const ValueKey('option-12-Location & Area'));
     expect(
-      find.descendant(of: experience, matching: find.text('Not added')),
+      find.descendant(of: experience, matching: find.text('Added')),
       findsOneWidget,
     );
     expect(
       find.descendant(of: location, matching: find.text('Not added')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('option-12-Additional Information')),
+        matching: find.text('Not added'),
+      ),
       findsOneWidget,
     );
     expect(find.text('Incomplete'), findsOneWidget);

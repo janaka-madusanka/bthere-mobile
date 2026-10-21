@@ -173,7 +173,9 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     radius = TextEditingController(
       text: values['radiusKm']?.toString() ?? (visitsCustomer ? '5' : ''),
     );
-    capacity = TextEditingController(text: values['capacity']?.toString() ?? '');
+    capacity = TextEditingController(
+      text: values['capacity']?.toString() ?? '',
+    );
     point = _areaPoint(values);
     if (point == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -640,9 +642,12 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
                       labelText: 'Location capacity',
                       helperText: 'Number of customers you can serve at once',
                     ),
-                    validator: (text) => text == null || text.trim().isEmpty ||
-                        (int.tryParse(text) != null && int.parse(text) > 0)
-                        ? null : 'Enter a positive whole number.',
+                    validator: (text) =>
+                        text == null ||
+                            text.trim().isEmpty ||
+                            (int.tryParse(text) != null && int.parse(text) > 0)
+                        ? null
+                        : 'Enter a positive whole number.',
                   ),
                 ],
                 if (visitsCustomer) ...[

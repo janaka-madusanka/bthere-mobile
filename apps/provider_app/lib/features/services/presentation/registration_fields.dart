@@ -127,16 +127,23 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      for (final field in widget.fields.where(
-        (f) => f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT',
-      ))
-        if (registrationFieldVisible(
-              field,
-              {...?widget.answers, ...widget.values},
-              widget.allFields ?? widget.fields,
-            ) !=
+      for (final field
+          in (widget.fields
+              .where(
+                (f) =>
+                    f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT',
+              )
+              .toList()
+            ..sort(
+              (a, b) => (a.displayOrder ?? 0).compareTo(b.displayOrder ?? 0),
+            )))
+        if (registrationFieldVisible(field, {
+              ...?widget.answers,
+              ...widget.values,
+            }, widget.allFields ?? widget.fields) !=
             false)
           Padding(
+            key: ValueKey('requirement-${field.fieldId}'),
             padding: EdgeInsets.only(bottom: widget.compact ? 8 : 16),
             child: buildField(field),
           ),
@@ -168,11 +175,10 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
     }
 
     final unsupported =
-        registrationFieldVisible(
-          field,
-          {...?widget.answers, ...widget.values},
-          widget.allFields ?? widget.fields,
-        ) ==
+        registrationFieldVisible(field, {
+          ...?widget.answers,
+          ...widget.values,
+        }, widget.allFields ?? widget.fields) ==
         null;
     Widget control;
     if (unsupported) {
@@ -451,7 +457,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
         enabled: widget.enabled,
         style: const TextStyle(fontSize: 12, fontFamily: 'HomeInter'),
         maxLines: field.fieldType == 'TEXTAREA' ? 3 : 1,
-        maxLength: widget.compact && field.fieldType == 'TEXTAREA' ? 500 : null,
+
         decoration: const InputDecoration(
           counterStyle: TextStyle(
             fontFamily: 'HomeInter',
@@ -483,7 +489,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         registrationText(
-          '${field.label}${field.required && !widget.compact ? ' *' : ''}',
+          '${field.label}${field.required ? ' *' : ''}',
           widget.compact ? 13 : 12,
         ),
         if (field.description != null)

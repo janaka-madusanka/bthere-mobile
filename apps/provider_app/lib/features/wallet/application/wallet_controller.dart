@@ -106,6 +106,12 @@ class WalletController extends AsyncNotifier<WalletViewState> {
       return;
     }
     await _perform((epoch) async {
+      final request = previous.request;
+      if (request?.intentId != null) {
+        final intent = await _repository.intent(request!.intentId!);
+        _check(epoch);
+        return _finish(request, intent, epoch);
+      }
       final snapshot = await _repository.load();
       return WalletViewState(
         snapshot: snapshot,
@@ -179,7 +185,7 @@ class WalletController extends AsyncNotifier<WalletViewState> {
     );
   });
 
-  Future<void> submit(String purpose, WalletMoney amount, int methodId) =>
+  Future<void> submit(String purpose, WalletMoney amount, int? methodId) =>
       _perform((epoch) async {
         final current = state.requireValue;
         if (current.request != null) {
@@ -196,12 +202,13 @@ class WalletController extends AsyncNotifier<WalletViewState> {
         final method = snapshot.methods
             .where((m) => m.id == methodId)
             .firstOrNull;
-        if (!snapshot.canMove ||
+        if (!['TOPUP', 'WITHDRAWAL'].contains(purpose) ||
+            !snapshot.canMove ||
             !amount.validPayment ||
             (topup ? !(c.topups && c.cardLinking) : !c.withdrawals) ||
-            method == null ||
-            !method.usable ||
-            method.card != topup ||
+            (methodId == null
+                ? !topup
+                : method == null || !method.usable || method.card != topup) ||
             (!topup && amount.compareTo(snapshot.balance.available) > 0)) {
           throw const FormatException(
             'Check the amount, available balance and payment method.',
@@ -324,7 +331,9 @@ class WalletController extends AsyncNotifier<WalletViewState> {
         : capabilities.withdrawals;
     if (!permitted ||
         request?.intentId == null ||
-        method?.usable != true ||
+        (request?.methodId == null
+            ? request?.purpose != 'TOPUP'
+            : method?.usable != true) ||
         current.intent?.status != 'PENDING' ||
         !current.snapshot.canMove) {
       throw const FormatException(

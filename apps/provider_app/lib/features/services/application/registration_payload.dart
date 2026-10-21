@@ -51,11 +51,56 @@ Object? registrationSubmissionValue(
     ? {'files': registrationFiles(value) ?? const <Map<String, dynamic>>[]}
     : value;
 
-Map<String, dynamic> registrationAnswers(Map<String, dynamic> draft) => {
+Map<String, dynamic> registrationAnswers(
+  Map<String, dynamic> draft, {
+  Set<int>? selected,
+}) => {
   ...Map<String, dynamic>.from(draft['fields'] as Map? ?? {}),
-  for (final option in (draft['options'] as Map? ?? {}).values.whereType<Map>())
-    ...Map<String, dynamic>.from(option['fields'] as Map? ?? {}),
+  for (final entry in (draft['options'] as Map? ?? {}).entries)
+    if ((selected == null || selected.contains(int.tryParse('${entry.key}'))) &&
+        entry.value is Map)
+      ...Map<String, dynamic>.from(
+        (entry.value as Map)['fields'] as Map? ?? {},
+      ),
 };
+
+/// Merge independently saved groups without dropping untouched server locations.
+Map<String, dynamic> mergeRegistrationLocations(
+  ProviderOnboardingSchema schema,
+  Map saved,
+  Map local,
+) => {
+  ...saved,
+  ...local,
+  for (final option in schema.options)
+    if (saved['${option.optionId}'] is Map ||
+        local['${option.optionId}'] is Map)
+      '${option.optionId}': _mergeOptionLocations(
+        option,
+        saved['${option.optionId}'] as Map? ?? {},
+        local['${option.optionId}'] as Map? ?? {},
+      ),
+};
+
+Map<String, dynamic> _mergeOptionLocations(
+  ProviderSchemaOption option,
+  Map saved,
+  Map local,
+) {
+  final legacyMode = option.configuredLocationMode(local['deliveryMode']);
+  return {
+    ...Map<String, dynamic>.from(saved),
+    ...Map<String, dynamic>.from(local),
+    'locationsByMode': {
+      ...option.locationGroups(saved),
+      if (legacyMode != null &&
+          legacyMode != 'ONLINE' &&
+          local.containsKey('areas'))
+        legacyMode: {'areas': local['areas']},
+      ...Map<String, dynamic>.from(local['locationsByMode'] as Map? ?? {}),
+    },
+  };
+}
 
 /// A null result denotes an unsupported condition, never an assumed answer.
 bool? registrationFieldVisible(
@@ -86,14 +131,21 @@ String? validateRegistrationAnswer(
 ) {
   if (['SELECT', 'MULTI_SELECT'].contains(field.fieldType)) {
     final raw = field.options;
-    if (raw is! List || raw.isEmpty || raw.any((o) =>
-        o is! String && !(o is Map && o['value'] != null && o['label'] is String))) {
+    if (raw is! List ||
+        raw.isEmpty ||
+        raw.any(
+          (o) =>
+              o is! String &&
+              !(o is Map && o['value'] != null && o['label'] is String),
+        )) {
       return 'The choices for ${field.label} need a supported service configuration.';
     }
     final choices = raw.map((o) => o is Map ? o['value'] : o).toSet();
-    if (value != null && value != '' &&
-        (field.fieldType == 'SELECT' ? !choices.contains(value) :
-          value is! List || value.any((v) => !choices.contains(v)))) {
+    if (value != null &&
+        value != '' &&
+        (field.fieldType == 'SELECT'
+            ? !choices.contains(value)
+            : value is! List || value.any((v) => !choices.contains(v)))) {
       return 'Choose valid options for ${field.label}.';
     }
   }
@@ -186,7 +238,7 @@ String? validateRegistrationDraft(
       return 'Configure weekly availability for your service.';
     }
   }
-  final answers = registrationAnswers(draft),
+  final answers = registrationAnswers(draft, selected: selected),
       fields = activeRegistrationFields(schema, selected);
   for (final field in fields) {
     final visible = registrationFieldVisible(field, answers, fields);
@@ -205,19 +257,10 @@ String? validateRegistrationDraft(
     for (final id in selected) {
       final configured = schema.options.where((o) => o.optionId == id).first;
       if (!configured.usesServiceAreas(schema.serviceSetup)) continue;
-      final option = options['$id'];
-      if (option is! Map || option['deliveryMode'] == null) {
-        return 'Choose the delivery mode for each selected service.';
-      }
-      if (
-          configured.deliveryModes.isNotEmpty &&
-          !configured.deliveryModes.contains(option['deliveryMode'])) {
-        return 'Choose a supported delivery mode for ${configured.name}.';
-      }
-      if (option['deliveryMode'] != 'ONLINE' &&
-          (option['areas'] as List? ?? []).isEmpty) {
-        return 'Add a location for each physical service.';
-      }
+      final validation = configured.validateLocations(
+        options['$id'] as Map? ?? {},
+      );
+      if (validation != null) return validation;
     }
   }
   return null;
@@ -265,17 +308,16 @@ Future<Result<void>> saveRegistrationRequirements(
   if (schema.serviceSetup.serviceAreasEnabled) {
     final options = draft['options'] as Map? ?? {};
     for (final id in selected) {
-      if (!schema.options.firstWhere((o) => o.optionId == id).usesServiceAreas(schema.serviceSetup)) continue;
-      final option = options['$id'] as Map;
-      final mode = option['deliveryMode'] as String;
-      if (mode == 'ONLINE') continue;
-      result = await repository.saveAreas(
+      if (!schema.options
+          .firstWhere((o) => o.optionId == id)
+          .usesServiceAreas(schema.serviceSetup)) {
+        continue;
+      }
+      final configured = schema.options.firstWhere((o) => o.optionId == id);
+      result = await repository.saveOptionLocations(
         assignmentId,
-        id,
-        mode,
-        (option['areas'] as List)
-            .map((a) => Map<String, dynamic>.from(a as Map))
-            .toList(),
+        configured,
+        options['$id'] as Map? ?? {},
       );
       if (result is Failure<void>) {
         return _saveFailure(result.failure, 'service locations');
@@ -283,7 +325,7 @@ Future<Result<void>> saveRegistrationRequirements(
     }
   }
   final fields = activeRegistrationFields(schema, selected),
-      answers = registrationAnswers(draft);
+      answers = registrationAnswers(draft, selected: selected);
   if (fields.isNotEmpty) {
     final previous = <int, Map>{
       for (final submission

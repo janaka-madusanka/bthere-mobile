@@ -71,7 +71,7 @@ class RegistrationRepository {
     List<ProviderSchemaOption> options,
   ) => safe(() async {
     final contexts = [
-      for (final option in options)
+      for (final option in options.where((o) => o.locationEnabled))
         for (final mode in option.deliveryModes.where(physicalModes.contains))
           (option: option, mode: mode),
     ];
@@ -86,24 +86,49 @@ class RegistrationRepository {
     for (var index = 0; index < contexts.length; index++) {
       final context = contexts[index];
       final areas = json.array(snapshots[index]);
-      if (areas.isNotEmpty) {
-        restored.putIfAbsent(
-          '${context.option.optionId}',
-          () => {'deliveryMode': context.mode, 'areas': areas},
-        );
+      final data = restored.putIfAbsent(
+        '${context.option.optionId}',
+        () => <String, dynamic>{'locationsByMode': <String, dynamic>{}},
+      ) as Map<String, dynamic>;
+      (data['locationsByMode'] as Map)[context.mode] = {'areas': areas};
+      if (areas.isNotEmpty && data['deliveryMode'] == null) {
+        data['deliveryMode'] = context.mode;
+        data['areas'] = areas;
       }
     }
     for (final option in options) {
-      if (option.deliveryModes.length == 1 &&
-          option.deliveryModes.single == 'ONLINE') {
+      final modes = option.configuredLocationModes();
+      if (modes.length == 1 && modes.single == 'ONLINE') {
         restored['${option.optionId}'] = {
           'deliveryMode': 'ONLINE',
           'areas': <Object>[],
+          'locationsByMode': <String, dynamic>{},
         };
       }
     }
     return restored;
   });
+
+  Future<Result<void>> saveOptionLocations(
+    int assignmentId,
+    ProviderSchemaOption option,
+    Map data,
+  ) async {
+    final validation = option.validateLocations(data);
+    if (validation != null) return Failure(AppFailure(message: validation));
+    for (final entry in option.locationGroups(data).entries) {
+      final result = await saveAreas(
+        assignmentId,
+        option.optionId,
+        entry.key,
+        (entry.value['areas'] as List)
+            .map((a) => Map<String, dynamic>.from(a as Map))
+            .toList(),
+      );
+      if (result is Failure<void>) return result;
+    }
+    return const Success(null);
+  }
 
   Future<Result<void>> languages(int id, List<String> values) => safe(() async {
     final languages = values.map((s) => s.toUpperCase()).toSet().toList();

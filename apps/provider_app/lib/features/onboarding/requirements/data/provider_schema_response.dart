@@ -140,7 +140,10 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
       code: string(o['code']),
       name: string(o['name']),
       description: o['description'] as String?,
-      locationEnabled: o['locationEnabled'] == null ? true : boolean(o['locationEnabled']),
+      displayOrder: optionalInt(o['displayOrder']) ?? 0,
+      locationEnabled: o['locationEnabled'] == null
+          ? true
+          : boolean(o['locationEnabled']),
       defaultCapacity: optionalInt(o['defaultCapacity'], positive: true),
       bookingMode: o['bookingMode'] as String?,
       icon: parseProviderServiceMedia(o['icon']),
@@ -185,7 +188,7 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
     commonFields: array(m['commonFields'])
         .map((v) => field(v, id, null))
         .toList(),
-    options: options,
+    options: options..sort((a, b) => a.displayOrder.compareTo(b.displayOrder)),
   );
 }
 
@@ -212,8 +215,13 @@ ProviderOnboardingSchema applyPublicOptions(
         code: string(item['code']),
         name: string(item['name']),
         fields: source.fields,
-        locationEnabled: item['locationEnabled'] == null ? source.locationEnabled : boolean(item['locationEnabled']),
-        defaultCapacity: optionalInt(item['defaultCapacity'], positive: true) ?? source.defaultCapacity,
+        displayOrder: optionalInt(item['displayOrder']) ?? source.displayOrder,
+        locationEnabled: item['locationEnabled'] == null
+            ? source.locationEnabled
+            : boolean(item['locationEnabled']),
+        defaultCapacity:
+            optionalInt(item['defaultCapacity'], positive: true) ??
+            source.defaultCapacity,
         bookingMode: item['bookingMode'] as String? ?? source.bookingMode,
         description: item['description'] as String? ?? source.description,
         icon: parseProviderServiceMedia(item['icon']) ?? source.icon,
@@ -230,6 +238,6 @@ ProviderOnboardingSchema applyPublicOptions(
     serviceName: schema.serviceName,
     serviceSetup: schema.serviceSetup,
     commonFields: schema.commonFields,
-    options: options,
+    options: options..sort((a, b) => a.displayOrder.compareTo(b.displayOrder)),
   );
 }

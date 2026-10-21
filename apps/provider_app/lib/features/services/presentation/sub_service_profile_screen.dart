@@ -63,7 +63,7 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
         v.assignment!.assignmentId,
         v.schema.serviceSetup,
       );
-      final areas = v.schema.serviceSetup.serviceAreasEnabled
+      final areas = option.usesServiceAreas(v.schema.serviceSetup)
           ? await repository.loadOptionLocations(v.assignment!.assignmentId, [
               option,
             ])
@@ -109,9 +109,10 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                 name: option.name,
                 fields: [],
                 deliveryModes: option.deliveryModes,
-          locationEnabled: option.locationEnabled,
-          defaultCapacity: option.defaultCapacity,
-          bookingMode: option.bookingMode,
+                displayOrder: option.displayOrder,
+                locationEnabled: option.locationEnabled,
+                defaultCapacity: option.defaultCapacity,
+                bookingMode: option.bookingMode,
                 icon: option.icon,
               ),
               service: v.service,
@@ -140,16 +141,11 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                       throw StateError(result.failure.message);
                     }
                   }
-                  final mode = changes['deliveryMode'];
-                  if (v.schema.serviceSetup.serviceAreasEnabled &&
-                      RegistrationRepository.physicalModes.contains(mode)) {
-                    final result = await repository.saveAreas(
+                  if (option.usesServiceAreas(v.schema.serviceSetup)) {
+                    final result = await repository.saveOptionLocations(
                       v.assignment!.assignmentId,
-                      option.optionId,
-                      mode as String,
-                      (changes['areas'] as List)
-                          .map((a) => Map<String, dynamic>.from(a as Map))
-                          .toList(),
+                      option,
+                      changes,
                     );
                     if (result is Failure<void>) {
                       throw StateError(result.failure.message);
@@ -294,7 +290,11 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                   .map((s) => '${s['startTime']} – ${s['endTime']}')
                   .toSet()
                   .join(', ');
-        final areas = (location?['areas'] as List? ?? []).whereType<Map>();
+        final areas = option
+            .locationGroups(location ?? {})
+            .values
+            .expand((group) => group['areas'] as List? ?? [])
+            .whereType<Map>();
         final overview = Column(
           children: [
             Row(
@@ -337,10 +337,11 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                     v.experience.isEmpty ? 'Not provided' : v.experience,
                   ),
                   ('Languages', (data!['languages'] as List? ?? []).join(', ')),
-                  (
-                    'Skills',
-                    '${(data!['skills'] as List? ?? []).length} skills',
-                  ),
+                  if (v.schema.serviceSetup.skills.isNotEmpty)
+                    (
+                      'Skills',
+                      '${(data!['skills'] as List? ?? []).length} skills',
+                    ),
                 ])
                   Expanded(
                     child: Column(
@@ -445,7 +446,7 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                           bold: true,
                         ),
                         registrationText(
-                          'You can now start receiving booking requests based on your availability and service areas.',
+                          'You can now receive booking requests for this service.',
                           11,
                           color: registrationMuted,
                         ),
@@ -462,41 +463,48 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
               overview,
               () => view('Service Details', overview),
             ),
-            section(
-              'Documents & Qualifications',
-              'The documents and qualifications you submitted.',
-              Icons.description_outlined,
-              Column(
-                children: [
-                  qualifications,
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEDF8FF),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.lock,
-                          color: registrationTeal,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: registrationText(
-                            'These documents cannot be edited.\nIf you need to update any document, please contact support.',
-                            10,
-                            color: registrationMuted,
+            if ((documents.requirements ?? []).any(
+                  (r) => r.optionId == null || r.optionId == widget.optionId,
+                ) ||
+                v.schema.serviceSetup.certificates.level !=
+                    ProviderRequirementLevel.disabled ||
+                v.schema.serviceSetup.education.level !=
+                    ProviderRequirementLevel.disabled)
+              section(
+                'Documents & Qualifications',
+                'The documents and qualifications you submitted.',
+                Icons.description_outlined,
+                Column(
+                  children: [
+                    qualifications,
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDF8FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.lock,
+                            color: registrationTeal,
+                            size: 18,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: registrationText(
+                              'These documents cannot be edited.\nIf you need to update any document, please contact support.',
+                              10,
+                              color: registrationMuted,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                () => view('Documents & Qualifications', qualifications),
               ),
-              () => view('Documents & Qualifications', qualifications),
-            ),
             if (v.schema.serviceSetup.availabilityEnabled)
               section(
                 'Availability',
@@ -520,7 +528,7 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
                 () => edit(v, option),
                 action: '\u270E Edit',
               ),
-            if (v.schema.serviceSetup.serviceAreasEnabled)
+            if (option.usesServiceAreas(v.schema.serviceSetup))
               section(
                 'Working Areas',
                 'Manage the areas where you provide services.',

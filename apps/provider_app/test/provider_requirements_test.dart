@@ -144,7 +144,17 @@ void main() {
     }
   });
   test('all applicable rows use authoritative flags, no language or fabricated requiredness', () {
-    final j = schemaJson()..['commonFields'] = [fieldJson()];
+    final j = schemaJson()
+      ..['commonFields'] = [fieldJson()]
+      ..['options'] = [
+        {
+          'optionId': 12,
+          'code': 'SERVICE',
+          'name': 'Configured option',
+          'fields': [],
+          'deliveryModes': ['PROVIDER_TO_CUSTOMER'],
+        },
+      ];
     j['serviceSetup']['documents'] = [
       {'metadata': []},
     ];
