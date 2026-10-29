@@ -1,7 +1,7 @@
 import 'package:bthere_common/bthere_common.dart';
 
-const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
-const maximumDocumentBytes = 100000000;
+const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+const maximumDocumentBytes = 5000000;
 
 class DocumentRequirement {
   const DocumentRequirement(
@@ -10,12 +10,16 @@ class DocumentRequirement {
     this.description,
     this.hasExpiry,
     this.required,
-    this.requiresApproval,
-  );
+    this.requiresApproval, {
+    this.optionId,
+  });
   final int id;
   final String name;
   final String? description;
   final bool hasExpiry, required, requiresApproval;
+  final int? optionId;
+  bool get isSelfie =>
+      RegExp(r'self[ -]?ie', caseSensitive: false).hasMatch(name);
 }
 
 class ProviderDocument {
@@ -63,10 +67,10 @@ class DocumentFile {
   final Stream<List<int>> Function() openRead;
   String? get validation {
     if (!documentExtensions.contains(name.split('.').last.toLowerCase())) {
-      return 'Choose a PDF, JPG, JPEG, PNG or WebP file.';
+      return 'Choose a PDF, JPG, JPEG or PNG file.';
     }
     if (size <= 0 || size > maximumDocumentBytes) {
-      return 'Choose a file up to 100 MB.';
+      return 'Choose a file up to 5 MB.';
     }
     return null;
   }
@@ -93,16 +97,17 @@ class DocumentRegistration {
   Map<String, Object?> toJson() => {
     'documentTypeId': typeId,
     'documentName': name,
-    'documentNumber': number,
+    if (number.trim().isNotEmpty) 'documentNumber': number,
     'documentKey': key,
-    'issuedDate': issuedDate,
-    'expiryDate': expiryDate,
+    if (issuedDate.isNotEmpty) 'issuedDate': issuedDate,
+    if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
   };
 }
 
 abstract interface class DocumentsRepository {
   Future<Result<List<DocumentRequirement>>> requirements(int serviceTypeId);
   Future<Result<List<ProviderDocument>>> documents();
+  Future<Result<Uri>> viewUrl(String key);
   Future<Result<DocumentUpload>> upload(
     DocumentFile file,
     void Function(int, int) progress,

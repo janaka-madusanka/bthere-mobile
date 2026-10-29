@@ -35,6 +35,17 @@ planned dependency ownership and currently implemented foundation components.
 
 ## Workspace commands
 
+Customer run/build values now live in `config/customer.local.json` (Git-ignored).
+See [Customer configuration](docs/customer-configuration.md) for JSON settings,
+environment-specific builds and release commands. From the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-customer.ps1
+```
+
+For repeated Java/Android notifications when opening VS Code, see
+[editor and Android troubleshooting](docs/editor-android-troubleshooting.md).
+
 The repository uses Dart Pub Workspaces with one root lockfile and shared
 dependency resolution. Run commands from the workspace root where supported:
 
@@ -50,3 +61,22 @@ Use the Flutter installation's Dart SDK (currently Flutter 3.47.6 / Dart 3.13.5)
 Keep the root `pubspec.lock` in version control. Commands targeting an app,
 such as `flutter run`, should run from that app's directory; workspace dependency
 resolution remains shared.
+
+## Running Provider against a local backend on Android
+
+Start the backend first, then run `adb devices -l` to get the device ID.
+From the repository root in PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-provider-local.ps1 -DeviceId '<device-id>' -Port 8080
+```
+
+This checks that the local server is listening, forwards the phone's port to
+the PC with ADB reverse, and launches with `http://127.0.0.1:8080/api/v1`.
+Keep the ADB connection active; rerun the script after reconnecting the device.
+`10.0.2.2` only addresses the host PC from an Android emulator, not a physical phone.
+For a remote backend, launch from `apps/provider_app` with
+`flutter run --dart-define=BTHERE_API_BASE_URL=https://<your-api-host>/api/v1`.
+Changing this define requires restarting Flutter, not hot reload.
+Debug builds print HTTP method, endpoint, status, and failure type in the Flutter
+terminal without request bodies, headers, or query strings.

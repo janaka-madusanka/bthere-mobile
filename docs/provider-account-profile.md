@@ -1,5 +1,7 @@
 # Provider Profile tab
 
+The API gaps in this historical report are resolved by the supplied complete provider contract. The account page now reads the provider profile, opens its editor, and calls server logout. See [Service registration](provider-service-registration.md) for the current behavior.
+
 The authenticated `/profile` tab now renders a real account page instead of a
 placeholder. `/onboarding/profile` remains the existing creation/onboarding form.
 Authentication and completion-based onboarding gates are unchanged.

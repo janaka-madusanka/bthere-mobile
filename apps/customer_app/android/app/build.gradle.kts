@@ -1,8 +1,15 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val dartDefines = (project.findProperty("dart-defines") as? String).orEmpty()
+    .split(",").filter { it.isNotBlank() }.mapNotNull {
+        runCatching { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }.getOrNull()
+    }.associate { it.substringBefore("=") to it.substringAfter("=", "") }
 
 android {
     namespace = "com.bthere.customer"
@@ -17,6 +24,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.bthere.customer"
+        manifestPlaceholders["BTHERE_GOOGLE_MAPS_API_KEY"] = dartDefines["BTHERE_GOOGLE_MAPS_API_KEY"].orEmpty()
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

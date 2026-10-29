@@ -1,3 +1,5 @@
+import '../../services/data/provider_service_response.dart'
+    show parseProviderServiceMedia;
 import '../domain/provider_onboarding_schema.dart';
 
 final class UnsupportedRequirementMetadata implements Exception {
@@ -61,11 +63,28 @@ ProviderLevelRequirement level(Object? raw) {
   return ProviderLevelRequirement(value, boolean(m['requiresApproval']));
 }
 
-ProviderRequirementField field(Object? raw, int typeId, int? optionId) {
+ProviderRequirementField field(
+  Object? raw,
+  int typeId,
+  int? containerOptionId,
+) {
   final m = object(raw);
+  final legacyOptionId = optionalInt(m['optionId'], positive: true);
+  final optionIds = m['optionIds'] == null
+      ? <int>[?legacyOptionId]
+      : array(m['optionIds']).map((v) => integer(v, positive: true)).toList();
   if (integer(m['serviceTypeId'], positive: true) != typeId ||
-      optionalInt(m['optionId'], positive: true) != optionId) {
+      optionIds.toSet().length != optionIds.length ||
+      (legacyOptionId != null && m['optionIds'] != null) ||
+      (containerOptionId == null && optionIds.isNotEmpty) ||
+      (containerOptionId != null && !optionIds.contains(containerOptionId))) {
     throw const FormatException('Mismatched field');
+  }
+  final reuseScope = m['reuseScope'] == null
+      ? 'ASSIGNMENT'
+      : string(m['reuseScope']);
+  if (!['ASSIGNMENT', 'SERVICE', 'PROVIDER'].contains(reuseScope)) {
+    throw const FormatException('Invalid reuse scope');
   }
   final min = optionalInt(m['minimumFiles']);
   final max = optionalInt(m['maximumFiles']);
@@ -79,7 +98,9 @@ ProviderRequirementField field(Object? raw, int typeId, int? optionId) {
   return ProviderRequirementField(
     fieldId: integer(m['fieldId'], positive: true),
     serviceTypeId: typeId,
-    optionId: optionId,
+    optionId: legacyOptionId,
+    optionIds: optionIds,
+    reuseScope: reuseScope,
     scope: string(m['scope']),
     code: string(m['code']),
     label: string(m['label']),
@@ -118,6 +139,12 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
       optionId: optionId,
       code: string(o['code']),
       name: string(o['name']),
+      description: o['description'] as String?,
+      icon: parseProviderServiceMedia(o['icon']),
+      deliveryModes: List.unmodifiable(
+        (o['deliveryModes'] == null ? <dynamic>[] : array(o['deliveryModes']))
+            .map(string),
+      ),
       fields: array(o['fields']).map((v) => field(v, id, optionId)).toList(),
     );
   }).toList();
@@ -155,6 +182,48 @@ ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
     commonFields: array(m['commonFields'])
         .map((v) => field(v, id, null))
         .toList(),
+    options: options,
+  );
+}
+
+ProviderOnboardingSchema applyPublicOptions(
+  ProviderOnboardingSchema schema,
+  Object? raw,
+) {
+  final configured = {
+    for (final option in schema.options) option.optionId: option,
+  };
+  final seen = <int>{};
+  final options = <ProviderSchemaOption>[];
+  for (final value in array(raw)) {
+    final item = object(value);
+    final id = integer(item['optionId'] ?? item['id'], positive: true);
+    if (!seen.add(id)) throw const FormatException('Duplicate public option');
+    final source = configured[id];
+    if (source == null) {
+      throw const FormatException('Unconfigured public option');
+    }
+    options.add(
+      ProviderSchemaOption(
+        optionId: id,
+        code: string(item['code']),
+        name: string(item['name']),
+        fields: source.fields,
+        description: item['description'] as String? ?? source.description,
+        icon: parseProviderServiceMedia(item['icon']) ?? source.icon,
+        deliveryModes: List.unmodifiable(
+          item['deliveryModes'] == null
+              ? source.deliveryModes
+              : array(item['deliveryModes']).map(string),
+        ),
+      ),
+    );
+  }
+  return ProviderOnboardingSchema(
+    serviceTypeId: schema.serviceTypeId,
+    serviceName: schema.serviceName,
+    serviceSetup: schema.serviceSetup,
+    commonFields: schema.commonFields,
     options: options,
   );
 }

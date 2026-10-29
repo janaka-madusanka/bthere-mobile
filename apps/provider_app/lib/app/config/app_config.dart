@@ -4,6 +4,8 @@ final class AppConfig {
   AppConfig({
     required this.apiBaseUrl,
     this.googleServerClientId = '',
+    this.googleMapsApiKey = '',
+    this.nativeGoogleMapsConfigured = false,
     bool allowHttp = kDebugMode,
   }) {
     final uri = Uri.tryParse(apiBaseUrl);
@@ -25,8 +27,23 @@ final class AppConfig {
   /// Web OAuth client ID matching the backend's Google ID-token audience.
   final String googleServerClientId;
 
-  factory AppConfig.fromEnvironment() => AppConfig(
+  final String googleMapsApiKey;
+  final bool nativeGoogleMapsConfigured;
+
+  bool get hasGoogleMapsKey {
+    final key = googleMapsApiKey.trim();
+    return nativeGoogleMapsConfigured ||
+        (key.isNotEmpty && key != 'YOUR_GOOGLE_MAPS_API_KEY');
+  }
+
+  factory AppConfig.fromEnvironment({
+    bool nativeGoogleMapsConfigured = false,
+  }) => AppConfig(
+    nativeGoogleMapsConfigured: nativeGoogleMapsConfigured,
     apiBaseUrl: const String.fromEnvironment('BTHERE_API_BASE_URL'),
+    googleMapsApiKey: const String.fromEnvironment(
+      'BTHERE_GOOGLE_MAPS_API_KEY',
+    ),
     googleServerClientId: const String.fromEnvironment(
       'BTHERE_GOOGLE_SERVER_CLIENT_ID',
     ),

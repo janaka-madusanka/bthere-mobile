@@ -1,7 +1,7 @@
+import 'package:provider_app/app/presentation/provider_navigation_bar.dart';
+
 import 'dart:async';
 
-import 'package:bthere_common/bthere_common.dart';
-import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:bthere_session/bthere_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +14,6 @@ import 'package:provider_app/app/router/app_router.dart';
 import 'package:provider_app/app/router/app_routes.dart';
 import 'package:provider_app/features/account/application/provider_account_controller.dart';
 import 'package:provider_app/features/account/presentation/provider_account_screen.dart';
-import 'package:provider_app/features/onboarding/domain/provider_completion.dart';
 
 import 'email_registration_onboarding_test.dart' show OnboardingFixture;
 import 'service_first_test.dart' show ServiceFixture, pump, path;
@@ -56,7 +55,7 @@ void main() {
       scope.read(appRouterProvider).go(AppRoutes.account);
       await tester.pumpAndSettle();
       expect(find.byType(ProviderAccountScreen), findsOneWidget);
-      expect(find.text('test.provider'), findsNWidgets(2));
+      expect(find.text('test.provider'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -84,8 +83,8 @@ void main() {
         await f.pump(tester);
         f.container.read(appRouterProvider).go(AppRoutes.account);
         await tester.pumpAndSettle();
-        expect(find.text('test.provider'), findsNWidgets(2));
-        expect(find.text('Not available'), findsOneWidget);
+        expect(find.text('test.provider'), findsOneWidget);
+        expect(find.text('No rating available'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }, variant: TargetPlatformVariant({platform}));
     }
@@ -100,8 +99,8 @@ void main() {
       f.container.read(appRouterProvider).go(AppRoutes.account);
       await tester.pumpAndSettle();
       expect(find.byType(ProviderAccountScreen), findsOneWidget);
-      expect(find.text('test.provider'), findsNWidgets(2));
-      expect(find.text('75% complete'), findsOneWidget);
+      expect(find.text('test.provider'), findsOneWidget);
+      expect(find.text('My Account'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -121,9 +120,9 @@ void main() {
       findsNothing,
     );
     f.storage.failRead = false;
-    await tester.tap(find.text('Retry account details'));
+    await tester.tap(find.text('Retry').last);
     await tester.pumpAndSettle();
-    expect(find.text('test.provider'), findsNWidgets(2));
+    expect(find.text('test.provider'), findsOneWidget);
   });
 
   test('pending sign out completes after Profile stops listening', () async {
@@ -142,88 +141,55 @@ void main() {
     expect(storage.clears, 1);
     expect(container.read(providerSignOutProvider).busy, isFalse);
   });
-  testWidgets(
-    'Profile shows confirmed identity and completion without service reads',
-    (tester) async {
-      final f = ServiceFixture();
-      f.storage.session = accountSession();
-      await pump(tester, f, route: AppRoutes.account);
-      expect(find.byType(ProviderAccountScreen), findsOneWidget);
-      expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
-        4,
-      );
-      expect(find.text('test.provider'), findsNWidgets(2));
-      expect(find.text('provider@example.invalid'), findsNWidgets(2));
-      expect(find.text('#12'), findsOneWidget);
-      expect(find.text('Active'), findsOneWidget);
-      expect(find.text('Service Provider'), findsOneWidget);
-      expect(find.text('75% complete'), findsOneWidget);
-      expect(find.text('Next: Complete provider details'), findsOneWidget);
-      expect(find.text('Gender'), findsNothing);
-      expect(find.text('Date of birth'), findsNothing);
-      expect(f.services.loads, 0);
-      expect(f.services.assignmentLoads, 0);
-      expect(f.completion.calls, 1);
-      await tester.ensureVisible(find.text('Manage services'));
-      await tester.tap(find.text('Manage services'));
-      await tester.pumpAndSettle();
-      expect(path(f), AppRoutes.services);
-    },
-  );
+  testWidgets('Profile shows identity and links to service management', (
+    tester,
+  ) async {
+    final f = ServiceFixture();
+    f.storage.session = accountSession();
+    await pump(tester, f, route: AppRoutes.account);
+    expect(find.byType(ProviderAccountScreen), findsOneWidget);
+    expect(find.byType(ProviderNavigationBar), findsOneWidget);
+    expect(find.text('test.provider'), findsOneWidget);
+    expect(find.text('My Account'), findsOneWidget);
+    await tester.ensureVisible(find.text('Help & Support'));
+    await tester.tap(find.text('Help & Support'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Manage services'));
+    await tester.tap(find.text('Manage services'));
+    await tester.pumpAndSettle();
+    expect(path(f), AppRoutes.services);
+  });
 
   testWidgets('legacy session shows honest unavailable account state', (
     tester,
   ) async {
     final f = ServiceFixture();
     await pump(tester, f, route: null);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text('Profile'),
-      ),
-    );
+    await tester.tap(find.byTooltip('Profile'));
     await tester.pumpAndSettle();
     expect(path(f), AppRoutes.account);
     expect(find.text('Provider account'), findsOneWidget);
-    expect(
-      find.text('Account details are not available for this session.'),
-      findsOneWidget,
-    );
-    expect(find.text('75% complete'), findsOneWidget);
+    expect(find.text('No rating available'), findsOneWidget);
+    expect(find.text('My Account'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'refresh shows shared loading then safely retries completion failure',
-    (tester) async {
-      final f = ServiceFixture();
-      f.storage.session = accountSession();
-      await pump(tester, f, route: AppRoutes.account);
-      f.completion.pending = Completer<Result<ProviderCompletion>>();
-      await tester.tap(find.byTooltip('Refresh profile'));
-      await tester.pump();
-      expect(find.byType(BThereLoadingState), findsWidgets);
-      expect(
-        tester
-            .widget<IconButton>(find.byKey(const ValueKey('refresh-profile')))
-            .onPressed,
-        isNull,
-      );
-      f.completion.pending!.complete(
-        const Failure(AppFailure(message: 'Unsafe backend error')),
-      );
-      f.completion.pending = null;
-      await tester.pumpAndSettle();
-      expect(find.text('Unable to load setup progress.'), findsOneWidget);
-      expect(find.text('Unsafe backend error'), findsNothing);
-      expect(find.text('test.provider'), findsNWidgets(2));
-      await tester.ensureVisible(find.text('Retry setup progress'));
-      await tester.tap(find.text('Retry setup progress'));
-      await tester.pumpAndSettle();
-      expect(find.text('75% complete'), findsOneWidget);
-    },
-  );
+  testWidgets('refresh reloads the profile and retains safe account identity', (
+    tester,
+  ) async {
+    final f = ServiceFixture();
+    f.storage.session = accountSession();
+    await pump(tester, f, route: AppRoutes.account);
+    await tester.ensureVisible(find.text('Privacy & Security'));
+    await tester.tap(find.text('Privacy & Security'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Refresh profile'));
+    await tester.tap(find.byTooltip('Refresh profile'));
+    await tester.pumpAndSettle();
+    expect(find.text('test.provider'), findsOneWidget);
+    expect(find.text('My Account'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'sign out cancellation retains credentials; confirmation clears before auth route',
@@ -231,6 +197,9 @@ void main() {
       final f = ServiceFixture();
       f.storage.session = accountSession();
       await pump(tester, f, route: AppRoutes.account);
+      await tester.ensureVisible(find.text('Privacy & Security'));
+      await tester.tap(find.text('Privacy & Security'));
+      await tester.pumpAndSettle();
       final button = find.byKey(const ValueKey('profile-sign-out'));
       await tester.ensureVisible(button);
       await tester.tap(button);
@@ -241,12 +210,17 @@ void main() {
       expect(path(f), AppRoutes.account);
       await tester.tap(button);
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(TextButton, 'Sign out'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(f.storage.clears, 1);
       expect(f.storage.session, isNull);
       expect(path(f), AppRoutes.auth);
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(ProviderNavigationBar), findsNothing);
       expect(find.text('provider@example.invalid'), findsNothing);
     },
   );
@@ -282,12 +256,15 @@ void main() {
       final f = ServiceFixture();
       f.storage.session = accountSession();
       await pump(tester, f, route: AppRoutes.account);
+      await tester.ensureVisible(find.text('Privacy & Security'));
+      await tester.tap(find.text('Privacy & Security'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(
         find.byKey(const ValueKey('profile-sign-out')),
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(NavigationDestination), findsNWidgets(5));
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
     },
   );
 

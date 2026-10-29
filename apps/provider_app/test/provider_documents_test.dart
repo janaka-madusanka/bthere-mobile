@@ -1,3 +1,6 @@
+import 'package:provider_app/features/services/data/registration_repository.dart';
+import 'package:provider_app/features/services/application/registration_draft.dart';
+
 import 'support/fake_documents_repository.dart';
 import 'support/completed_entry_gate.dart';
 
@@ -21,6 +24,7 @@ import 'package:provider_app/features/services/documents/document_models.dart';
 import 'package:provider_app/features/services/documents/documents_controller.dart';
 import 'package:provider_app/features/services/documents/documents_repository.dart';
 import 'package:provider_app/features/services/documents/documents_screen.dart';
+import 'package:provider_app/features/services/presentation/registration_documents.dart';
 
 import 'service_first_test.dart' show ServiceFixture;
 import 'support/fake_session_storage.dart';
@@ -64,6 +68,12 @@ class DocumentsFixture {
   final picker = FakePicker();
   late final ProviderContainer container = ProviderContainer(
     overrides: [
+      registrationRepositoryProvider.overrideWithValue(
+        service.container.read(registrationRepositoryProvider),
+      ),
+      registrationDraftStoreProvider.overrideWithValue(
+        service.container.read(registrationDraftStoreProvider),
+      ),
       providerEntryGateProvider.overrideWith(CompletedEntryGate.new),
       appConfigProvider.overrideWithValue(
         service.container.read(appConfigProvider),
@@ -207,7 +217,7 @@ void main() {
     );
   }
   test(
-    '100 MB boundary accepted',
+    '5 MB boundary accepted',
     () => expect(file(size: maximumDocumentBytes).validation, isNull),
   );
   late DocumentAdapter adapter;
@@ -240,6 +250,31 @@ void main() {
     );
     authenticated('GET', '/provider-types/9/document-requirements');
   });
+  test('option document requirements are filtered and shared by type', () {
+    final values = parseRequirements([
+      requirementJson(),
+      {...requirementJson(), 'optionId': 12},
+      {...requirementJson(id: 2), 'optionId': 13},
+    ]);
+    expect(values, hasLength(3));
+    expect(applicableDocumentRequirements(values, {12}), hasLength(1));
+    expect(applicableDocumentRequirements(values, {13}).map((v) => v.id), [
+      1,
+      2,
+    ]);
+  });
+  test(
+    'private document view URL uses encoded key and authentication',
+    () async {
+      adapter.body = {'url': 'https://example.invalid/private-file'};
+      final result = await api.viewUrl('providers/25/documents/a file.pdf');
+      expect(result, isA<Success<Uri>>());
+      authenticated(
+        'GET',
+        '/uploads/view-url?key=providers%2F25%2Fdocuments%2Fa+file.pdf',
+      );
+    },
+  );
   test(
     'existing documents exact provider-level path and authentication',
     () async {
@@ -278,7 +313,7 @@ void main() {
     expect(progress, isNotEmpty);
   });
   test(
-    'registration exact six keys uses key not URL and accepts 201',
+    'registration omits absent metadata and uses storage key with 201',
     () async {
       adapter.status = 201;
       adapter.body = documentJson();
@@ -298,7 +333,6 @@ void main() {
         'documentNumber': '123',
         'documentKey': 'upload-key',
         'issuedDate': '2020-01-01',
-        'expiryDate': null,
       });
     },
   );
@@ -500,7 +534,7 @@ void main() {
       findsOneWidget,
     );
   });
-  testWidgets('error retry and metadata form no expiry when not required', (
+  testWidgets('error retry opens a name-only document upload', (
     tester,
   ) async {
     final f = DocumentsFixture();
@@ -514,7 +548,8 @@ void main() {
     await tester.ensureVisible(find.text('Upload document'));
     await tester.tap(find.text('Upload document'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TextFormField, 'Document name'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Document name'), findsNothing);
+    expect(find.text('National ID'), findsWidgets);
     expect(
       find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
       findsNothing,
@@ -663,27 +698,12 @@ void main() {
       await tester.pumpAndSettle();
       await c.pick();
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Document number'),
-        'My number',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Issued date (YYYY-MM-DD)'),
-        '2020-01-01',
-      );
+      c.state.draft!.number = 'My number';
       f.repo.registerResult = const Failure(AppFailure(message: 'secret'));
       await c.submit();
       await tester.pumpAndSettle();
-      expect(
-        tester
-                .widget<TextFormField>(
-                  find.widgetWithText(TextFormField, 'Document number'),
-                )
-                .controller
-                ?.text ??
-            c.state.draft!.number,
-        'My number',
-      );
+      expect(c.state.draft!.number, 'My number');
+      expect(find.byType(DocumentMetadataForm), findsNothing);
       expect(find.text('Retry registration'), findsOneWidget);
       expect(c.state.draft!.upload!.key, 'upload-key');
       f.repo.registerResult = const Success(null);
@@ -692,7 +712,9 @@ void main() {
       expect(f.repo.uploads, 1);
     },
   );
-  testWidgets('expiry input follows backend requirement', (tester) async {
+  testWidgets('expiry requirement keeps compact name-only upload', (
+    tester,
+  ) async {
     final f = DocumentsFixture();
     f.repo.requirementsResult = Success(
       parseRequirements([requirementJson(expiry: true)]),
@@ -703,7 +725,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.widgetWithText(TextFormField, 'Expiry date (YYYY-MM-DD)'),
-      findsOneWidget,
+      findsNothing,
     );
   });
   testWidgets('delete confirmation cancellation then success refresh', (
@@ -730,7 +752,7 @@ void main() {
     (tester) async {
       final f = DocumentsFixture();
       await f.pump(tester, route: true);
-      expect(find.text('Home Nurse Documents'), findsOneWidget);
+      expect(find.text('Upload Required Documents'), findsOneWidget);
       final c = f.container.read(documentsControllerProvider(3).notifier);
       await draft(c);
       await c.submit();
@@ -743,9 +765,9 @@ void main() {
       expect(setup.value.serviceCompletion.documentsCompleted, isFalse);
       expect(f.repo.documentCalls, 2);
       expect(f.repo.uploads, 1);
-      expect(find.text('Home Nurse Documents'), findsOneWidget);
-      await tester.ensureVisible(find.text('Back to service setup'));
-      await tester.tap(find.text('Back to service setup'));
+      expect(find.text('Upload Required Documents'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Back'));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(
         f.container

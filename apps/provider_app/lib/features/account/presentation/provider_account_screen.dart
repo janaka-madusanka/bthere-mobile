@@ -1,381 +1,632 @@
+import 'dart:math' as math;
+
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_design_system/bthere_design_system.dart';
-import 'package:bthere_session/bthere_session.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers/app_providers.dart';
 import '../../../app/router/app_routes.dart';
-import '../../onboarding/application/provider_completion_controller.dart';
-import '../../onboarding/domain/provider_completion.dart';
+import '../../home/presentation/provider_home_widgets.dart';
+import '../../onboarding/profile/data/provider_profile_reader.dart';
+import '../../onboarding/profile/domain/provider_profile_input.dart';
+import '../../onboarding/profile/presentation/provider_profile_screen.dart';
+import '../../onboarding/services/domain/provider_service_assignment.dart';
+import '../../services/application/service_providers.dart';
+import '../../services/data/registration_repository.dart';
+import '../../services/documents/document_models.dart';
+import '../../services/documents/documents_controller.dart';
+import '../../services/documents/documents_screen.dart';
 import '../application/provider_account_controller.dart';
+import '../application/provider_profile_overview.dart';
 
-class ProviderAccountScreen extends ConsumerWidget {
+part 'provider_profile_panels.dart';
+part 'provider_profile_editors.dart';
+part 'provider_profile_widgets.dart';
+
+const _ink = Color(0xFF090744), _muted = Color(0xFF7E89AA);
+
+class ProviderAccountScreen extends ConsumerStatefulWidget {
   const ProviderAccountScreen({super.key});
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final account = ref.watch(providerAccountProvider);
-    final completion = ref.watch(providerCompletionControllerProvider);
-    final signOut = ref.watch(providerSignOutProvider);
-    final user = account.asData?.value;
-    final progress = completion.asData?.value;
-    final busy = signOut.busy;
-    final signOutError = signOut.error;
+  ConsumerState<ProviderAccountScreen> createState() =>
+      _ProviderAccountScreenState();
+}
 
-    Future<void> refresh() async {
-      if (busy || account.isLoading || completion.isLoading) return;
-      ref.invalidate(providerAccountProvider);
-      ref.read(providerCompletionControllerProvider.notifier).reload();
-      try {
-        await Future.wait([
-          ref.read(providerAccountProvider.future),
-          ref.read(providerCompletionControllerProvider.future),
-        ]);
-      } catch (_) {
-        // Render the providers' safe error states below.
-      }
+class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
+  bool _savingAvailability = false;
+
+  Future<void> _refresh() async {
+    if (_savingAvailability || ref.read(providerSignOutProvider).busy) return;
+    ref.invalidate(providerAccountProvider);
+    ref.invalidate(providerProfileDetailsProvider);
+    ref.invalidate(providerAssignmentsProvider);
+    ref.invalidate(profileDocumentsProvider);
+    ref.invalidate(profileDocumentRequirementsProvider);
+    ref.invalidate(profileSupplementProvider);
+    try {
+      await Future.wait([
+        ref.read(providerAccountProvider.future),
+        ref.read(providerProfileDetailsProvider.future),
+      ]);
+    } catch (_) {
+      // Each section renders its own safe error and retry state.
     }
+  }
 
-    Future<void> confirmSignOut() async {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Sign out?'),
-          content: const Text(
-            'You will need to sign in again to access your provider account.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign out'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == true && context.mounted) {
-        await ref.read(providerSignOutProvider.notifier).signOut();
-      }
-    }
-
-    return PopScope(
-      canPop: !busy,
-      child: Scaffold(
-        backgroundColor: BThereColors.background,
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: const Text('Profile'),
-          backgroundColor: BThereColors.background,
-          surfaceTintColor: Colors.transparent,
-          actions: [
-            IconButton(
-              key: const ValueKey('refresh-profile'),
-              tooltip: 'Refresh profile',
-              onPressed: busy || account.isLoading || completion.isLoading
-                  ? null
-                  : refresh,
-              icon: const Icon(Icons.refresh),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          child: RefreshIndicator(
-            onRefresh: refresh,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (account.isLoading)
-                        const BThereLoadingState(label: 'Loading your account')
-                      else if (account.hasError)
-                        BThereStateView(
-                          title: 'Unable to load account details',
-                          message: 'Please try again.',
-                          action: TextButton(
-                            onPressed: busy ? null : refresh,
-                            child: const Text('Retry account details'),
-                          ),
-                        )
-                      else ...[
-                        _IdentityCard(user: user),
-                        const SizedBox(height: 20),
-                        _Section(
-                          title: 'Account details',
-                          child: user == null
-                              ? const Text(
-                                  'Account details are not available for this session.',
-                                )
-                              : Column(
-                                  children: [
-                                    _Detail(
-                                      icon: Icons.person_outline,
-                                      label: 'Username',
-                                      value: user.username,
-                                    ),
-                                    _Detail(
-                                      icon: Icons.email_outlined,
-                                      label: 'Email',
-                                      value: _available(user.email),
-                                    ),
-                                    _Detail(
-                                      icon: Icons.badge_outlined,
-                                      label: 'Account ID',
-                                      value: '#${user.id}',
-                                    ),
-                                    _Detail(
-                                      icon: Icons.shield_outlined,
-                                      label: 'Account status',
-                                      value: _readable(user.status),
-                                    ),
-                                    _Detail(
-                                      icon: Icons.work_outline,
-                                      label: 'Account roles',
-                                      value: user.roles
-                                          .map(_readable)
-                                          .join(', '),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      _Section(
-                        title: 'Provider setup',
-                        child: completion.isLoading
-                            ? const BThereLoadingState(
-                                label: 'Loading setup progress',
-                                compact: true,
-                              )
-                            : progress is Success<ProviderCompletion>
-                            ? _SetupSummary(value: progress.value)
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Unable to load setup progress.'),
-                                  TextButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () => ref
-                                              .read(
-                                                providerCompletionControllerProvider
-                                                    .notifier,
-                                              )
-                                              .reload(),
-                                    child: const Text('Retry setup progress'),
-                                  ),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: 20),
-                      const _Section(
-                        title: 'Personal provider details',
-                        child: Text(
-                          'Personal details are not available here yet.',
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      BThereButton(
-                        label: 'Manage services',
-                        onPressed: busy
-                            ? null
-                            : () => context.go(AppRoutes.services),
-                      ),
-                      const SizedBox(height: 12),
-                      if (signOutError != null) ...[
-                        BThereInlineError(signOutError),
-                        const SizedBox(height: 12),
-                      ],
-                      BThereButton(
-                        key: const ValueKey('profile-sign-out'),
-                        label: 'Sign out',
-                        variant: BThereButtonVariant.outlined,
-                        loading: busy,
-                        onPressed: busy ? null : confirmSignOut,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+  Future<void> _edit(Map<String, dynamic> profile) async {
+    final container = ProviderScope.containerOf(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (routeContext) => UncontrolledProviderScope(
+          container: container,
+          child: ProviderProfileScreen(
+            initialProfile: profile,
+            onBack: () => Navigator.pop(routeContext),
+            onSaved: () {
+              ref.invalidate(providerProfileDetailsProvider);
+              Navigator.pop(routeContext);
+            },
           ),
         ),
       ),
     );
   }
-}
 
-String _available(String? text) =>
-    text == null || text.trim().isEmpty ? 'Not available' : text;
-String _readable(String value) => value
-    .split('_')
-    .map(
-      (word) =>
-          word.isEmpty ? '' : '${word[0]}${word.substring(1).toLowerCase()}',
-    )
-    .join(' ');
+  Future<void> _availability(Map<String, dynamic> p, bool available) async {
+    if (_savingAvailability) return;
+    setState(() => _savingAvailability = true);
+    try {
+      final input = ProviderProfileInput(
+        marketId: p['marketId'] as int,
+        firstName: p['firstName'] as String,
+        lastName: p['lastName'] as String,
+        dateOfBirth: DateTime.parse(p['dateOfBirth'] as String),
+        gender:
+            ProviderGender.tryParse(p['gender']) ??
+            (throw const FormatException()),
+        availabilityStatus: available
+            ? ProviderAvailability.available
+            : ProviderAvailability.unavailable,
+        bio: p['bio'] as String?,
+        nicNumber: p['nicNumber'] as String?,
+        passportNumber: p['passportNumber'] as String?,
+        profilePhoto: p['profilePhoto'] as String?,
+      );
+      final result = await ref
+          .read(providerProfileRepositoryProvider)
+          .updateProfile(input);
+      if (result is! Success<void>) throw const FormatException();
+      ref.invalidate(providerProfileDetailsProvider);
+      await ref.read(providerProfileDetailsProvider.future);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to update availability. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAvailability = false);
+    }
+  }
 
-class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.user});
-  final SessionUser? user;
-  @override
-  Widget build(BuildContext context) {
-    final email = user?.email;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: BThereColors.primaryAction.withValues(alpha: .07),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        children: [
-          const ExcludeSemantics(
-            child: CircleAvatar(
-              radius: 36,
-              backgroundColor: Colors.white,
-              child: Icon(
-                Icons.person_outline_rounded,
-                size: 40,
-                color: BThereColors.primaryAction,
-              ),
-            ),
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'You will need to sign in again to access your provider account.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 16),
-          Text(
-            user?.username ?? 'Provider account',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          if (email != null && email.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              email,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-          const SizedBox(height: 10),
-          const Text(
-            'B there Provider',
-            style: TextStyle(color: BThereColors.primaryAction),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Sign out'),
           ),
         ],
       ),
     );
+    if (confirmed == true && mounted) {
+      await ref.read(providerSignOutProvider.notifier).signOut();
+    }
   }
-}
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-  final String title;
-  final Widget child;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: BThereColors.divider),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          header: true,
-          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-        ),
-        const SizedBox(height: 12),
-        child,
-      ],
-    ),
-  );
-}
+  Widget build(BuildContext context) {
+    final account = ref.watch(providerAccountProvider);
+    final profile = ref.watch(providerProfileDetailsProvider);
+    final result = profile.asData?.value;
+    final p =
+        result is Success<Map<String, dynamic>> &&
+            result.value['firstName'] is String &&
+            result.value['lastName'] is String
+        ? result.value
+        : null;
+    final supplementResult = ref.watch(profileSupplementProvider).asData?.value;
+    final supplement = supplementResult is Success<ProfileSupplement>
+        ? supplementResult.value
+        : null;
+    final assignments = ref.watch(providerAssignmentsProvider).asData?.value;
+    final services = assignments is Success<List<ProviderServiceAssignment>>
+        ? assignments.value
+        : null;
+    final signOut = ref.watch(providerSignOutProvider);
+    final busy = signOut.busy || _savingAvailability;
+    final name = p == null
+        ? account.asData?.value?.username ?? 'Provider account'
+        : '${p['firstName']} ${p['lastName']}';
+    final rating = p?['averageRating'];
+    final reviews = p?['totalRatings'];
+    final available = p?['availabilityStatus'] == 'AVAILABLE';
+    final verified = p?['verificationStatus'] == 'APPROVED';
+    final normalText = MediaQuery.textScalerOf(context).scale(12) <= 15.6;
 
-class _Detail extends StatelessWidget {
-  const _Detail({required this.icon, required this.label, required this.value});
-  final IconData icon;
-  final String label, value;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ExcludeSemantics(
-          child: Icon(icon, color: BThereColors.primaryAction, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 3),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ],
+    return PopScope(
+      canPop: !signOut.busy,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: DecoratedBox(
+          decoration: homeGradient,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                HomeScale(
+                  child: _ProfileHeader(onAccount: () => _support(true)),
+                ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(21),
+                    child: Material(
+                      color: Colors.white,
+                      child: LayoutBuilder(
+                        builder: (context, viewport) {
+                          final width = normalText
+                              ? 430.0
+                              : math.min(viewport.maxWidth, 600.0);
+                          final content = SizedBox(
+                            width: width,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: normalText
+                                    ? math.max(
+                                        737,
+                                        viewport.maxHeight *
+                                            430 /
+                                            viewport.maxWidth,
+                                      )
+                                    : viewport.maxHeight,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  22,
+                                  24,
+                                  58,
+                                ),
+                                child: DefaultTextStyle(
+                                  style: const TextStyle(
+                                    fontFamily: 'HomeInter',
+                                    color: _ink,
+                                    fontSize: 10,
+                                    height: 1.22,
+                                    letterSpacing: 0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _ProfileIdentity(
+                                        name: name,
+                                        photo: p?['profilePhoto'],
+                                        rating: rating,
+                                        reviews: reviews,
+                                        verified: verified,
+                                        verification: p?['verificationStatus'],
+                                        onEdit: p == null || busy
+                                            ? null
+                                            : () => _edit(p),
+                                      ),
+                                      if (profile.isLoading ||
+                                          account.isLoading)
+                                        const LinearProgressIndicator(),
+                                      if (!profile.isLoading && p == null)
+                                        _Retry(
+                                          label: 'Unable to load provider details.',
+                                          onRetry: _refresh,
+                                        ),
+                                      if (account.hasError)
+                                        _Retry(
+                                          label:
+                                              'Unable to load account details',
+                                          onRetry: _refresh,
+                                        ),
+                                      const SizedBox(height: 18),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _Metric(
+                                              asset: 'imgBriefcaseMedical',
+                                              value:
+                                                  services?.length.toString() ??
+                                                  '?',
+                                              label: 'Services',
+                                              caption: 'Registered',
+                                              color: const Color(0xFFEFFBFA),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: _Metric(
+                                              asset: 'imgMetricIcon',
+                                              value:
+                                                  supplement?.completedBookings
+                                                      ?.toString() ??
+                                                  '?',
+                                              label: 'Bookings',
+                                              caption: 'Completed',
+                                              color: const Color(0xFFF8F3FD),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: _Metric(
+                                              asset: 'imgIconBackground',
+                                              value: rating is num
+                                                  ? rating.toStringAsFixed(1)
+                                                  : '?',
+                                              label: 'Rating',
+                                              caption: reviews is num
+                                                  ? 'Based on $reviews reviews'
+                                                  : 'No reviews',
+                                              color: const Color(0xFFFFFBF2),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 18),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEAF9F5),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 12,
+                                                        height: 12,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color: available
+                                                                  ? const Color(
+                                                                      0xFF24C354,
+                                                                    )
+                                                                  : _muted,
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Expanded(
+                                                        child: Text(
+                                                          available
+                                                              ? 'Available for Work'
+                                                              : 'Unavailable for Work',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 13,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 3),
+                                                  Text(
+                                                    available
+                                                        ? 'You can receive booking requests'
+                                                        : 'Booking requests are paused',
+                                                    style: const TextStyle(
+                                                      color: _muted,
+                                                      fontSize: 10.8,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              height: 46,
+                                              width: 47,
+                                              child: FittedBox(
+                                                fit: BoxFit.contain,
+                                                child: Switch(
+                                                  value: available,
+                                                  onChanged: busy || p == null
+                                                      ? null
+                                                      : (v) =>
+                                                            _availability(p, v),
+                                                  activeTrackColor: homeTeal,
+                                                  activeThumbColor:
+                                                      Colors.white,
+                                                  trackOutlineColor:
+                                                      const WidgetStatePropertyAll(
+                                                        Colors.transparent,
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 22),
+                                      const _Heading('My Account'),
+                                      _ProfileSection(
+                                        asset: 'imgSetting',
+                                        title: 'Personal Information',
+                                        subtitle:
+                                            'Update your personal details',
+                                        expandedSubtitle:
+                                            'Your personal details',
+                                        onEdit: busy || p == null
+                                            ? null
+                                            : () => _edit(p),
+                                        body: () => _PersonalPanel(
+                                          name: name,
+                                          email: account.asData?.value?.email,
+                                          phone: account
+                                              .asData
+                                              ?.value
+                                              ?.phoneNumber,
+                                          profile: p,
+                                          supplement: supplement,
+                                        ),
+                                      ),
+                                      _ProfileSection(
+                                        asset: 'imgFileText',
+                                        title: 'Documents & Verification',
+                                        subtitle: 'Manage your documents and verification status',
+                                        onEdit: busy
+                                            ? null
+                                            : () => _documentManager(),
+                                        body: () => _DocumentsPanel(
+                                          onEdit: busy ? null : _editDocument,
+                                        ),
+                                      ),
+                                      _ProfileSection(
+                                        asset: 'imgSetting1',
+                                        title: 'Payouts',
+                                        subtitle: 'Manage your payment details',
+                                        onEdit: busy
+                                            ? null
+                                            : () => _editGlobal(
+                                                'Payouts',
+                                                supplement,
+                                              ),
+                                        body: () => _PayoutPanel(
+                                          value: supplement?.payout,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const _Heading('Support'),
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final tiles = [
+                                            _SupportTile(
+                                              title: 'Help & Support',
+                                              subtitle: 'FAQs, guides and contact support',
+                                              onTap: () => _support(false),
+                                            ),
+                                            _SupportTile(
+                                              title: 'Privacy & Security',
+                                              subtitle: 'Manage your privacy and account security',
+                                              onTap: () => _support(true),
+                                            ),
+                                          ];
+                                          return normalText
+                                              ? Row(
+                                                  children: [
+                                                    Expanded(child: tiles[0]),
+                                                    const SizedBox(width: 7),
+                                                    Expanded(child: tiles[1]),
+                                                  ],
+                                                )
+                                              : Column(children: tiles);
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      BThereButton(
+                                        label: 'Log out',
+                                        variant: BThereButtonVariant.outlined,
+                                        leadingIcon: const Icon(
+                                          Icons.logout_rounded,
+                                        ),
+                                        loading: signOut.busy,
+                                        onPressed: busy ? null : _signOut,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                          return RefreshIndicator(
+                            onRefresh: _refresh,
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: normalText
+                                  ? HomeScale(child: content)
+                                  : Center(child: content),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Future<void> _editGlobal(String section, ProfileSupplement? value) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => _GlobalProfileEditor(
+        section: section,
+        initial: value,
+        repository: ref.read(profileSupplementRepositoryProvider),
+      ),
+    );
+    if (saved == true && mounted) ref.invalidate(profileSupplementProvider);
+  }
+
+  Future<void> _editDocument(ProfileDocumentRequirement entry) async {
+    final subscription = ref.listenManual(
+      documentsControllerProvider(entry.serviceTypeId),
+      (_, _) {},
+    );
+    try {
+      final controller = ref.read(
+        documentsControllerProvider(entry.serviceTypeId).notifier,
+      );
+      await controller.load();
+      if (!mounted) return;
+      controller.edit(entry.requirement);
+      if (ref.read(documentsControllerProvider(entry.serviceTypeId)).draft ==
+          null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This document cannot be edited right now.'),
+          ),
+        );
+        return;
+      }
+      final container = ProviderScope.containerOf(context);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        isDismissible: false,
+        enableDrag: false,
+        builder: (_) => UncontrolledProviderScope(
+          container: container,
+          child: DocumentEditorSheet(serviceTypeId: entry.serviceTypeId),
+        ),
+      );
+      if (mounted) {
+        controller.cancel();
+        ref.invalidate(profileDocumentsProvider);
+      }
+    } finally {
+      subscription.close();
+    }
+  }
+
+  Future<void> _documentManager() async => showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) => Padding(
+      padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Documents & Verification',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            _DocumentsPanel(onEdit: _editDocument),
+          ],
+        ),
+      ),
     ),
   );
-}
 
-class _SetupSummary extends StatelessWidget {
-  const _SetupSummary({required this.value});
-  final ProviderCompletion value;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(
-        '${value.completionPercentage.round()}% complete',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      const SizedBox(height: 12),
-      LinearProgressIndicator(
-        value: value.completionPercentage.toDouble() / 100,
-        minHeight: 6,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      const SizedBox(height: 12),
-      for (final item in [
-        ('Provider details', value.profileCompleted),
-        ('Market selection', value.marketSelected),
-        ('Service selection', value.serviceSelected),
-      ])
-        _Detail(
-          icon: item.$2
-              ? Icons.check_circle_outline
-              : Icons.radio_button_unchecked,
-          label: item.$1,
-          value: item.$2 ? 'Complete' : 'Pending',
-        ),
-      const Divider(height: 24),
-      Text(switch (value.nextStep) {
-        ProviderOnboardingStep.completeProfile =>
-          'Next: Complete provider details',
-        ProviderOnboardingStep.selectMarket => 'Next: Select your market',
-        ProviderOnboardingStep.selectService => 'Next: Select your service',
-        ProviderOnboardingStep.completeServiceRequirements =>
-          'Next: Complete service requirements',
-        ProviderOnboardingStep.awaitAdminApproval =>
-          'Awaiting administrator approval',
-        ProviderOnboardingStep.completed => 'Provider setup completed',
-      }),
-    ],
+  Future<void> _support(bool privacy) async => showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) => Consumer(
+      builder: (context, ref, _) {
+        final state = ref.watch(providerSignOutProvider);
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  privacy ? 'Privacy & Security' : 'Help & Support',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  privacy ? 'Sign out to end your session on this device.' : 'Expand an account section to view your details, then choose Edit to update them. Contact support details are not available yet.',
+                ),
+                const SizedBox(height: 16),
+                if (privacy) ...[
+                  if (state.error != null) BThereInlineError(state.error!),
+                  BThereButton(
+                    key: const ValueKey('profile-sign-out'),
+                    label: 'Sign out',
+                    loading: state.busy,
+                    onPressed: state.busy ? null : _signOut,
+                  ),
+                  IconButton(
+                    key: const ValueKey('refresh-profile'),
+                    tooltip: 'Refresh profile',
+                    onPressed: state.busy ? null : _refresh,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ] else
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      this.context.go(AppRoutes.services);
+                    },
+                    child: const Text('Manage services'),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
   );
 }

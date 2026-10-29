@@ -12,9 +12,21 @@ final class ApiClient {
     required NetworkConfig config,
     AccessTokenProvider? tokenProvider,
     HttpClientAdapter? adapter,
+    this.diagnosticLogger,
   }) : _dio = createDio(config, tokenProvider, adapter);
 
   final Dio _dio;
+
+  /// Optional transport diagnostics. Never receives headers or request bodies.
+  final void Function(String message)? diagnosticLogger;
+
+  void _log(String message) {
+    try {
+      diagnosticLogger?.call(message);
+    } catch (_) {
+      // Diagnostics must never change request behavior.
+    }
+  }
 
   Future<Response<T>> get<T>(
     String path, {
@@ -145,7 +157,10 @@ final class ApiClient {
         // Disable implicit redirection/replay, especially for credentials.
         followRedirects: false,
       );
-      return await _dio.request<T>(
+      // Exclude query strings, headers, and bodies (credentials/OTP/tokens).
+      final target = Uri.parse(_dio.options.baseUrl);
+      _log('[HTTP] $method ${target.origin}${target.path}${uri.path}');
+      final response = await _dio.request<T>(
         path,
         data: data,
         queryParameters: queryParameters,
@@ -153,7 +168,14 @@ final class ApiClient {
         cancelToken: cancelToken,
         onSendProgress: onSendProgress,
       );
+      _log('[HTTP] $method ${uri.path} -> ${response.statusCode}');
+      return response;
     } on DioException catch (error) {
+      _log(
+        '[HTTP] $method ${Uri.parse(path).path} -> '
+        '${error.type.name}'
+        '${error.response == null ? '' : ' (${error.response!.statusCode})'}',
+      );
       // Optional inspection must never replace the original transport failure.
       try {
         onErrorResponse?.call(error.response);

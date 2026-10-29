@@ -9,18 +9,18 @@ class ServiceCatalogGrid extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
       final scaler = MediaQuery.textScalerOf(context);
+      final scale = (MediaQuery.sizeOf(context).width / 430).clamp(.65, 1.0);
 
       final columns = scaler.scale(14) > 19.6
           ? 1
           : scaler.scale(14) > 16.1 || bounds.maxWidth < 240
           ? 2
-          : bounds.maxWidth < 300
-          ? 3
           : 4;
-      final tileWidth = (bounds.maxWidth - (columns - 1) * 8) / columns;
-      // Reference tiles are about 158 × 202 pixels. Grow for large text.
-      final referenceHeight = tileWidth * 202 / 158;
-      final contentHeight = 56 + scaler.scale(12) * 1.2 * 3;
+      final tileWidth = (bounds.maxWidth - (columns - 1) * 9.5) / columns;
+      // Figma's category tiles are 90 × 88; reserve two scaled label lines.
+      final referenceHeight = tileWidth * 88 / 90;
+      final contentHeight =
+          63 * scale + scaler.scale(9.5 * scale) * (11.5 / 9.5) * 2;
       final height = referenceHeight > contentHeight
           ? referenceHeight
           : contentHeight;
@@ -31,8 +31,8 @@ class ServiceCatalogGrid extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         crossAxisCount: columns,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisSpacing: 9,
+        crossAxisSpacing: 9.5,
         mainAxisExtent: height,
         children: children,
       );

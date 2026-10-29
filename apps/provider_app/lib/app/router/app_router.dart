@@ -1,8 +1,7 @@
-import '../../features/services/documents/documents_screen.dart';
-
 import 'package:flutter/widgets.dart';
 
 import '../presentation/provider_shell.dart';
+import '../../features/wallet/presentation/wallet_screen.dart';
 import '../presentation/provider_tabs.dart';
 import '../presentation/provider_placeholder_screen.dart';
 import '../../features/home/presentation/provider_home_screen.dart';
@@ -21,7 +20,10 @@ import '../../features/services/presentation/service_basic_details_screen.dart';
 import '../../features/onboarding/requirements/domain/provider_requirement_section.dart';
 import '../../features/services/presentation/service_catalog_screen.dart';
 import '../../features/services/presentation/service_detail_screen.dart';
+import '../../features/services/presentation/sub_service_profile_screen.dart';
+import '../../features/services/presentation/service_registration_screen.dart';
 import '../../features/services/presentation/service_setup_screen.dart';
+import '../../features/services/presentation/application_status_screen.dart';
 import '../providers/app_providers.dart';
 import 'app_routes.dart';
 import '../../features/onboarding/application/provider_entry_gate.dart';
@@ -56,6 +58,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
         // Service completion remains status data after account prerequisites.
         if (ProviderTab.values.any((tab) => tab.path == path) ||
+            path == AppRoutes.account ||
+            path == '/services/register' ||
             path == AppRoutes.onboarding ||
             (path != AppRoutes.profile &&
                 RegExp(r'^/onboarding/[^/]+$').hasMatch(path)) ||
@@ -110,9 +114,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     parentNavigatorKey: rootNavigatorKey,
+                    path: 'register',
+                    builder: (_, _) => const ServiceRegistrationScreen(),
+                  ),
+                  GoRoute(
+                    parentNavigatorKey: rootNavigatorKey,
+                    path: ':serviceTypeId/sub-services/:optionId/profile',
+                    builder: (_, state) => SubServiceProfileScreen(
+                      serviceTypeId: serviceId(state),
+                      optionId:
+                          int.tryParse(
+                            state.pathParameters['optionId'] ?? '',
+                          ) ??
+                          0,
+                    ),
+                  ),
+                  GoRoute(
                     path: ':serviceTypeId',
                     builder: (_, state) =>
                         ServiceDetailScreen(serviceTypeId: serviceId(state)),
+                  ),
+                  GoRoute(
+                    parentNavigatorKey: rootNavigatorKey,
+                    path: ':serviceTypeId/register',
+                    builder: (_, state) => ServiceRegistrationScreen(
+                      serviceTypeId: serviceId(state),
+                      initialStep: state.uri.queryParameters['details'] == '1'
+                          ? 2
+                          : 0,
+                      optionId: int.tryParse(
+                        state.uri.queryParameters['optionId'] ?? '',
+                      ),
+                    ),
                   ),
                   GoRoute(
                     parentNavigatorKey: rootNavigatorKey,
@@ -125,9 +158,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     parentNavigatorKey: rootNavigatorKey,
                     path: ':serviceTypeId/status',
-                    builder: (_, state) => ServiceSetupScreen(
+                    builder: (_, state) => ApplicationStatusScreen(
                       serviceTypeId: serviceId(state),
-                      showStatus: true,
                     ),
                   ),
                   GoRoute(
@@ -140,8 +172,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     parentNavigatorKey: rootNavigatorKey,
                     path: ':serviceTypeId/setup/documents',
-                    builder: (_, state) =>
-                        DocumentsScreen(serviceTypeId: serviceId(state)),
+                    builder: (_, state) => ServiceRegistrationScreen(
+                      serviceTypeId: serviceId(state),
+                      initialStep: 3,
+                    ),
                   ),
                   for (final section in ProviderRequirementSection.values.where(
                     (s) =>
@@ -151,24 +185,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     GoRoute(
                       parentNavigatorKey: rootNavigatorKey,
                       path: ':serviceTypeId/setup/${section.slug}',
-                      builder: (_, state) => ServiceSetupScreen(
+                      builder: (_, state) => ServiceRegistrationScreen(
                         serviceTypeId: serviceId(state),
-                        section: section,
+                        initialStep:
+                            section ==
+                                    ProviderRequirementSection.certificates ||
+                                section == ProviderRequirementSection.education
+                            ? 3
+                            : 2,
                       ),
                     ),
                 ],
               ),
             ],
           ),
-          for (final tab in [ProviderTab.requests, ProviderTab.messages])
+          for (final tab in [
+            ProviderTab.requests,
+            ProviderTab.messages,
+            ProviderTab.wallet,
+          ])
             StatefulShellBranch(
               routes: [
                 GoRoute(
                   path: tab.path,
-                  builder: (_, _) => ProviderPlaceholderScreen(tab: tab),
+                  builder: (_, _) => tab == ProviderTab.wallet
+                      ? const WalletScreen()
+                      : ProviderPlaceholderScreen(tab: tab),
                 ),
               ],
             ),
+          // Profile stays available from the header without a navbar item.
           StatefulShellBranch(
             routes: [
               GoRoute(

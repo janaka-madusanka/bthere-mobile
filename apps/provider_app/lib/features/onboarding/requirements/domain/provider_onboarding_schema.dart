@@ -1,3 +1,5 @@
+import '../../services/domain/provider_service_type.dart';
+
 Object? immutableSchemaJson(Object? value) {
   if (value is Map<String, Object?>) {
     return Map<String, Object?>.unmodifiable(
@@ -42,6 +44,8 @@ final class ProviderRequirementField {
     required this.fieldId,
     required this.serviceTypeId,
     required this.optionId,
+    required List<int> optionIds,
+    required this.reuseScope,
     required this.scope,
     required this.code,
     required this.label,
@@ -58,12 +62,14 @@ final class ProviderRequirementField {
     required this.displayOrder,
     required this.version,
     required this.status,
-  }) : allowedFileTypes = List.unmodifiable(allowedFileTypes),
+  }) : optionIds = List.unmodifiable(optionIds),
+       allowedFileTypes = List.unmodifiable(allowedFileTypes),
        options = immutableSchemaJson(options),
        condition = immutableSchemaJson(condition);
   final int fieldId, serviceTypeId;
   final int? optionId, minimumFiles, maximumFiles, displayOrder, version;
-  final String scope, code, label, fieldType, status;
+  final List<int> optionIds;
+  final String scope, reuseScope, code, label, fieldType, status;
   final String? description;
   final bool required, requiresApproval;
   final num? maximumFileSizeMb;
@@ -77,9 +83,15 @@ final class ProviderSchemaOption {
     required this.code,
     required this.name,
     required List<ProviderRequirementField> fields,
+    this.description,
+    this.icon,
+    this.deliveryModes = const [],
   }) : fields = List.unmodifiable(fields);
   final int optionId;
   final String code, name;
+  final String? description;
+  final ProviderServiceMedia? icon;
+  final List<String> deliveryModes;
   final List<ProviderRequirementField> fields;
 }
 

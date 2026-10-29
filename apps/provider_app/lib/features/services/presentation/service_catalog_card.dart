@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../onboarding/services/domain/provider_service_type.dart';
 import '../domain/provider_service_status.dart';
 import 'service_status_style.dart';
+import 'service_catalog_visuals.dart';
 
 /// Presentation only; status is calculated by the existing service controllers.
 class ServiceStatusBadge extends StatelessWidget {
@@ -71,8 +72,9 @@ class ServiceCatalogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uri = service.usableIconUri;
-    final radius = BorderRadius.circular(12);
+    final scale = (MediaQuery.sizeOf(context).width / 430).clamp(.65, 1.0);
+    final radius = BorderRadius.circular(11);
+    final visual = serviceVisualStyle(service);
     return Semantics(
       key: ValueKey('service-status-${status?.name ?? "unknown"}'),
       button: true,
@@ -80,52 +82,37 @@ class ServiceCatalogCard extends StatelessWidget {
       onTap: onTap,
       excludeSemantics: true,
       child: Material(
-        color: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withValues(alpha: .12),
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: const BorderSide(color: Color(0xFFF5F5F5)),
-        ),
+        color: visual.surface,
+        shape: RoundedRectangleBorder(borderRadius: radius),
         child: InkWell(
           key: ValueKey('main-service-${service.id}'),
           borderRadius: radius,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(6, 12, 6, 6),
+            padding: EdgeInsets.fromLTRB(2, 9 * scale, 2, 4 * scale),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: uri == null
-                      ? const Icon(
-                          Icons.work_outline,
-                          size: 32,
-                          color: Color(0xFF444444),
-                        )
-                      : Image.network(
-                          uri.toString(),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const Icon(
-                            Icons.work_outline,
-                            size: 32,
-                            color: Color(0xFF444444),
-                          ),
-                        ),
+                  width: 44 * scale,
+                  height: 44 * scale,
+                  child: FittedBox(
+                    child: ServiceCatalogSymbol(service: service),
+                  ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 4 * scale),
                 Text(
                   service.name,
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
-                    height: 1.2,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF444444),
+                    fontFamily: 'HomeInter',
+                    letterSpacing: 0,
+                    fontSize: 9.5 * scale,
+                    height: 11.5 / 9.5,
+                    fontWeight: FontWeight.w500,
+                    color: servicesInk,
                   ),
                 ),
               ],

@@ -3,9 +3,12 @@ abstract final class AppRoutes {
   static const services = '/services';
   static const requests = '/requests';
   static const messages = '/messages';
-  // Account tab is distinct from Provider Details onboarding.
+  static const wallet = '/wallet';
+  // Account is accessed from the header, separate from onboarding.
   static const account = '/profile';
   static String serviceDetail(int id) => '$services/$id';
+  static String subServiceProfile(int serviceTypeId, int optionId) =>
+      '$services/$serviceTypeId/sub-services/$optionId/profile';
   static String serviceSetup(int id, {bool view = false}) =>
       '$services/$id/setup${view ? '?view=1' : ''}';
   static String serviceStatus(int id) => '$services/$id/status';

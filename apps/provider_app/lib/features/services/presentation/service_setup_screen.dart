@@ -34,6 +34,7 @@ class ServiceSetupScreen extends ConsumerWidget {
       final v = result.value, status = v.status;
       final review =
           status == ProviderServiceStatus.pendingApproval ||
+          status == ProviderServiceStatus.rejected ||
           status == ProviderServiceStatus.approved ||
           status == ProviderServiceStatus.inactive;
       if (!showStatus && !viewOnly && section == null && review) {

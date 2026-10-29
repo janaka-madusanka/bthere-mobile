@@ -28,7 +28,7 @@ Map<String, dynamic> fieldJson({int? optionId}) => {
   'fieldId': 7,
   'serviceTypeId': 3,
   'optionId': optionId,
-  'scope': optionId == null ? 'COMMON' : 'OPTION',
+  'scope': 'PROVIDER_REQUIREMENT',
   'code': 'INFO',
   'label': 'Information',
   'description': null,

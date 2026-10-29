@@ -14,11 +14,64 @@ List<ProviderServiceType> parseActiveProviderServices(Object? value) {
       name: _text(json['name']),
       description: _optionalText(json['description']),
       iconUrl: _optionalText(json['iconUrl']),
+      icon: _media(json['icon']),
+      coverImage: _media(json['coverImage']),
+      gallery: _mediaList(json['gallery']),
+      responsibilities: _responsibilities(json['responsibilities']),
       status: _text(json['status']),
     );
     if (service.status == 'ACTIVE') services.add(service);
   }
   return List.unmodifiable(services);
+}
+
+ProviderServiceMedia? parseProviderServiceMedia(Object? value) => _media(value);
+
+ProviderServiceMedia? _media(Object? value) {
+  if (value == null) return null;
+  final json = _object(value);
+  return ProviderServiceMedia(
+    key: _text(json['key']),
+    url: _text(json['url']),
+    altText: _optionalText(json['altText']),
+    displayOrder: json['displayOrder'] == null
+        ? 0
+        : _nonNegative(json['displayOrder']),
+  );
+}
+
+int _nonNegative(Object? value) {
+  if (value is! int || value < 0) throw const FormatException('Invalid order');
+  return value;
+}
+
+List<ProviderServiceMedia> _mediaList(Object? value) {
+  if (value == null) return const [];
+  if (value is! List) throw const FormatException('Invalid media');
+  final result = value.map(_media).whereType<ProviderServiceMedia>().toList()
+    ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+  return List.unmodifiable(result);
+}
+
+List<ProviderServiceResponsibility> _responsibilities(Object? value) {
+  if (value == null) return const [];
+  if (value is! List) throw const FormatException('Invalid responsibilities');
+  final result = value.map((item) {
+    final json = _object(item);
+    final party = _text(json['responsibleParty']);
+    if (!['PROVIDER', 'CUSTOMER', 'PLATFORM'].contains(party) ||
+        json['required'] is! bool) {
+      throw const FormatException('Invalid responsibility');
+    }
+    return ProviderServiceResponsibility(
+      responsibleParty: party,
+      title: _text(json['title']),
+      description: _optionalText(json['description']),
+      required: json['required'] as bool,
+      displayOrder: _nonNegative(json['displayOrder']),
+    );
+  }).toList()..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+  return List.unmodifiable(result);
 }
 
 ProviderServiceAssignment parseProviderServiceAssignment(Object? value) {

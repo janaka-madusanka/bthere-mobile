@@ -1,5 +1,10 @@
+import 'package:provider_app/features/account/application/provider_profile_overview.dart';
+
 import 'support/fake_documents_repository.dart';
 import 'support/completed_entry_gate.dart';
+import 'support/fake_wallet_repository.dart';
+
+import 'package:provider_app/features/wallet/data/wallet_repository.dart';
 
 import 'package:provider_app/features/onboarding/application/provider_entry_gate.dart';
 
@@ -46,6 +51,11 @@ import 'support/fake_completion_repository.dart';
 import 'support/fake_profile_repository.dart';
 import 'support/fake_market_repository.dart';
 import 'support/fake_session_storage.dart';
+import 'support/fake_registration_repository.dart';
+
+import 'package:provider_app/features/services/data/registration_repository.dart';
+import 'package:provider_app/features/services/application/registration_draft.dart';
+import 'package:provider_app/features/onboarding/profile/data/provider_profile_reader.dart';
 
 class ServiceFixture {
   final services = FakeServiceRepository(),
@@ -56,6 +66,9 @@ class ServiceFixture {
   late ProviderContainer container;
   ServiceFixture({
     bool existing = false,
+    Map<String, dynamic> profileData = const {},
+    FakeProfileRepository? profileRepository,
+    ProfileSupplementRepository? profileSupplementRepository,
     bool signedIn = true,
     String step = 'COMPLETE_PROFILE',
   }) {
@@ -90,6 +103,21 @@ class ServiceFixture {
     };
     container = ProviderContainer(
       overrides: [
+        walletRepositoryProvider.overrideWithValue(FakeWalletRepository()),
+        walletJournalProvider.overrideWithValue(MemoryWalletJournal()),
+        if (profileSupplementRepository != null)
+          profileSupplementRepositoryProvider.overrideWithValue(
+            profileSupplementRepository,
+          ),
+        registrationRepositoryProvider.overrideWithValue(
+          FakeRegistrationRepository(),
+        ),
+        registrationDraftStoreProvider.overrideWithValue(
+          MemoryRegistrationDrafts(),
+        ),
+        providerProfileDetailsProvider.overrideWith(
+          (_) async => Success(profileData),
+        ),
         providerEntryGateProvider.overrideWith(CompletedEntryGate.new),
         appConfigProvider.overrideWithValue(
           AppConfig(apiBaseUrl: 'https://example.invalid/api/v1'),
@@ -104,7 +132,7 @@ class ServiceFixture {
         providerOptionsRepositoryProvider.overrideWithValue(options),
         providerCompletionRepositoryProvider.overrideWithValue(completion),
         providerProfileRepositoryProvider.overrideWithValue(
-          FakeProfileRepository(),
+          profileRepository ?? FakeProfileRepository(),
         ),
         providerMarketRepositoryProvider.overrideWithValue(
           FakeMarketRepository(),
@@ -195,7 +223,10 @@ void main() {
       await pump(tester, f);
       expect(path(f), AppRoutes.services);
       expect(find.text('Home Nurse'), findsOneWidget);
-      expect(find.text('Service progress unavailable · Retry'), findsOneWidget);
+      expect(
+        find.text('Service progress unavailable Â· Retry'),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceDetail(3));
@@ -268,7 +299,7 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
-      expect(find.text('Choose the services you provide'), findsOneWidget);
+      expect(find.text('Sub Services'), findsOneWidget);
       expect(find.text('Work type 12'), findsOneWidget);
       expect(f.schema.calls, [3]);
       expect(f.services.submissions, 0);
@@ -286,7 +317,10 @@ void main() {
     j['options'][0]['code'] = 'HOSPITAL_DAY_CARE';
     j['options'][1]['code'] = 'HOSPITAL_NIGHT_CARE';
     f.schema.result = Success(parseProviderSchema(j, 3));
-    await pump(tester, f, route: AppRoutes.serviceDetail(3));
+    await pump(tester, f, route: '/services/3/register');
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
     expect(find.text('Hospital Caregiver'), findsNWidgets(2));
     expect(find.text('Hospital Day Care'), findsOneWidget);
     expect(find.text('Hospital Night Care'), findsOneWidget);
@@ -561,10 +595,16 @@ void main() {
     tester,
   ) async {
     final f = ServiceFixture();
+    (f.container.read(
+      registrationDraftStoreProvider,
+    ) as MemoryRegistrationDrafts).drafts[3] = readyRegistrationDraft();
     f.options.saveResult = const Failure(
       AppFailure(message: 'Safe PUT failure'),
     );
-    await pump(tester, f, route: AppRoutes.serviceDetail(3));
+    await pump(tester, f, route: '/services/3/register');
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sub-service-12')));
     await tester.pump();
     await tester.enterText(find.byType(TextFormField), '4.5');
@@ -572,15 +612,15 @@ void main() {
     await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(path(f), AppRoutes.serviceDetail(3));
+    expect(path(f), '/services/3/register');
     expect(find.text('Safe PUT failure'), findsOneWidget);
     expect(f.services.submissions, 1);
     f.options.saveResult = const Success(null);
-    await tester.ensureVisible(find.text('Retry'));
-    await tester.tap(find.text('Retry'));
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(path(f), AppRoutes.serviceSetup(3));
-    expect(find.text('Home Nurse Setup'), findsOneWidget);
+    expect(path(f), '/services/3/register');
+    expect(find.text('Upload Required Documents'), findsOneWidget);
     expect(find.text('Service options'), findsNothing);
     expect(f.services.submissions, 1);
   });
@@ -603,18 +643,13 @@ void main() {
       );
       await pump(tester, f, route: AppRoutes.serviceSetup(3));
       expect(path(f), AppRoutes.serviceStatus(3));
-      expect(find.text('Pending approval'), findsOneWidget);
-      expect(
-        find.text(
-          'Your information has been submitted and is waiting for review.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Review in progress'), findsOneWidget);
+      expect(find.text('Your application is Under Review'), findsOneWidget);
       expect(find.text('Needs attention'), findsNothing);
     },
   );
   testWidgets(
-    'approved service catalog opens status and read-only setup information',
+    'approved service catalog opens overview with management and read-only setup information',
     (tester) async {
       final f = ServiceFixture(existing: true);
       f.completion.result = Success(
@@ -625,7 +660,12 @@ void main() {
         find.byKey(const ValueKey('service-status-approved')),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('main-service-3')));
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.serviceDetail(3));
+      expect(find.text('Your Registered Sub-services'), findsOneWidget);
+      await tester.tap(find.text('Registered Â· Manage').first);
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceStatus(3));
       await tester.tap(find.text('View setup information'));
@@ -650,7 +690,7 @@ void main() {
         parseProviderCompletion(completeServiceJson(verification: 'REJECTED')),
       );
       await pump(tester, f, route: AppRoutes.serviceStatus(3));
-      expect(find.text('Rejected'), findsOneWidget);
+      expect(find.text('Your application was not approved'), findsOneWidget);
       expect(
         find.text('Service review: Please provide a clearer certificate.'),
         findsOneWidget,
@@ -734,16 +774,14 @@ void main() {
       j['options'][0]['code'] = 'HOSPITAL_CARE';
       j['options'][1]['code'] = 'HOSPITAL_CARE';
       f.schema.result = Success(parseProviderSchema(j, 3));
-      await pump(tester, f, route: AppRoutes.serviceDetail(3));
+      await pump(tester, f, route: '/services/3/register');
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
       expect(find.text('Hospital Caregiver'), findsNWidgets(2));
       expect(find.text('Variant 12'), findsOneWidget);
       expect(find.text('Variant 13'), findsOneWidget);
-      expect(
-        find.text(
-          'Some sub-services need clearer catalog labels. Each variant remains a separate selection.',
-        ),
-        findsOneWidget,
-      );
+      expect(f.options.saves, isEmpty);
     },
   );
   testWidgets(
@@ -758,8 +796,11 @@ void main() {
       ];
       f.schema.result = Success(parseProviderSchema(j, 3));
       await pump(tester, f, route: '/services/3/setup/additional');
-      expect(find.text('Common information'), findsOneWidget);
-      expect(find.text('Selected information'), findsOneWidget);
+      expect(find.text('Common information *'), findsOneWidget);
+      await tester.ensureVisible(find.text('Work type 12'));
+      await tester.tap(find.text('Work type 12'));
+      await tester.pumpAndSettle();
+      expect(find.text('Selected information *'), findsOneWidget);
       expect(find.text('Hidden information'), findsNothing);
       expect(f.options.saves, isEmpty);
     },
@@ -772,7 +813,7 @@ void main() {
       expect(find.text('Documents'), findsNothing);
       f.container.read(appRouterProvider).go('/services/3/setup/documents');
       await tester.pumpAndSettle();
-      expect(find.text('Home Nurse Documents'), findsOneWidget);
+      expect(find.text('Upload Required Documents'), findsOneWidget);
       expect(
         find.text('No documents are required for this service.'),
         findsOneWidget,
@@ -886,19 +927,19 @@ void main() {
       expect(path(f), AppRoutes.serviceSetup(3));
     },
   );
-  testWidgets(
-    'direct approved service detail opens status rather than onboarding again',
-    (tester) async {
-      final f = ServiceFixture(existing: true);
-      f.completion.result = Success(
-        parseProviderCompletion(completeServiceJson(verification: 'APPROVED')),
-      );
-      await pump(tester, f, route: AppRoutes.serviceDetail(3));
-      expect(path(f), AppRoutes.serviceStatus(3));
-      expect(find.text('Years of experience'), findsNothing);
-      expect(f.services.submissions, 0);
-    },
-  );
+  testWidgets('direct approved service detail shows registered overview', (
+    tester,
+  ) async {
+    final f = ServiceFixture(existing: true);
+    f.completion.result = Success(
+      parseProviderCompletion(completeServiceJson(verification: 'APPROVED')),
+    );
+    await pump(tester, f, route: AppRoutes.serviceDetail(3));
+    expect(path(f), AppRoutes.serviceDetail(3));
+    expect(find.text('Your Registered Sub-services'), findsOneWidget);
+    expect(find.text('Years of experience'), findsNothing);
+    expect(f.services.submissions, 0);
+  });
   testWidgets(
     'successful Basic details returns to the same service setup and refreshes completion',
     (tester) async {

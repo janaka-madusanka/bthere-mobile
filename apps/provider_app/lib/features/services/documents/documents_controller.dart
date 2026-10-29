@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:bthere_common/bthere_common.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/app_providers.dart';
@@ -8,6 +13,9 @@ import '../../onboarding/application/provider_completion_controller.dart';
 import '../application/service_setup_controller.dart';
 import 'document_models.dart';
 import 'documents_repository.dart';
+import 'document_preview_cache.dart';
+import '../application/service_providers.dart';
+import '../application/registration_draft.dart';
 
 void _documentTrace(String event) {
   if (kDebugMode) debugPrint('[ProviderDocuments] $event');
@@ -43,6 +51,74 @@ final documentPickerProvider = Provider<DocumentPicker>(
   (ref) => NativeDocumentPicker(),
 );
 
+class NativeDocumentGallery implements DocumentPicker {
+  @override
+  Future<DocumentFile?> pick() async {
+    final photo = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      requestFullMetadata: false,
+    );
+    if (photo == null) return null;
+    return DocumentFile(
+      photo.name,
+      await photo.length(),
+      () => photo.openRead(),
+    );
+  }
+}
+
+final documentGalleryProvider = Provider<DocumentPicker>(
+  (ref) => NativeDocumentGallery(),
+);
+
+abstract interface class DocumentCamera {
+  Future<DocumentFile?> capture({required bool selfie});
+}
+
+class NativeDocumentCamera implements DocumentCamera {
+  NativeDocumentCamera({
+    ImagePicker? picker,
+    Future<void> Function()? ensurePermission,
+  }) : _picker = picker ?? ImagePicker(),
+       _ensurePermission = ensurePermission ?? _requestCameraPermission;
+  final ImagePicker _picker;
+  final Future<void> Function() _ensurePermission;
+
+  static Future<void> _requestCameraPermission() async {
+    // iOS image_picker requests authorization itself. Android needs an explicit
+    // runtime request now that CAMERA is declared in the manifest.
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    var status = await Permission.camera.status;
+    if (status.isDenied) status = await Permission.camera.request();
+    if (status.isGranted) return;
+    throw PlatformException(
+      code: status.isPermanentlyDenied || status.isRestricted
+          ? 'camera_access_denied_permanently'
+          : 'camera_permission_denied',
+    );
+  }
+
+  @override
+  Future<DocumentFile?> capture({required bool selfie}) async {
+    await _ensurePermission();
+    final photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: selfie ? CameraDevice.front : CameraDevice.rear,
+      requestFullMetadata: false,
+    );
+    if (photo == null) return null;
+    return DocumentFile(
+      photo.name,
+      await photo.length(),
+      () => photo.openRead(),
+    );
+  }
+}
+
+final documentCameraProvider = Provider<DocumentCamera>(
+  (ref) => NativeDocumentCamera(),
+);
+
 class DocumentDraft {
   DocumentDraft(this.requirement) : name = requirement.name;
   final DocumentRequirement requirement;
@@ -56,9 +132,11 @@ class DocumentsState {
   List<DocumentRequirement>? requirements;
   List<ProviderDocument>? documents;
   String? requirementsError, documentsError, operationError, notice;
+  bool cameraSettingsRequired = false;
   bool requirementsLoading = true, documentsLoading = true, busy = false;
   String? phase;
   double? progress;
+  final Map<String, Uri> viewUrls = {};
   DocumentDraft? draft;
   ProviderDocument? match(int typeId, DateTime now) {
     final matches = documents?.where((d) => d.typeId == typeId).toList() ?? [];
@@ -73,9 +151,14 @@ final documentsControllerProvider = NotifierProvider.autoDispose
       dependencies: [
         documentsRepositoryProvider,
         documentPickerProvider,
+        documentCameraProvider,
+        documentGalleryProvider,
         serviceSetupControllerProvider,
         providerCompletionControllerProvider,
         clockProvider,
+        documentPreviewCacheProvider,
+        registrationDraftStoreProvider,
+        providerAssignmentsProvider,
       ],
     );
 
@@ -141,6 +224,9 @@ class DocumentsController extends Notifier<DocumentsState> {
         state.documentsLoading = false;
         if (result case Success<List<ProviderDocument>>(:final value)) {
           state.documents = value;
+          for (final document in value) {
+            unawaited(_loadViewUrl(repo, document.key));
+          }
         } else {
           state.documentsError = 'Unable to load your documents. Please retry.';
         }
@@ -148,6 +234,16 @@ class DocumentsController extends Notifier<DocumentsState> {
       }(),
     ]);
     _loading = false;
+  }
+
+  Future<void> _loadViewUrl(DocumentsRepository repo, String key) async {
+    if (key.isEmpty || state.viewUrls.containsKey(key)) return;
+    final result = await safe(() => repo.viewUrl(key));
+    if (!ref.mounted) return;
+    if (result case Success<Uri>(:final value)) {
+      state.viewUrls[key] = value;
+      emit();
+    }
   }
 
   void edit(DocumentRequirement requirement) {
@@ -174,6 +270,7 @@ class DocumentsController extends Notifier<DocumentsState> {
           previous.expiryDate?.toIso8601String().substring(0, 10) ?? '';
     }
     state.operationError = state.notice = null;
+    state.cameraSettingsRequired = false;
     emit();
   }
 
@@ -181,6 +278,7 @@ class DocumentsController extends Notifier<DocumentsState> {
     if (!state.busy) {
       state.draft = null;
       state.operationError = null;
+      state.cameraSettingsRequired = false;
       emit();
     }
   }
@@ -189,7 +287,7 @@ class DocumentsController extends Notifier<DocumentsState> {
     _documentTrace(event);
   }
 
-  Future<void> pick() async {
+  Future<void> pick({bool camera = false, bool gallery = false}) async {
     if (!ref.mounted) return;
     if (state.busy || state.draft == null) {
       state.operationError = state.busy
@@ -199,12 +297,21 @@ class DocumentsController extends Notifier<DocumentsState> {
       return;
     }
     state.busy = true;
-    state.phase = 'Selecting file';
+    state.phase = camera ? 'Opening camera' : 'Selecting file';
+    state.cameraSettingsRequired = false;
     state.operationError = null;
     trace('pick.start');
     emit();
     try {
-      final file = await ref.read(documentPickerProvider).pick();
+      final file = camera
+          ? await ref
+                .read(documentCameraProvider)
+                .capture(selfie: state.draft!.requirement.isSelfie)
+          : await ref
+                .read(
+                  gallery ? documentGalleryProvider : documentPickerProvider,
+                )
+                .pick();
       if (!ref.mounted) return;
       trace(file == null ? 'pick.cancelled' : 'pick.returned');
       if (file != null) {
@@ -216,10 +323,31 @@ class DocumentsController extends Notifier<DocumentsState> {
           state.draft!.errors.remove('file');
         }
       }
+    } on PlatformException catch (error) {
+      trace('pick.platform_error code=${error.code}');
+      if (ref.mounted) {
+        final code = error.code.toLowerCase();
+        state.cameraSettingsRequired =
+            camera &&
+            (code.contains('permanently') ||
+                code == 'camera_access_denied' ||
+                code == 'camera_access_restricted');
+        state.operationError = !camera
+            ? 'Unable to select the file. Please retry.'
+            : state.cameraSettingsRequired
+            ? 'Camera access is disabled. Open Settings to allow camera access, then try again.'
+            : code.contains('denied')
+            ? 'Camera permission is needed to take a photo. Tap the camera button to try again, or choose a file.'
+            : code == 'no_available_camera'
+            ? 'No camera is available on this device. Please choose a file.'
+            : 'Unable to open the camera. Please retry or choose a file.';
+      }
     } catch (_) {
       trace('pick.failed');
       if (ref.mounted) {
-        state.operationError = 'Unable to select the file. Please retry.';
+        state.operationError = camera
+            ? 'Unable to open the camera. Please retry or choose a file.'
+            : 'Unable to select the file. Please retry.';
       }
     } finally {
       if (ref.mounted) {
@@ -229,6 +357,14 @@ class DocumentsController extends Notifier<DocumentsState> {
         emit();
       }
     }
+  }
+
+  void removeFile() {
+    if (state.busy || state.draft == null) return;
+    state.draft!.file = null;
+    state.draft!.upload = null;
+    state.operationError = null;
+    emit();
   }
 
   bool dateValid(String value) {
@@ -255,11 +391,15 @@ class DocumentsController extends Notifier<DocumentsState> {
     if (draft.name.trim().isEmpty) {
       draft.errors['name'] = 'Enter the document name.';
     }
-    if (!dateValid(draft.issued)) {
-      draft.errors['issued'] = 'Enter a valid issued date (YYYY-MM-DD).';
+    if (draft.issued.isNotEmpty && !dateValid(draft.issued)) {
+      draft.errors['issued'] =
+          'The saved issued date is invalid. Please reopen the document.';
     }
-    if (draft.requirement.hasExpiry && !dateValid(draft.expiry)) {
-      draft.errors['expiry'] = 'Enter a valid expiry date (YYYY-MM-DD).';
+    if (draft.requirement.hasExpiry &&
+        draft.expiry.isNotEmpty &&
+        !dateValid(draft.expiry)) {
+      draft.errors['expiry'] =
+          'The saved expiry date is invalid. Please reopen the document.';
     }
     if (draft.errors.isNotEmpty) {
       state.operationError = draft.errors.values.join(' ');
@@ -289,12 +429,21 @@ class DocumentsController extends Notifier<DocumentsState> {
         if (!ref.mounted) return;
         if (uploaded case Success<DocumentUpload>(:final value)) {
           draft.upload = value;
+          await ref
+              .read(documentPreviewCacheProvider.notifier)
+              .remember(value.key, draft.file!);
+          if (!ref.mounted) return;
           trace('upload.completed');
         } else {
           state.operationError = 'Upload failed. Please retry.';
           return;
         }
       }
+      final replacingRejected =
+          state
+              .match(draft.requirement.id, ref.read(clockProvider)())
+              ?.verificationStatus ==
+          'REJECTED';
       trace('register.start');
       state.phase = 'Registering document';
       emit();
@@ -315,6 +464,20 @@ class DocumentsController extends Notifier<DocumentsState> {
         return;
       }
       trace('register.completed');
+      if (replacingRejected) {
+        try {
+          await ref
+              .read(registrationDraftStoreProvider)
+              .recordReviewUpload(
+                serviceTypeId,
+                draft.requirement.id,
+                draft.upload!.key,
+              );
+        } catch (_) {
+          /* Upload succeeded; optional local history must not block it. */
+        }
+        if (!ref.mounted) return;
+      }
       state.draft = null;
       state.notice =
           'Document submitted. Approval status comes from the server.';
@@ -337,6 +500,16 @@ class DocumentsController extends Notifier<DocumentsState> {
     trace('refresh.start');
     final container = ref.container;
     container.read(providerCompletionControllerProvider.notifier).reload();
+    container.invalidate(providerAssignmentsProvider);
+    try {
+      await Future.wait([
+        container.read(providerCompletionControllerProvider.future),
+        container.read(providerAssignmentsProvider.future),
+      ]);
+    } catch (_) {
+      // Persisted documents remain saved; status providers expose refresh errors.
+    }
+    if (!ref.mounted) return;
     container.invalidate(serviceSetupControllerProvider(serviceTypeId));
     state.phase = 'Refreshing documents';
     state.documentsLoading = true;

@@ -20,6 +20,7 @@ import 'package:provider_app/features/onboarding/services/data/provider_service_
 import 'package:provider_app/features/onboarding/services/domain/provider_service_input.dart';
 import 'package:provider_app/features/onboarding/services/domain/provider_service_assignment.dart';
 import 'package:provider_app/features/onboarding/services/domain/provider_service_type.dart';
+import 'package:provider_app/features/services/presentation/service_catalog_visuals.dart';
 
 import 'support/fake_service_repository.dart';
 import 'support/fake_completion_repository.dart';
@@ -75,6 +76,63 @@ void main() {
       ]).single.id,
       9,
     );
+  });
+  test('structured service media and responsibilities are retained', () {
+    final json = serviceJson()
+      ..['icon'] = {
+        'key': 'services/icon.png',
+        'url': 'https://example.invalid/icon.png',
+        'altText': 'Service icon',
+        'displayOrder': 0,
+      }
+      ..['coverImage'] = {
+        'key': 'services/cover.png',
+        'url': 'https://example.invalid/cover.png',
+        'altText': null,
+        'displayOrder': 0,
+      }
+      ..['gallery'] = [
+        {
+          'key': 'services/gallery.png',
+          'url': 'https://example.invalid/gallery.png',
+          'altText': 'Gallery image',
+          'displayOrder': 1,
+        },
+      ]
+      ..['responsibilities'] = [
+        {
+          'responsibleParty': 'PROVIDER',
+          'title': 'Provide care',
+          'description': 'Follow the care plan',
+          'required': true,
+          'displayOrder': 1,
+        },
+      ];
+    final service = parseActiveProviderServices([json]).single;
+    expect(service.usableIconUri?.path, '/icon.png');
+    expect(service.usableCoverUri?.path, '/cover.png');
+    expect(service.gallery.single.altText, 'Gallery image');
+    expect(service.responsibilities.single.title, 'Provide care');
+  });
+  test('service visuals are derived from API metadata and stable IDs', () {
+    final first = ProviderServiceType(
+      id: 21,
+      name: 'Custom care service',
+      status: 'ACTIVE',
+    );
+    final second = ProviderServiceType(
+      id: 21,
+      name: 'Completely different service',
+      status: 'ACTIVE',
+    );
+    final other = ProviderServiceType(
+      id: 22,
+      name: 'Custom care service',
+      status: 'ACTIVE',
+    );
+
+    expect(serviceVisualStyle(first).surface, serviceVisualStyle(second).surface);
+    expect(serviceVisualStyle(first).surface, isNot(serviceVisualStyle(other).surface));
   });
   for (final id in [null, 0, -1, 1.5, '3', true]) {
     test('invalid service ID $id is rejected', () {

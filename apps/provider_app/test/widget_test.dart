@@ -1,3 +1,7 @@
+import 'support/fake_provider_session_api.dart';
+
+import 'package:provider_app/core/auth/provider_session_api.dart';
+
 import 'support/fake_service_repository.dart';
 import 'support/fake_completion_repository.dart';
 
@@ -16,6 +20,8 @@ import 'package:provider_app/app/router/app_router.dart';
 import 'package:provider_app/app/router/app_routes.dart';
 
 import 'support/fake_session_storage.dart';
+
+import 'package:provider_app/features/home/presentation/provider_home_screen.dart';
 
 void main() {
   for (final brightness in [Brightness.light, Brightness.dark]) {
@@ -180,6 +186,9 @@ void main() {
           ..session = testSession(expired: expired);
         final container = ProviderContainer(
           overrides: [
+            providerSessionApiProvider.overrideWithValue(
+              RejectedProviderSessionApi(),
+            ),
             providerServiceRepositoryProvider.overrideWithValue(
               FakeServiceRepository(),
             ),
@@ -207,7 +216,7 @@ void main() {
         expect(
           expired
               ? find.byKey(const ValueKey('auth-marketing-headline'))
-              : find.text('Welcome back'),
+              : find.byType(ProviderHomeScreen),
           findsOneWidget,
         );
         final router = container.read(appRouterProvider);

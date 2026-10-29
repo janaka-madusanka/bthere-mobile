@@ -1,5 +1,7 @@
 # Provider Documents implementation report
 
+The current upload sheet matches the compact upload reference: it displays the document name, file selection actions and preview, and Upload, without number or date inputs. Empty number/date properties are omitted from registration; existing metadata is retained on replacement. PDF/JPG/JPEG/PNG files up to 5 MB are accepted. Normal phone layouts do not scroll; accessibility text and very short windows can scroll. This payload behavior is covered by offline transport tests; live backend acceptance of omitted metadata has not been verified.
+
 The editor presentation is now a modal bottom sheet. See [Documents upload UX correction](provider-documents-upload-ux.md) for the current interaction, checks and exact change manifest. The counts and manifest below describe the original Documents implementation.
 
 1. **Requirements architecture.** `/services/:serviceTypeId/setup/documents` replaces only the Documents placeholder. The existing setup controller guards initial entry with an existing assignment and saved valid sub-services. Presentation uses a service-keyed Riverpod controller, injectable picker and Documents repository. The repository uses the shared ApiClient and safe Result/AppFailure handling. Requirements load from authenticated GET `/provider-types/{serviceTypeId}/document-requirements`; IDs and all required/optional, expiry and approval booleans come from this endpoint. The title uses the main-service name, e.g. Caregiver Documents. Empty requirements have an explicit state.

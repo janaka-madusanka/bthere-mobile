@@ -1,3 +1,5 @@
+import 'package:provider_app/app/presentation/provider_navigation_bar.dart';
+
 import 'dart:async';
 
 import 'package:bthere_common/bthere_common.dart';
@@ -21,7 +23,7 @@ import 'support/fake_session_storage.dart';
 
 void main() {
   for (final tab in [
-    ProviderTab.profile,
+    ProviderTab.wallet,
     ProviderTab.requests,
     ProviderTab.messages,
   ]) {
@@ -56,17 +58,22 @@ void main() {
         final semantics = tester.ensureSemantics();
         final f = ServiceFixture();
         await pump(tester, f, route: null);
+        final reads = (
+          f.services.loads,
+          f.services.assignmentLoads,
+          f.completion.calls,
+        );
         await tester.tap(destination(tab.label));
         await tester.pumpAndSettle();
         expect(path(f), tab.path);
         expect(
           tester
-              .widget<NavigationBar>(find.byType(NavigationBar))
+              .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
               .selectedIndex,
           tab.index,
         );
-        expect(find.byType(NavigationDestination), findsNWidgets(5));
-        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(find.byType(ProviderNavigationBar), findsOneWidget);
+        expect(find.byType(ProviderNavigationBar), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ProviderPlaceholderScreen),
@@ -75,18 +82,22 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.bySemanticsLabel('${tab.label}\nTab ${tab.index + 1} of 5'),
+          find.bySemanticsLabel(
+            '${tab.label}\nTab ${const [0, 2, 1, 3, 4].indexOf(tab.index) + 1} of 5',
+          ),
           findsOneWidget,
         );
-        expect(f.services.loads, 0);
-        expect(f.services.assignmentLoads, 0);
-        expect(f.completion.calls, 0);
+        expect((
+          f.services.loads,
+          f.services.assignmentLoads,
+          f.completion.calls,
+        ), reads);
         await tester.tap(destination('Services'));
         await tester.pumpAndSettle();
         expect(path(f), AppRoutes.services);
         expect(
           tester
-              .widget<NavigationBar>(find.byType(NavigationBar))
+              .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
               .selectedIndex,
           1,
         );
@@ -112,7 +123,7 @@ void main() {
           f.container.read(appRouterProvider).go(tab.path);
           await tester.pumpAndSettle();
           expect(f.path, authenticated ? AppRoutes.profile : AppRoutes.auth);
-          expect(find.byType(NavigationBar), findsNothing);
+          expect(find.byType(ProviderNavigationBar), findsNothing);
         }
       },
     );
@@ -127,22 +138,37 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         final f = ServiceFixture(existing: true);
+        f.services.catalog = Success(
+          parseActiveProviderServices([
+            serviceJson(),
+            serviceJson(id: 9, name: 'Other service'),
+            serviceJson(id: 20, name: 'Remaining service'),
+          ]),
+        );
         await pump(tester, f);
         final first = tester.getRect(
-          find.byKey(const ValueKey('main-service-3')),
+          find.byKey(const ValueKey('main-service-9')),
         );
         final second = tester.getRect(
-          find.byKey(const ValueKey('main-service-9')),
+          find.byKey(const ValueKey('main-service-20')),
         );
         expect(first.top, second.top);
         expect(second.left, greaterThan(first.right));
         expect(first.height, second.height);
-        expect(first.left, 16);
-        expect(second.left - first.right, 8);
-        expect(first.height / first.width, closeTo(202 / 158, .1));
+        expect(first.left, closeTo(23 * width / 430, .01));
+        expect(second.left - first.right, 9.5);
+        expect(first.height, greaterThanOrEqualTo(84 * width / 430));
         expect(find.byType(ServiceStatusBadge), findsNothing);
-        expect(find.text('Home nursing services'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(ServiceCatalogCard),
+            matching: find.text('Home nursing services'),
+          ),
+          findsNothing,
+        );
         expect(find.text('Home Nurse'), findsOneWidget);
+        expect(find.text('Remaining Services'), findsOneWidget);
+        expect(find.byKey(const ValueKey('main-service-3')), findsNothing);
         expect(find.text('Other service'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('service-status-setupRequired')),
@@ -150,7 +176,7 @@ void main() {
         );
         expect(
           find.byKey(const ValueKey('service-status-available')),
-          findsOneWidget,
+          findsNWidgets(2),
         );
         expect(find.byTooltip('Refresh services'), findsOneWidget);
         expect(find.text('Refresh services'), findsNothing);
@@ -161,7 +187,7 @@ void main() {
   }
 
   testWidgets(
-    'long names have three-line ellipsis and a single full-label semantic button',
+    'long names have two-line ellipsis and a single full-label semantic button',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -178,8 +204,13 @@ void main() {
         ]),
       );
       await pump(tester, f);
-      final title = tester.widget<Text>(find.text(longName));
-      expect(title.maxLines, 3);
+      final title = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(GridView),
+          matching: find.text(longName),
+        ),
+      );
+      expect(title.maxLines, 2);
       expect(title.overflow, TextOverflow.ellipsis);
       expect(find.bySemanticsLabel('$longName, Available'), findsOneWidget);
       final grid = tester.widget<GridView>(find.byType(GridView));
@@ -257,7 +288,7 @@ void main() {
     );
     await tester.ensureVisible(find.byKey(const ValueKey('main-service-9')));
     await tester.pumpAndSettle();
-    expect(find.byType(ServiceCatalogCard), findsNWidgets(2));
+    expect(find.byType(ServiceCatalogCard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -282,6 +282,32 @@ void main() {
     final phoneFlow = label == 'phone';
     final googleFlow = label == 'google';
     final loginFlow = label == 'login';
+    for (final marketId in [1, null]) {
+      test('$label preserves nullable marketId $marketId', () async {
+        transport.body = tokenJson()
+          ..['user'] = {...userJson(), 'marketId': marketId};
+        final result = await verify(
+          phoneFlow,
+          googleFlow: googleFlow,
+          loginFlow: loginFlow,
+        );
+        expect((result as Success<AuthUser>).value.marketId, marketId);
+        expect((await storage.read())!.user!.marketId, marketId);
+      });
+    }
+    for (final marketId in [0, -1, '1', 1.5, true]) {
+      test('$label rejects malformed marketId $marketId', () async {
+        transport.body = tokenJson()
+          ..['user'] = {...userJson(), 'marketId': marketId};
+        final result = await verify(
+          phoneFlow,
+          googleFlow: googleFlow,
+          loginFlow: loginFlow,
+        );
+        expect((result as Failure).failure.code, 'AUTH_INVALID_RESPONSE');
+        expect(storage.writes, 0);
+      });
+    }
     test(
       '$label verification persists UTC expiry and returns safe user',
       () async {

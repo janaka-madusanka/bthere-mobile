@@ -24,12 +24,13 @@ DateTime dateOnly(Object? raw) {
 }
 
 List<DocumentRequirement> parseRequirements(Object? data) {
-  final ids = <int>{};
+  final ids = <String>{};
   return List.unmodifiable(
     json.array(data).map((item) {
       final m = json.object(item);
       final id = json.integer(m['documentTypeId'], positive: true);
-      if (!ids.add(id)) {
+      final optionId = json.optionalInt(m['optionId'], positive: true);
+      if (!ids.add('$id:${optionId ?? 'common'}')) {
         throw const FormatException('Duplicate document requirement');
       }
       return DocumentRequirement(
@@ -39,6 +40,7 @@ List<DocumentRequirement> parseRequirements(Object? data) {
         json.boolean(m['hasExpiry']),
         json.boolean(m['required']),
         json.boolean(m['requiresApproval']),
+        optionId: optionId,
       );
     }),
   );
@@ -122,6 +124,28 @@ class ApiDocumentsRepository implements DocumentsRepository {
       )).data,
     ),
   );
+  @override
+  Future<Result<Uri>> viewUrl(String key) => request(() async {
+    if (key.trim().isEmpty) throw const FormatException('Invalid file key');
+    final path = Uri(
+      path: '/uploads/view-url',
+      queryParameters: {'key': key},
+    ).toString();
+    final data = (await client.get<Object?>(path, requiresAuth: true)).data;
+    final raw = data is String
+        ? data
+        : data is Map && data['url'] is String
+        ? data['url'] as String
+        : throw const FormatException('Invalid viewing URL');
+    final uri = Uri.tryParse(raw);
+    if (uri == null ||
+        !['http', 'https'].contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      throw const FormatException('Invalid viewing URL');
+    }
+    return uri;
+  });
   @override
   Future<Result<DocumentUpload>> upload(
     DocumentFile file,

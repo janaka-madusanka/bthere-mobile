@@ -1,3 +1,5 @@
+import 'package:provider_app/app/presentation/provider_navigation_bar.dart';
+
 import 'dart:async';
 
 import 'package:bthere_common/bthere_common.dart';
@@ -11,38 +13,221 @@ import 'package:provider_app/features/onboarding/services/domain/provider_servic
 import 'package:provider_app/features/services/presentation/service_catalog_card.dart';
 import 'package:provider_app/features/services/domain/provider_service_status.dart';
 import 'package:provider_app/features/services/presentation/service_catalog_screen.dart';
+import 'package:provider_app/features/services/presentation/service_detail_screen.dart';
+import 'package:provider_app/features/home/presentation/provider_home_screen.dart';
+import 'package:provider_app/features/home/presentation/provider_home_widgets.dart';
 
 import 'service_first_test.dart' show ServiceFixture, pump, path;
 import 'support/fake_service_repository.dart';
 
-Finder destination(String label) =>
-    find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+Finder destination(String label) => find.descendant(
+  of: find.byType(ProviderNavigationBar),
+  matching: find.text(label),
+);
 
 void main() {
+  testWidgets(
+    'registered Home service opens Services and Home returns dashboard',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      await pump(tester, f, route: AppRoutes.home);
+      final card = find.byType(HomeRegisteredService).first;
+      await tester.ensureVisible(card);
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+      expect(find.byType(ServiceDetailScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
+            .selectedIndex,
+        1,
+      );
+      await tester.tap(destination('Home'));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.home);
+      expect(find.byType(ProviderHomeScreen), findsOneWidget);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Home service detail returns to the dashboard when Home is tapped',
+    (tester) async {
+      final f = ServiceFixture();
+      f.services.catalog = Success(
+        parseActiveProviderServices([
+          serviceJson(id: 3, name: 'Home Services'),
+        ]),
+      );
+      await pump(tester, f, route: AppRoutes.home);
+      final tile = find.descendant(
+        of: find.byType(HomeCategories),
+        matching: find.text('Home Services'),
+      );
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(find.byType(ServiceDetailScreen), findsOneWidget);
+      await tester.tap(destination('Home'));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.home);
+      expect(find.byType(ProviderHomeScreen), findsOneWidget);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
+    },
+  );
+
+  testWidgets('tab deep links select the matching navigation destination', (
+    tester,
+  ) async {
+    final f = ServiceFixture(existing: true);
+    await pump(tester, f, route: null);
+    final router = f.container.read(appRouterProvider);
+    for (final (route, index) in [
+      (AppRoutes.home, 0),
+      (AppRoutes.requests, 2),
+      (AppRoutes.services, 1),
+      (AppRoutes.messages, 3),
+      (AppRoutes.wallet, 4),
+      (AppRoutes.serviceDetail(3), 1),
+    ]) {
+      router.go(route);
+      await tester.pumpAndSettle();
+      expect(path(f), route);
+      expect(
+        tester
+            .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
+            .selectedIndex,
+        index,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'tab taps open main pages and Services clears its detail history',
+    (tester) async {
+      final f = ServiceFixture();
+      await pump(tester, f);
+      final router = f.container.read(appRouterProvider);
+      router.push(AppRoutes.serviceDetail(3));
+      await tester.pumpAndSettle();
+      await tester.tap(destination('Wallet'));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.wallet);
+      await tester.tap(destination('Services'));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.services);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
+      router.push(AppRoutes.serviceDetail(3));
+      await tester.pumpAndSettle();
+      expect(find.byType(ServiceDetailScreen), findsOneWidget);
+      await tester.tap(destination('Services'));
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.services);
+      expect(find.byType(ServiceDetailScreen), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(path(f), AppRoutes.home);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'all five tabs retain the same bar and highlight their destination',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      await pump(tester, f, route: null);
+      final initialSize = tester.getSize(find.byType(ProviderNavigationBar));
+      for (final item in [
+        (2, AppRoutes.requests),
+        (1, AppRoutes.services),
+        (3, AppRoutes.messages),
+        (4, AppRoutes.wallet),
+        (0, AppRoutes.home),
+      ]) {
+        await tester.tap(find.byKey(ValueKey('provider-tab-${item.$1}')));
+        await tester.pumpAndSettle();
+        expect(path(f), item.$2);
+        expect(find.byType(ProviderNavigationBar), findsOneWidget);
+        expect(
+          tester
+              .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
+              .selectedIndex,
+          item.$1,
+        );
+        expect(tester.getSize(find.byType(ProviderNavigationBar)), initialSize);
+        for (final index in [0, 1, 2, 3, 4]) {
+          final destination = tester.widget<Semantics>(
+            find.byKey(ValueKey('provider-tab-$index')),
+          );
+          expect(destination.properties.selected, index == item.$1);
+        }
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+  testWidgets(
+    'each tab opens its main page after service navigation and back',
+    (tester) async {
+      final f = ServiceFixture();
+      await pump(tester, f);
+      final router = f.container.read(appRouterProvider);
+      for (final (label, route) in [
+        ('Home', AppRoutes.home),
+        ('Opportunities', AppRoutes.requests),
+        ('Messages', AppRoutes.messages),
+        ('Wallet', AppRoutes.wallet),
+        ('Services', AppRoutes.services),
+      ]) {
+        router.go(AppRoutes.services);
+        await tester.pumpAndSettle();
+        router.push(AppRoutes.serviceDetail(3));
+        await tester.pumpAndSettle();
+        router.pop();
+        await tester.pumpAndSettle();
+        router.push(AppRoutes.serviceDetail(3));
+        await tester.pumpAndSettle();
+        await tester.tap(destination(label));
+        await tester.pumpAndSettle();
+        expect(path(f), route);
+        expect(find.byType(ServiceDetailScreen), findsNothing);
+        await tester.tap(destination('Services'));
+        await tester.pumpAndSettle();
+        expect(path(f), AppRoutes.services);
+        expect(find.byType(ServiceDetailScreen), findsNothing);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
   testWidgets(
     'completed entry starts Home; branches retain Services state without extra reads',
     (tester) async {
       final f = ServiceFixture(existing: true);
       await pump(tester, f, route: null);
       expect(path(f), AppRoutes.home);
-      expect(find.text('Welcome back'), findsOneWidget);
-      expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
-        0,
-      );
-      expect(find.byType(NavigationDestination), findsNWidgets(5));
-      expect(f.services.loads, 0);
+      expect(find.text('Your Registered Services'), findsOneWidget);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
+      expect(f.services.loads, 1);
       await tester.tap(destination('Services'));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.services);
       expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        tester
+            .widget<ProviderNavigationBar>(find.byType(ProviderNavigationBar))
+            .selectedIndex,
         1,
       );
       final state = tester.state(find.byType(ServiceCatalogScreen));
       final loads = f.services.loads;
       expect(find.text('Home Nurse'), findsOneWidget);
-      expect(find.text('Home nursing services'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(ServiceCatalogCard),
+          matching: find.text('Home nursing services'),
+        ),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('service-status-setupRequired')),
         findsOneWidget,
@@ -69,25 +254,26 @@ void main() {
         isTrue,
       );
       expect(f.services.loads, loads);
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
     },
   );
 
   testWidgets(
-    'nested detail hides navigation and back restores one Services shell',
+    'nested detail retains one navigation and back restores the Services shell',
     (tester) async {
       final f = ServiceFixture();
       await pump(tester, f);
+      await tester.ensureVisible(find.byKey(const ValueKey('main-service-3')));
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceDetail(3));
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
       final router = f.container.read(appRouterProvider);
       expect(router.canPop(), isTrue);
       router.pop();
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.services);
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(ProviderNavigationBar), findsOneWidget);
       expect(router.canPop(), isFalse);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -172,7 +358,7 @@ void main() {
         );
         final offset = scroll.position.pixels;
         expect(offset, greaterThan(0));
-        final bar = tester.getRect(find.byType(NavigationBar));
+        final bar = tester.getRect(find.byType(ProviderNavigationBar));
         expect(bar.bottom, height);
         expect(
           tester.getRect(destination('Services')).bottom,

@@ -10,8 +10,10 @@ final class SessionUser {
     this.phoneNumber,
     this.emailVerified,
     this.phoneVerified,
+    this.marketId,
   }) : roles = List.unmodifiable(roles) {
     if (id <= 0 ||
+        (marketId != null && marketId! <= 0) ||
         username.trim().isEmpty ||
         status.trim().isEmpty ||
         roles.isEmpty ||
@@ -20,6 +22,7 @@ final class SessionUser {
     }
   }
   final int id;
+  final int? marketId;
   final String username, status;
   final List<String> roles;
   final String? email, phoneNumber;
@@ -33,6 +36,10 @@ final class SessionUser {
         username = value['username'],
         status = value['status'],
         roles = value['roles'];
+    final marketId = value['marketId'];
+    if (marketId != null && (marketId is! int || marketId <= 0)) {
+      throw const FormatException('Invalid account market.');
+    }
     if (id is! int ||
         username is! String ||
         status is! String ||
@@ -58,6 +65,7 @@ final class SessionUser {
 
     return SessionUser(
       id: id,
+      marketId: marketId as int?,
       username: username,
       status: status,
       roles: roles.cast<String>(),
@@ -69,6 +77,7 @@ final class SessionUser {
   }
   Map<String, Object?> toJson() => {
     'id': id,
+    'marketId': marketId,
     'username': username,
     'status': status,
     'roles': roles,

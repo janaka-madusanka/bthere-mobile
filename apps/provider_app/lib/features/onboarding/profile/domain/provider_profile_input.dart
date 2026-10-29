@@ -31,6 +31,9 @@ final class ProviderProfileInput {
     required this.gender,
     required this.availabilityStatus,
     this.bio,
+    this.nicNumber,
+    this.passportNumber,
+    this.profilePhoto,
   });
   final int marketId;
   final String firstName, lastName;
@@ -38,7 +41,7 @@ final class ProviderProfileInput {
   final DateTime dateOfBirth;
   final ProviderGender gender;
   final ProviderAvailability availabilityStatus;
-  String? get profilePhoto => null;
+  final String? nicNumber, passportNumber, profilePhoto;
 
   static String? requiredText(String? value) =>
       value == null || value.trim().isEmpty ? 'This field is required.' : null;

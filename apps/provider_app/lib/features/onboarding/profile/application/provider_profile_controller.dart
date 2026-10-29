@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/providers/app_providers.dart';
 import '../../application/provider_completion_controller.dart';
 import '../domain/provider_profile_input.dart';
+import '../data/provider_profile_reader.dart';
 
 final class ProfileSubmissionState {
   const ProfileSubmissionState({
@@ -29,6 +30,7 @@ final providerProfileControllerProvider =
         clockProvider,
         providerCompletionControllerProvider,
         providerMarketControllerProvider,
+        providerProfileDetailsProvider,
       ],
     );
 
@@ -71,6 +73,7 @@ final class ProviderProfileController extends Notifier<ProfileSubmissionState> {
       if (!ref.mounted) return;
       switch (result) {
         case Success<void>():
+          ref.invalidate(providerProfileDetailsProvider);
           final completion = ref.read(
             providerCompletionControllerProvider.notifier,
           );
