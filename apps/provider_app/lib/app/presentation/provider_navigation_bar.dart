@@ -96,7 +96,7 @@ class ProviderNavigationBar extends StatelessWidget {
                   fontFamily: BThereTypography.fontFamily,
                   fontSize: 10,
                   height: 1.8,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   color: Colors.white,
                   letterSpacing: 0,
                 ),

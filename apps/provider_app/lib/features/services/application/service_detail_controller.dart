@@ -15,6 +15,8 @@ import '../documents/documents_controller.dart'
 import '../documents/document_models.dart';
 import 'service_providers.dart';
 import 'service_draft_store.dart';
+import '../data/registration_repository.dart';
+import '../domain/service_registration.dart';
 
 final class ServiceDetailState {
   ServiceDetailState({
@@ -29,6 +31,7 @@ final class ServiceDetailState {
     this.inconsistent = false,
     this.registered = const [],
     this.incompleteRegistrationIds = const {},
+    this.registrationSources = const {},
   }) : selected = Set.unmodifiable(selected);
   final ProviderServiceType service;
   final ProviderOnboardingSchema schema;
@@ -39,6 +42,7 @@ final class ServiceDetailState {
   final AppFailure? failure;
   final List<ProviderSelectedOption> registered;
   final Set<int> incompleteRegistrationIds;
+  final Map<int, SharedOptionRegistration> registrationSources;
   String? get validation => inconsistent
       ? 'Some saved sub-services are no longer available. Retry to reload your service.'
       : validateSubServices(schema, selected) ??
@@ -62,6 +66,7 @@ final class ServiceDetailState {
     inconsistent: inconsistent,
     registered: registered,
     incompleteRegistrationIds: incompleteRegistrationIds,
+    registrationSources: registrationSources,
   );
 }
 
@@ -78,6 +83,7 @@ final serviceDetailControllerProvider = AsyncNotifierProvider.autoDispose
         serviceDraftStoreProvider,
         documentsRepositoryProvider,
         clockProvider,
+        registrationRepositoryProvider,
       ],
     );
 
@@ -91,10 +97,22 @@ final class ServiceDetailController
     _generation++;
     try {
       final catalog = await ref.watch(providerServiceCatalogProvider.future);
+      if (!ref.mounted) return _failure();
+      if (catalog is Failure<List<ProviderServiceType>>) {
+        return Failure(catalog.failure);
+      }
       final schema = await ref.watch(
         serviceSchemaProvider(serviceTypeId).future,
       );
+      if (!ref.mounted) return _failure();
+      if (schema is Failure<ProviderOnboardingSchema>) {
+        return Failure(schema.failure);
+      }
       final assignments = await ref.watch(providerAssignmentsProvider.future);
+      if (!ref.mounted) return _failure();
+      if (assignments is Failure<List<ProviderServiceAssignment>>) {
+        return Failure(assignments.failure);
+      }
       if (!ref.mounted ||
           catalog is! Success<List<ProviderServiceType>> ||
           schema is! Success<ProviderOnboardingSchema> ||
@@ -116,12 +134,56 @@ final class ServiceDetailController
         final selected = await ref
             .watch(providerOptionsRepositoryProvider)
             .loadSelections(assignment.assignmentId);
+        if (selected is Failure<List<ProviderSelectedOption>>) {
+          return Failure(selected.failure);
+        }
         if (selected is! Success<List<ProviderSelectedOption>>) {
           return _failure();
         }
         ids = selected.value.map((s) => s.optionId).toSet();
         registered = selected.value;
       }
+      final registrationSources = <int, SharedOptionRegistration>{};
+      final registeredById = {
+        for (final option in registered) option.optionId: option,
+      };
+      final sourceSelections = <int, List<ProviderSelectedOption>>{};
+      final registrations = ref.watch(registrationRepositoryProvider);
+      // Catalog links reuse enrollment by option ID, even when this main
+      // service has never had an assignment of its own.
+      for (final option in schema.value.options) {
+        final lookup = await registrations.sharedRegistration(option.optionId);
+        if (!ref.mounted) return _failure();
+        if (lookup is Failure<SharedOptionRegistration?>)
+          return Failure(lookup.failure);
+        final source = (lookup as Success<SharedOptionRegistration?>).value;
+        if (source == null) continue;
+        if (source.assignmentId == assignment?.assignmentId &&
+            registeredById[option.optionId]?.providerOptionId ==
+                source.providerOptionId)
+          continue;
+        if (!sourceSelections.containsKey(source.assignmentId)) {
+          final selections = await ref
+              .read(providerOptionsRepositoryProvider)
+              .loadSelections(source.assignmentId);
+          if (!ref.mounted) return _failure();
+          if (selections is Failure<List<ProviderSelectedOption>>)
+            return Failure(selections.failure);
+          sourceSelections[source.assignmentId] =
+              (selections as Success<List<ProviderSelectedOption>>).value;
+        }
+        final saved = sourceSelections[source.assignmentId]!
+            .where(
+              (saved) =>
+                  saved.optionId == option.optionId &&
+                  saved.providerOptionId == source.providerOptionId,
+            )
+            .firstOrNull;
+        if (saved == null) return _failure();
+        registrationSources[option.optionId] = source;
+        registeredById[option.optionId] = saved;
+      }
+      registered = List.unmodifiable(registeredById.values);
       final incompleteRegistrationIds = <int>{};
       final pendingOptions = registered.where(
         (option) =>
@@ -145,7 +207,16 @@ final class ServiceDetailController
               uploads is Success<List<ProviderDocument>>) {
             final now = ref.read(clockProvider)();
             for (final option in pendingOptions) {
-              if (requirements.value
+              final sourceTypeId =
+                  registrationSources[option.optionId]
+                      ?.registrationServiceTypeId ??
+                  serviceTypeId;
+              final applicable = sourceTypeId == serviceTypeId
+                  ? requirements
+                  : await documents.requirements(sourceTypeId);
+              if (!ref.mounted) return _failure();
+              if (applicable is! Success<List<DocumentRequirement>>) continue;
+              if (applicable.value
                   .where(
                     (requirement) =>
                         requirement.required &&
@@ -179,11 +250,15 @@ final class ServiceDetailController
         ServiceDetailState(
           service: service,
           schema: schema.value,
-          selected: {...ids, ...?draftIds}.intersection(valid),
+          selected: {
+            ...ids,
+            ...?draftIds,
+          }.intersection(valid).difference(registrationSources.keys.toSet()),
           experience:
               assignment?.experienceYears.toString() ??
               (draft?['experience'] as String? ?? ''),
           registered: registered,
+          registrationSources: Map.unmodifiable(registrationSources),
           incompleteRegistrationIds: Set.unmodifiable(
             incompleteRegistrationIds,
           ),
@@ -207,6 +282,7 @@ final class ServiceDetailController
     if (result is! Success<ServiceDetailState> ||
         result.value.busy ||
         result.value.inconsistent ||
+        result.value.registrationSources.containsKey(id) ||
         !result.value.schema.options.any((o) => o.optionId == id)) {
       return;
     }
@@ -274,6 +350,35 @@ final class ServiceDetailController
     final completion = ref.read(providerCompletionControllerProvider.notifier);
     state = AsyncData(Success(current.copy(busy: true)));
     try {
+      for (final id in current.selected) {
+        final source = await ref
+            .read(registrationRepositoryProvider)
+            .sharedRegistration(id);
+        if (!ref.mounted || generation != _generation) return false;
+        if (source is Failure<SharedOptionRegistration?>) {
+          state = AsyncData(Success(current.copy(failure: source.failure)));
+          return false;
+        }
+        final registration =
+            (source as Success<SharedOptionRegistration?>).value;
+        if (registration != null &&
+            (registration.registrationServiceTypeId != serviceTypeId ||
+                (current.assignment != null &&
+                    registration.assignmentId !=
+                        current.assignment!.assignmentId))) {
+          state = AsyncData(
+            Success(
+              current.copy(
+                failure: const AppFailure(
+                  message: 'This sub-service is already registered. Open its existing service to manage it.',
+                  code: 'SHARED_OPTION_ALREADY_REGISTERED',
+                ),
+              ),
+            ),
+          );
+          return false;
+        }
+      }
       if (current.assignment == null) {
         final recovered = await services.loadAssignments();
         if (!ref.mounted || generation != _generation) return false;

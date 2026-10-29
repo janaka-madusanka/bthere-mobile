@@ -148,6 +148,7 @@ final providerServiceRepositoryProvider = Provider<ProviderServiceRepository>(
 final providerSchemaRepositoryProvider = Provider<ProviderSchemaRepository>(
   (ref) => ProviderSchemaRepositoryImpl(
     ProviderSchemaRemoteDataSource(ref.watch(apiClientProvider)),
+    diagnosticLogger: kDebugMode ? (message) => debugPrint(message) : null,
   ),
   dependencies: [apiClientProvider],
 );

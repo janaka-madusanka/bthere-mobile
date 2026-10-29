@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../application/service_detail_controller.dart';
+import '../application/shared_option_route.dart';
 import '../data/registration_repository.dart';
 import '../documents/documents_controller.dart';
 import 'registration_option_editor.dart';
@@ -45,6 +46,18 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
         throw StateError('Unavailable');
       }
       final v = result.value;
+      final source = v.registrationSources[widget.optionId];
+      if (source != null &&
+          source.registrationServiceTypeId != widget.serviceTypeId) {
+        if (mounted)
+          context.go(
+            sharedOptionRoute(
+              source,
+              incomplete: v.incompleteRegistrationIds.contains(widget.optionId),
+            ),
+          );
+        return;
+      }
       final registered = v.registered
           .where((o) => o.optionId == widget.optionId)
           .firstOrNull;

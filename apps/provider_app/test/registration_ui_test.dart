@@ -400,6 +400,38 @@ void main() {
     expect(find.text('What service do you offer?'), findsOneWidget);
   });
   testWidgets(
+    'failed service setup shows its safe error and Continue retries fresh data',
+    (tester) async {
+      final f = ServiceFixture();
+      f.schema.result = const Failure(
+        AppFailure(
+          message: 'Unable to load service requirements. Please try again.',
+          code: 'SCHEMA_INVALID_RESPONSE',
+        ),
+      );
+      await pump(tester, f, route: '/services/register');
+      await tester.tap(find.text('Home Nurse'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Unable to load service requirements. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('What service do you offer?'), findsOneWidget);
+      final calls = f.schema.calls.length;
+      f.schema.result = Success(parseProviderSchema(schema(), 3));
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(f.schema.calls.length, greaterThan(calls));
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(f.services.submissions, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'saved languages preselect the picker despite an old empty draft',
     (tester) async {
       final f = ServiceFixture(existing: true);

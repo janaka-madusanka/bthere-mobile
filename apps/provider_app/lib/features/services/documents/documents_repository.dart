@@ -1,5 +1,6 @@
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_network/bthere_network.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../onboarding/requirements/data/provider_schema_response.dart'
     as json;
@@ -49,29 +50,47 @@ List<DocumentRequirement> parseRequirements(Object? data) {
 List<ProviderDocument> parseDocuments(Object? data) {
   final ids = <int>{};
   return List.unmodifiable(
-    json.array(data).map((item) {
-      final m = json.object(item);
-      final id = json.integer(m['documentId'], positive: true);
+    json.schemaValue('documents', () => json.array(data)).indexed.map((entry) {
+      final m = json.schemaValue(
+        'documents[${entry.$1}]',
+        () => json.object(entry.$2),
+      );
+      T read<T>(String key, T Function(Object?) parse) =>
+          json.schemaValue('documents[${entry.$1}].$key', () => parse(m[key]));
+      final id = read('documentId', (v) => json.integer(v, positive: true));
       if (!ids.add(id)) throw const FormatException('Duplicate document');
-      final date = m['expiryDate'] == null ? null : dateOnly(m['expiryDate']);
+      final date = read('expiryDate', (v) => v == null ? null : dateOnly(v));
       return ProviderDocument(
         id,
-        json.integer(m['documentTypeId'], positive: true),
-        json.string(m['verificationStatus']),
-        optionalText(m['rejectionReason']),
+        read('documentTypeId', (v) => json.integer(v, positive: true)),
+        read('verificationStatus', json.string),
+        read('rejectionReason', optionalText),
         date,
-        typeName: json.string(m['documentTypeName']),
-        name: json.string(m['documentName']),
-        number: m['documentNumber'] is String
-            ? m['documentNumber'] as String
-            : throw const FormatException('Invalid document number'),
-        key: json.string(m['documentKey']),
-        issuedDate: dateOnly(m['issuedDate'])
-            .toIso8601String()
-            .substring(0, 10),
-        createdAt:
-            DateTime.tryParse(json.string(m['createdAt'])) ??
-            (throw const FormatException('Invalid created date')),
+        typeName: read('documentTypeName', json.string),
+        name: read('documentName', json.string),
+        number: read(
+          'documentNumber',
+          (v) => v == null
+              ? ''
+              : v is String
+              ? v
+              : throw const FormatException('Invalid document number'),
+        ),
+        key: read('documentKey', json.string),
+        // Uploads omit these optional values when they are not applicable
+        // (for example a selfie). Read-back must accept the same contract.
+        issuedDate: read(
+          'issuedDate',
+          (v) => v == null || v == ''
+              ? ''
+              : dateOnly(v).toIso8601String().substring(0, 10),
+        ),
+        createdAt: read(
+          'createdAt',
+          (v) =>
+              DateTime.tryParse(json.string(v)) ??
+              (throw const FormatException('Invalid created date')),
+        ),
       );
     }),
   );
@@ -88,14 +107,31 @@ DocumentUpload parseUpload(Object? data) {
 }
 
 class ApiDocumentsRepository implements DocumentsRepository {
-  const ApiDocumentsRepository(this.client);
+  const ApiDocumentsRepository(this.client, {this.diagnosticLogger});
   final ApiClient client;
-  Future<Result<T>> request<T>(Future<T> Function() operation) async {
+  final void Function(String)? diagnosticLogger;
+  void _diagnostic(String message) {
+    if (diagnosticLogger != null)
+      diagnosticLogger!(message);
+    else if (kDebugMode)
+      debugPrint(message);
+  }
+
+  Future<Result<T>> request<T>(
+    Future<T> Function() operation, {
+    String resource = 'request',
+  }) async {
     try {
       return Success(await operation());
     } on NetworkException catch (e) {
+      _diagnostic(
+        '[ProviderDocuments] resource=$resource outcome=${e.kind.name} status=${e.statusCode}',
+      );
       return Failure(e.toAppFailure());
-    } catch (_) {
+    } catch (error) {
+      _diagnostic(
+        '[ProviderDocuments] resource=$resource outcome=invalid-response exception=${error.runtimeType}${error is json.InvalidSchemaValue ? ' invalidPath=${error.path}' : ''}',
+      );
       return const Failure(
         AppFailure(
           message: 'Unable to complete the document request. Please retry.',
@@ -114,7 +150,7 @@ class ApiDocumentsRepository implements DocumentsRepository {
             requiresAuth: true,
           )).data,
         );
-      });
+      }, resource: 'document-requirements');
   @override
   Future<Result<List<ProviderDocument>>> documents() => request(
     () async => parseDocuments(
@@ -123,6 +159,7 @@ class ApiDocumentsRepository implements DocumentsRepository {
         requiresAuth: true,
       )).data,
     ),
+    resource: 'documents',
   );
   @override
   Future<Result<Uri>> viewUrl(String key) => request(() async {

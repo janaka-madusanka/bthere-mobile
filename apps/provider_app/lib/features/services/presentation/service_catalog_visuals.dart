@@ -3,8 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../onboarding/services/domain/provider_service_type.dart';
 
-const servicesInk = Color(0xFF090E3D);
-const servicesMuted = Color(0xFF8190AD);
+const servicesInk = Color(0xFF0B3037);
+const servicesMuted = Color(0xFF687B83);
 
 class ServicesAsset extends StatelessWidget {
   const ServicesAsset(this.name, {super.key, this.size});
@@ -57,7 +57,7 @@ class ServiceCatalogSymbol extends StatelessWidget {
                 semanticsLabel: service.icon?.altText ?? service.name,
                 errorBuilder: (_, _, _) => const Icon(
                   Icons.miscellaneous_services,
-                  color: Color(0xFF008B91),
+                  color: Color(0xFF008F95),
                 ),
               )
             : Image.network(
@@ -67,7 +67,7 @@ class ServiceCatalogSymbol extends StatelessWidget {
                 errorBuilder: (_, _, _) => const Icon(
                   Icons.miscellaneous_services,
                   size: 32,
-                  color: Color(0xFF008B91),
+                  color: Color(0xFF008F95),
                 ),
               ),
       );
@@ -85,7 +85,7 @@ class ServiceCatalogSymbol extends StatelessWidget {
         child: Icon(
           Icons.miscellaneous_services,
           size: 26,
-          color: const Color(0xFF008B91),
+          color: const Color(0xFF008F95),
           semanticLabel: service.name,
         ),
       ),

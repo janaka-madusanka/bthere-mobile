@@ -49,6 +49,72 @@ FakeCompletionRepository completionRepo() => FakeCompletionRepository()
     ),
   );
 void main() {
+  test(
+    'optional descriptions may be empty while required labels remain validated',
+    () {
+      final j = schemaJson()
+        ..['commonFields'] = [fieldJson()..['description'] = ''];
+      expect(parseProviderSchema(j, 3).commonFields.single.description, '');
+      j['commonFields'][0]['label'] = '';
+      expect(() => parseProviderSchema(j, 3), throwsFormatException);
+    },
+  );
+  test('shared schema retains requested service and explicit source configuration IDs', () {
+    final j = schemaJson(id: 1)
+      ..['configurationServiceTypeId'] = 3
+      ..['serviceSetup'] = schemaJson()['serviceSetup']
+      ..['commonFields'] = [fieldJson()];
+    final parsed = parseProviderSchema(j, 1);
+    expect(parsed.serviceTypeId, 1);
+    expect(parsed.serviceSetup.serviceTypeId, 3);
+    expect(parsed.commonFields.single.serviceTypeId, 3);
+    j.remove('configurationServiceTypeId');
+    expect(() => parseProviderSchema(j, 1), throwsFormatException);
+  });
+  test('linked option preserves source fields and accepts consistent legacy response metadata', () {
+    final j = schemaJson(id: 1)
+      ..['options'] = [
+        {
+          'optionId': 9,
+          'configurationServiceTypeId': 3,
+          'code': 'SHARED',
+          'name': 'Shared option',
+          'fields': [
+            fieldJson(optionId: 9)..['optionIds'] = [9, 10],
+          ],
+        },
+      ];
+    final parsed = parseProviderSchema(j, 1);
+    expect(parsed.options.single.fields.single.serviceTypeId, 3);
+    expect(parsed.options.single.fields.single.optionIds, [9, 10]);
+    j['options'][0]['fields'][0]['optionIds'] = [10];
+    expect(() => parseProviderSchema(j, 1), throwsFormatException);
+  });
+  test('invalid schema diagnostics name a static path and never include response values', () async {
+    final messages = <String>[];
+    final adapter = ProfileAdapter()
+      ..body = (schemaJson()
+        ..['serviceSetup']['availabilityEnabled'] = 'private-invalid-value');
+    final client = ApiClient(
+      config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
+      adapter: adapter,
+      tokenProvider: SessionAccessTokenProvider(
+        FakeSessionStorage()..session = testSession(),
+        now: () => testNow,
+      ),
+    );
+    addTearDown(() => client.close(force: true));
+    final result = await ProviderSchemaRepositoryImpl(
+      ProviderSchemaRemoteDataSource(client),
+      diagnosticLogger: messages.add,
+    ).loadSchema(3);
+    expect(result, isA<Failure<ProviderOnboardingSchema>>());
+    expect(
+      messages.single,
+      contains('onboarding-schema.serviceSetup.availabilityEnabled'),
+    );
+    expect(messages.single, isNot(contains('private-invalid-value')));
+  });
   test('schema parses sample with immutable nullable and nested data', () {
     final json = schemaJson()..['commonFields'] = [fieldJson()];
     final schema = parseProviderSchema(json, 3);

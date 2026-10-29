@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle id="Brand glow" cx="72" cy="72" r="72" fill="url(#paint0_linear_0_301)"/>
+<defs>
+<linearGradient id="paint0_linear_0_301" x1="115.2" y1="3.26157e-06" x2="-7.2" y2="122.4" gradientUnits="userSpaceOnUse">
+<stop stop-color="#00D4DB"/>
+<stop offset="0.55" stop-color="#00A4B0" stop-opacity="0.627451"/>
+<stop offset="1" stop-color="#00636B" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

@@ -49,12 +49,15 @@ Map<String, dynamic> fieldJson({int? optionId}) => {
 final class FakeSchemaRepository implements ProviderSchemaRepository {
   final List<int> calls = [];
   Result<ProviderOnboardingSchema>? result;
+  final resultsById = <int, Result<ProviderOnboardingSchema>>{};
   Completer<Result<ProviderOnboardingSchema>>? pending;
   @override
   Future<Result<ProviderOnboardingSchema>> loadSchema(int id) async {
     calls.add(id);
     return pending != null
         ? pending!.future
-        : result ?? Success(parseProviderSchema(schemaJson(id: id), id));
+        : resultsById[id] ??
+              result ??
+              Success(parseProviderSchema(schemaJson(id: id), id));
   }
 }

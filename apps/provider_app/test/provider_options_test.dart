@@ -16,6 +16,10 @@ import 'package:provider_app/features/onboarding/requirements/options/data/provi
 import 'package:provider_app/features/onboarding/requirements/options/domain/provider_selected_option.dart';
 
 import 'provider_profile_test.dart' show ProfileAdapter;
+import 'registration_api_test.dart' show RegistrationAdapter;
+
+import 'dart:convert';
+
 import 'provider_requirements_test.dart' show scope, completionRepo;
 import 'support/fake_options_repository.dart';
 import 'support/fake_schema_repository.dart';
@@ -135,7 +139,22 @@ void main() {
     );
   });
   test('GET and PUT exact authenticated endpoints, integer payload and 204 success', () async {
-    final adapter = ProfileAdapter()..body = [selectedOptionJson()];
+    final adapter = RegistrationAdapter()
+      ..handler = (request) => ResponseBody.fromString(
+        request.path.endsWith('/registration')
+            ? '{}'
+            : request.method == 'GET'
+            ? jsonEncode([selectedOptionJson()])
+            : '',
+        request.path.endsWith('/registration')
+            ? 404
+            : request.method == 'GET'
+            ? 200
+            : 204,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      );
     final client = ApiClient(
       config: NetworkConfig(baseUrl: 'https://example.invalid/api/v1'),
       tokenProvider: SessionAccessTokenProvider(
@@ -152,24 +171,22 @@ void main() {
       await repo.loadSelections(42),
       isA<Success<List<ProviderSelectedOption>>>(),
     );
-    expect(adapter.request!.path, '/providers/me/services/42/options');
-    expect(adapter.request!.method, 'GET');
-    expect(adapter.request!.extra['bthere.network.requires_auth'], true);
+    expect(adapter.requests.last.path, '/providers/me/services/42/options');
+    expect(adapter.requests.last.method, 'GET');
+    expect(adapter.requests.last.extra['bthere.network.requires_auth'], true);
     expect(
-      adapter.request!.headers['Authorization'],
+      adapter.requests.last.headers['Authorization'],
       'Bearer synthetic-access',
     );
-    adapter.status = 204;
-    adapter.body = null;
     expect(await repo.saveSelections(42, [12, 13]), isA<Success<void>>());
-    expect(adapter.request!.method, 'PUT');
-    expect(adapter.request!.path, '/providers/me/services/42/options');
-    expect(adapter.request!.extra['bthere.network.requires_auth'], true);
-    expect(adapter.request!.data, {
+    expect(adapter.requests.last.method, 'PUT');
+    expect(adapter.requests.last.path, '/providers/me/services/42/options');
+    expect(adapter.requests.last.extra['bthere.network.requires_auth'], true);
+    expect(adapter.requests.last.data, {
       'optionIds': [12, 13],
     });
     expect(
-      (adapter.request!.data['optionIds'] as List).every((v) => v is int),
+      (adapter.requests.last.data['optionIds'] as List).every((v) => v is int),
       true,
     );
   });

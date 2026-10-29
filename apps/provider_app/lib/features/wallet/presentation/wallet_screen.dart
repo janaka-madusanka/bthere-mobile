@@ -11,9 +11,9 @@ part 'wallet_widgets.dart';
 part 'wallet_sheets.dart';
 part 'wallet_details.dart';
 
-const _walletInk = Color(0xFF11115C);
-const _walletMuted = Color(0xFF8194BB);
-const _walletTeal = Color(0xFF009FA5);
+const _walletInk = Color(0xFF0B3037);
+const _walletMuted = Color(0xFF687B83);
+const _walletTeal = Color(0xFF008F95);
 
 class WalletScreen extends ConsumerStatefulWidget {
   const WalletScreen({super.key});
@@ -85,7 +85,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen>
     return Theme(
       data: Theme.of(context).copyWith(
         textTheme: Theme.of(context).textTheme.apply(
-          fontFamily: 'HomeLato',
+          fontFamily: 'PublicSans',
           bodyColor: _walletInk,
           displayColor: _walletInk,
         ),

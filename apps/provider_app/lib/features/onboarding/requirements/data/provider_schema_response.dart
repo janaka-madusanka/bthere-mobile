@@ -6,6 +6,24 @@ final class UnsupportedRequirementMetadata implements Exception {
   const UnsupportedRequirementMetadata();
 }
 
+/// Static schema paths only: no response values or personal data in diagnostics.
+final class InvalidSchemaValue extends FormatException {
+  const InvalidSchemaValue(this.path) : super('Invalid onboarding schema');
+  final String path;
+}
+
+T schemaValue<T>(String path, T Function() read) {
+  try {
+    return read();
+  } on InvalidSchemaValue catch (error) {
+    throw InvalidSchemaValue('$path.${error.path}');
+  } on FormatException {
+    throw InvalidSchemaValue(path);
+  } on TypeError {
+    throw InvalidSchemaValue(path);
+  }
+}
+
 Map<String, dynamic> object(Object? value) {
   if (value is! Map<String, dynamic>) {
     throw const FormatException('Expected object');
@@ -65,7 +83,7 @@ ProviderLevelRequirement level(Object? raw) {
 
 ProviderRequirementField field(
   Object? raw,
-  int typeId,
+  int? typeId,
   int? containerOptionId,
 ) {
   final m = object(raw);
@@ -73,12 +91,22 @@ ProviderRequirementField field(
   final optionIds = m['optionIds'] == null
       ? <int>[?legacyOptionId]
       : array(m['optionIds']).map((v) => integer(v, positive: true)).toList();
-  if (integer(m['serviceTypeId'], positive: true) != typeId ||
-      optionIds.toSet().length != optionIds.length ||
-      (legacyOptionId != null && m['optionIds'] != null) ||
+  final serviceTypeId = schemaValue(
+    'serviceTypeId',
+    () => integer(m['serviceTypeId'], positive: true),
+  );
+  final configurationId =
+      optionalInt(m['configurationServiceTypeId'], positive: true) ?? typeId;
+  if (configurationId != null && serviceTypeId != configurationId) {
+    throw const InvalidSchemaValue('serviceTypeId');
+  }
+  if (optionIds.toSet().length != optionIds.length ||
+      (legacyOptionId != null &&
+          m['optionIds'] != null &&
+          !optionIds.contains(legacyOptionId)) ||
       (containerOptionId == null && optionIds.isNotEmpty) ||
       (containerOptionId != null && !optionIds.contains(containerOptionId))) {
-    throw const FormatException('Mismatched field');
+    throw const InvalidSchemaValue('optionIds');
   }
   final reuseScope = m['reuseScope'] == null
       ? 'ASSIGNMENT'
@@ -96,18 +124,24 @@ ProviderRequirementField field(
     throw const FormatException('Invalid size');
   }
   return ProviderRequirementField(
-    fieldId: integer(m['fieldId'], positive: true),
-    serviceTypeId: typeId,
+    fieldId: schemaValue(
+      'fieldId',
+      () => integer(m['fieldId'], positive: true),
+    ),
+    serviceTypeId: serviceTypeId,
     optionId: legacyOptionId,
     optionIds: optionIds,
     reuseScope: reuseScope,
-    scope: string(m['scope']),
-    code: string(m['code']),
-    label: string(m['label']),
-    description: m['description'] == null ? null : string(m['description']),
-    fieldType: string(m['fieldType']),
-    required: boolean(m['required']),
-    requiresApproval: boolean(m['requiresApproval']),
+    scope: schemaValue('scope', () => string(m['scope'])),
+    code: schemaValue('code', () => string(m['code'])),
+    label: schemaValue('label', () => string(m['label'])),
+    description: schemaValue('description', () => m['description'] as String?),
+    fieldType: schemaValue('fieldType', () => string(m['fieldType'])),
+    required: schemaValue('required', () => boolean(m['required'])),
+    requiresApproval: schemaValue(
+      'requiresApproval',
+      () => boolean(m['requiresApproval']),
+    ),
     minimumFiles: min,
     maximumFiles: max,
     maximumFileSizeMb: size as num?,
@@ -118,75 +152,133 @@ ProviderRequirementField field(
     condition: freeze(m['condition']),
     displayOrder: optionalInt(m['displayOrder']),
     version: optionalInt(m['version'], positive: true),
-    status: string(m['status']),
+    status: schemaValue('status', () => string(m['status'])),
   );
 }
 
 ProviderOnboardingSchema parseProviderSchema(Object? raw, int expectedId) {
-  final m = object(raw), s = object(m['serviceSetup']);
-  final id = integer(m['serviceTypeId'], positive: true);
-  if (id != expectedId || integer(s['serviceTypeId'], positive: true) != id) {
-    throw const FormatException('Mismatched schema');
+  final m = schemaValue('root', () => object(raw));
+  final s = schemaValue('serviceSetup', () => object(m['serviceSetup']));
+  final id = schemaValue(
+    'serviceTypeId',
+    () => integer(m['serviceTypeId'], positive: true),
+  );
+  final configurationId = schemaValue(
+    'configurationServiceTypeId',
+    () => optionalInt(m['configurationServiceTypeId'], positive: true) ?? id,
+  );
+  if (id != expectedId) {
+    throw const InvalidSchemaValue('serviceTypeId');
+  }
+  if (schemaValue(
+        'serviceSetup.serviceTypeId',
+        () => integer(s['serviceTypeId'], positive: true),
+      ) !=
+      configurationId) {
+    throw const InvalidSchemaValue('serviceSetup.serviceTypeId');
   }
   final min = optionalInt(s['minimumOptionSelections']),
       max = optionalInt(s['maximumOptionSelections']);
   if (min != null && max != null && min > max) {
     throw const FormatException('Invalid option bounds');
   }
-  final options = array(m['options']).map((raw) {
-    final o = object(raw), optionId = integer(o['optionId'], positive: true);
-    return ProviderSchemaOption(
-      optionId: optionId,
-      code: string(o['code']),
-      name: string(o['name']),
-      description: o['description'] as String?,
-      displayOrder: optionalInt(o['displayOrder']) ?? 0,
-      locationEnabled: o['locationEnabled'] == null
-          ? true
-          : boolean(o['locationEnabled']),
-      defaultCapacity: optionalInt(o['defaultCapacity'], positive: true),
-      bookingMode: o['bookingMode'] as String?,
-      icon: parseProviderServiceMedia(o['icon']),
-      deliveryModes: List.unmodifiable(
-        (o['deliveryModes'] == null ? <dynamic>[] : array(o['deliveryModes']))
-            .map(string),
-      ),
-      fields: array(o['fields']).map((v) => field(v, id, optionId)).toList(),
-    );
-  }).toList();
+  final options = schemaValue('options', () => array(m['options'])).indexed
+      .map(
+        (entry) => schemaValue('options[${entry.$1}]', () {
+          final raw = entry.$2;
+          final o = object(raw),
+              optionId = integer(o['optionId'], positive: true);
+          final optionConfigurationId = schemaValue(
+            'configurationServiceTypeId',
+            () => optionalInt(o['configurationServiceTypeId'], positive: true),
+          );
+          // Linked option fields retain their source service ID. Only enforce
+          // a parent configuration ID when the option explicitly supplies one.
+          return ProviderSchemaOption(
+            optionId: optionId,
+            code: string(o['code']),
+            name: string(o['name']),
+            description: o['description'] as String?,
+            displayOrder: optionalInt(o['displayOrder']) ?? 0,
+            locationEnabled: o['locationEnabled'] == null
+                ? true
+                : boolean(o['locationEnabled']),
+            defaultCapacity: optionalInt(o['defaultCapacity'], positive: true),
+            bookingMode: o['bookingMode'] as String?,
+            icon: parseProviderServiceMedia(o['icon']),
+            deliveryModes: List.unmodifiable(
+              (o['deliveryModes'] == null
+                      ? <dynamic>[]
+                      : array(o['deliveryModes']))
+                  .map(string),
+            ),
+            fields: schemaValue('fields', () => array(o['fields'])).indexed
+                .map(
+                  (entry) => schemaValue(
+                    'fields[${entry.$1}]',
+                    () => field(entry.$2, optionConfigurationId, optionId),
+                  ),
+                )
+                .toList(),
+          );
+        }),
+      )
+      .toList();
   if (options.map((o) => o.optionId).toSet().length != options.length) {
     throw const FormatException('Duplicate options');
   }
   return ProviderOnboardingSchema(
     serviceTypeId: id,
-    serviceName: string(m['serviceName']),
+    serviceName: schemaValue('serviceName', () => string(m['serviceName'])),
     serviceSetup: ProviderServiceSetup(
-      serviceTypeId: id,
-      name: string(s['name']),
-      availabilityEnabled: boolean(s['availabilityEnabled']),
-      serviceAreasEnabled: boolean(s['serviceAreasEnabled']),
-      optionsRequired: boolean(s['optionsRequired']),
+      serviceTypeId: configurationId,
+      name: schemaValue('serviceSetup.name', () => string(s['name'])),
+      availabilityEnabled: schemaValue(
+        'serviceSetup.availabilityEnabled',
+        () => boolean(s['availabilityEnabled']),
+      ),
+      serviceAreasEnabled: schemaValue(
+        'serviceSetup.serviceAreasEnabled',
+        () => boolean(s['serviceAreasEnabled']),
+      ),
+      optionsRequired: schemaValue(
+        'serviceSetup.optionsRequired',
+        () => boolean(s['optionsRequired']),
+      ),
       minimumOptionSelections: min,
       maximumOptionSelections: max,
-      documents: array(s['documents'])
-          .map(
-            (v) => ProviderDocumentRequirement(
-              freeze(object(v)) as Map<String, Object?>,
-            ),
-          )
-          .toList(),
-      skills: array(s['skills'])
+      documents:
+          schemaValue('serviceSetup.documents', () => array(s['documents']))
+              .map(
+                (v) => ProviderDocumentRequirement(
+                  freeze(object(v)) as Map<String, Object?>,
+                ),
+              )
+              .toList(),
+      skills: schemaValue('serviceSetup.skills', () => array(s['skills']))
           .map(
             (v) => ProviderSkillRequirement(
               freeze(object(v)) as Map<String, Object?>,
             ),
           )
           .toList(),
-      certificates: level(s['certificates']),
-      education: level(s['education']),
+      certificates: schemaValue(
+        'serviceSetup.certificates',
+        () => level(s['certificates']),
+      ),
+      education: schemaValue(
+        'serviceSetup.education',
+        () => level(s['education']),
+      ),
     ),
-    commonFields: array(m['commonFields'])
-        .map((v) => field(v, id, null))
+    commonFields: schemaValue('commonFields', () => array(m['commonFields']))
+        .indexed
+        .map(
+          (entry) => schemaValue(
+            'commonFields[${entry.$1}]',
+            () => field(entry.$2, configurationId, null),
+          ),
+        )
         .toList(),
     options: options..sort((a, b) => a.displayOrder.compareTo(b.displayOrder)),
   );

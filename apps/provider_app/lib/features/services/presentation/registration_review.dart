@@ -385,7 +385,7 @@ class RegistrationCompleteScreen extends StatelessWidget {
           child: Text(
             'All Set!',
             style: TextStyle(
-              fontFamily: 'HomeInter',
+              fontFamily: 'PublicSans',
               fontSize: 32,
               height: 1.2,
               fontWeight: FontWeight.w700,
@@ -406,7 +406,7 @@ class RegistrationCompleteScreen extends StatelessWidget {
           'Thank you for joining Bthere as a service provider.\nWe’ve received your information and documents.\nOur team will review them shortly.',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontFamily: 'HomeLato',
+            fontFamily: 'PublicSans',
             fontSize: 12.8,
             height: 1.4,
             color: registrationMuted,

@@ -40,7 +40,7 @@ class ServiceRegistrationBadge extends ConsumerWidget {
       key: ValueKey('service-registration-count-$serviceTypeId'),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF009FA5),
+        color: const Color(0xFF008F95),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

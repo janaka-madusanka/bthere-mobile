@@ -195,7 +195,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             child: Text(
               'Yes',
               style: TextStyle(
-                fontFamily: 'HomeInter',
+                fontFamily: 'PublicSans',
                 fontSize: 13,
                 color: registrationInk,
               ),
@@ -206,7 +206,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             child: Text(
               'No',
               style: TextStyle(
-                fontFamily: 'HomeInter',
+                fontFamily: 'PublicSans',
                 fontSize: 13,
                 color: registrationInk,
               ),
@@ -455,12 +455,12 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
         key: ValueKey('dynamic-field-$key'),
         initialValue: value?.toString() ?? '',
         enabled: widget.enabled,
-        style: const TextStyle(fontSize: 12, fontFamily: 'HomeInter'),
+        style: const TextStyle(fontSize: 12, fontFamily: 'PublicSans'),
         maxLines: field.fieldType == 'TEXTAREA' ? 3 : 1,
 
         decoration: const InputDecoration(
           counterStyle: TextStyle(
-            fontFamily: 'HomeInter',
+            fontFamily: 'PublicSans',
             fontSize: 11,
             color: registrationMuted,
           ),

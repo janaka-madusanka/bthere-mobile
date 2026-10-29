@@ -34,6 +34,7 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
+  bthere_design_system: ^0.0.1
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
@@ -52,6 +53,18 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: PublicSans
+      fonts:
+        - asset: assets/fonts/PublicSans.ttf
+          weight: 400
+        - asset: assets/fonts/PublicSans.ttf
+          weight: 500
+        - asset: assets/fonts/PublicSans.ttf
+          weight: 600
+        - asset: assets/fonts/PublicSans.ttf
+          weight: 700
+
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

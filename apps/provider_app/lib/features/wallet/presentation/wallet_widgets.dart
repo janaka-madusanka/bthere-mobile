@@ -8,7 +8,7 @@ Text _walletText(
 }) => Text(
   label,
   style: TextStyle(
-    fontFamily: 'HomeLato',
+    fontFamily: 'PublicSans',
     fontSize: size,
     height: 1.25,
     fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
@@ -690,7 +690,9 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _walletText(
-                    'Wallet operation #${entry.operationId}',
+                    entry.jobId == null
+                        ? 'Wallet operation #${entry.operationId}'
+                        : 'Booking #${entry.jobId} earnings',
                     18,
                     bold: true,
                   ),
@@ -734,7 +736,9 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _walletText(
-                    entries.length > 1
+                    entry.type == 'CARD_BOOKING_SETTLE'
+                        ? 'Booking earnings'
+                        : entries.length > 1
                         ? 'Wallet transfer'
                         : negative
                         ? 'Wallet debit'
@@ -744,7 +748,9 @@ class _TransactionRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   _walletText(
-                    'Operation #${entry.operationId} · ${entry.bucket.toLowerCase()}',
+                    entry.jobId == null
+                        ? 'Operation #${entry.operationId} · ${entry.bucket.toLowerCase()}'
+                        : 'Booking #${entry.jobId}',
                     10 * scale,
                     color: _walletMuted,
                   ),
@@ -758,7 +764,7 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   _walletText(
-                    '${negative ? '-' : '+'} LKR ${WalletMoney(entry.delta.minor.abs()).formatted}',
+                    '${negative ? '-' : '+'} ${entry.currency} ${WalletMoney(entry.delta.minor.abs()).formatted}',
                     12 * scale,
                     bold: true,
                     color: negative ? _walletMuted : _walletTeal,

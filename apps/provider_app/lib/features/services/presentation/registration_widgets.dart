@@ -5,17 +5,17 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../home/presentation/provider_home_widgets.dart';
 
-const registrationInk = Color(0xFF09153E);
-const registrationMuted = Color(0xFF747FA2);
-const registrationTeal = Color(0xFF00858D);
-const registrationBorder = Color(0xFFE2E6EF);
+const registrationInk = Color(0xFF0B3037);
+const registrationMuted = Color(0xFF687B83);
+const registrationTeal = Color(0xFF008F95);
+const registrationBorder = Color(0xFFE6EDF0);
 
 Text registrationText(
   String value,
   double size, {
   bool bold = false,
   Color color = registrationInk,
-  String fontFamily = 'HomeInter',
+  String fontFamily = 'PublicSans',
   FontWeight? weight,
 }) => Text(
   value,
@@ -145,7 +145,7 @@ class RegistrationPage extends StatelessWidget {
                             14,
                             bold: true,
                             color: Colors.white,
-                            fontFamily: 'Nunito',
+                            fontFamily: 'PublicSans',
                           ),
                         ),
                       ],
@@ -309,7 +309,7 @@ class RegistrationHeading extends StatelessWidget {
   const RegistrationHeading(
     this.title,
     this.description, {
-    this.fontFamily = 'HomeInter',
+    this.fontFamily = 'PublicSans',
     super.key,
   });
   final String title, description;
@@ -325,7 +325,7 @@ class RegistrationHeading extends StatelessWidget {
           26,
           bold: true,
           fontFamily: fontFamily,
-          weight: fontFamily == 'Nunito' ? FontWeight.w900 : FontWeight.w700,
+          weight: fontFamily == 'PublicSans' ? FontWeight.w700 : FontWeight.w700,
         ),
         const SizedBox(height: 7),
         registrationText(

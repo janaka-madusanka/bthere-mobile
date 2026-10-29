@@ -16,9 +16,9 @@ import '../../services/application/service_providers.dart';
 import '../../services/presentation/service_catalog_visuals.dart';
 import '../../onboarding/application/provider_completion_controller.dart';
 
-const homeInk = Color(0xFF070C30),
-    homeMuted = Color(0xFF75819B),
-    homeTeal = Color(0xFF008B91);
+const homeInk = Color(0xFF0B3037),
+    homeMuted = Color(0xFF687B83),
+    homeTeal = Color(0xFF008F95);
 
 // Reserve space for enlarged text without changing normal-size Figma geometry.
 double _textGrowth(BuildContext context) =>
@@ -57,6 +57,34 @@ class HomeAsset extends StatelessWidget {
   );
 }
 
+/// Shared vector artwork keeps the provider wordmark consistent across tabs.
+class ProviderHeaderLogo extends StatelessWidget {
+  const ProviderHeaderLogo({super.key});
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+    width: 84,
+    height: 31,
+    child: Stack(
+      children: [
+        Positioned(
+          left: 0,
+          top: 0,
+          width: 25.27,
+          height: 31,
+          child: HomeAsset('new_imgGroup'),
+        ),
+        Positioned(
+          right: 0,
+          top: 13.16,
+          width: 54.57,
+          height: 15.35,
+          child: HomeAsset('new_imgGroup1'),
+        ),
+      ],
+    ),
+  );
+}
+
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
   @override
@@ -76,24 +104,7 @@ class HomeHeader extends StatelessWidget {
           top: 8,
           width: 84,
           height: 31,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                width: 25.27,
-                height: 31,
-                child: HomeAsset('new_imgGroup'),
-              ),
-              Positioned(
-                right: 0,
-                top: 13.16,
-                width: 54.57,
-                height: 15.35,
-                child: HomeAsset('new_imgGroup1'),
-              ),
-            ],
-          ),
+          child: ProviderHeaderLogo(),
         ),
         Positioned(
           left: 326,
@@ -335,7 +346,7 @@ class HomeHeading extends StatelessWidget {
             style: TextStyle(
               fontSize: registered ? 14.7 : 17,
               height: registered ? 1.2 : 1.3,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               letterSpacing: registered ? 0 : -.51,
             ),
           ),
@@ -426,13 +437,13 @@ class HomeGreeting extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${username ?? 'Your dashboard'} 👋',
+                            '${username ?? 'Your dashboard'} \u{1F44B}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 21.5,
                               height: 1.2,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
@@ -551,11 +562,11 @@ class HomeMetric extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              '—',
+              '\u2014',
               style: TextStyle(
                 fontSize: 17,
                 height: 1.2,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
@@ -679,7 +690,7 @@ class HomeRegisteredService extends ConsumerWidget {
                                     style: const TextStyle(
                                       fontSize: 11,
                                       height: 1.2,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -779,7 +790,7 @@ class HomeRegisteredService extends ConsumerWidget {
         text,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 7.7, height: 1.2, color: homeMuted),
+        style: const TextStyle(fontSize: 8, height: 1.2, color: homeMuted),
       ),
     ),
   );
@@ -978,7 +989,7 @@ class HomeCommunity extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     const Text(
-                      '—',
+                      '\u2014',
                       style: TextStyle(
                         fontSize: 17,
                         height: 1.3,

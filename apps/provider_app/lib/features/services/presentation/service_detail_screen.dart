@@ -12,11 +12,43 @@ import '../../home/presentation/provider_home_widgets.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../application/service_detail_controller.dart';
+import '../data/registration_repository.dart';
+import '../domain/service_registration.dart';
+import '../application/shared_option_route.dart';
 import 'service_catalog_visuals.dart';
 
 class ServiceDetailScreen extends ConsumerWidget {
   const ServiceDetailScreen({required this.serviceTypeId, super.key});
   final int serviceTypeId;
+  Future<bool> openSource(
+    BuildContext context,
+    WidgetRef ref,
+    int optionId,
+  ) async {
+    final result = await ref
+        .read(registrationRepositoryProvider)
+        .sharedRegistration(optionId);
+    if (!context.mounted) return true;
+    if (result is Failure<SharedOptionRegistration?>) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(result.failure.message)));
+      return true;
+    }
+    final source = (result as Success<SharedOptionRegistration?>).value;
+    if (source != null && source.registrationServiceTypeId != serviceTypeId) {
+      final value = ref
+          .read(serviceDetailControllerProvider(serviceTypeId))
+          .asData
+          ?.value;
+      final incomplete =
+          value is Success<ServiceDetailState> &&
+          value.value.incompleteRegistrationIds.contains(optionId);
+      context.push(sharedOptionRoute(source, incomplete: incomplete));
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final provider = serviceDetailControllerProvider(serviceTypeId);
@@ -50,7 +82,10 @@ class ServiceDetailScreen extends ConsumerWidget {
                                 register: () => context.push(
                                   '/services/$serviceTypeId/register?details=1',
                                 ),
-                                manage: (id) {
+                                manage: (id) async {
+                                  if (await openSource(context, ref, id) ||
+                                      !context.mounted)
+                                    return;
                                   final option = result.value.registered
                                       .where((option) => option.optionId == id)
                                       .firstOrNull;
@@ -75,7 +110,10 @@ class ServiceDetailScreen extends ConsumerWidget {
                                         : '/services/$serviceTypeId/register?optionId=$id',
                                   );
                                 },
-                                startOption: (id) {
+                                startOption: (id) async {
+                                  if (await openSource(context, ref, id) ||
+                                      !context.mounted)
+                                    return;
                                   if (!result.value.selected.contains(id)) {
                                     ref.read(provider.notifier).toggle(id);
                                   }
@@ -138,10 +176,10 @@ class _Overview extends StatelessWidget {
   }) => Text(
     value,
     style: TextStyle(
-      fontFamily: 'HomeLato',
+      fontFamily: 'PublicSans',
       fontSize: size,
       height: 1.3,
-      fontWeight: bold ? FontWeight.w900 : FontWeight.w400,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
       color: color,
     ),
   );
@@ -390,7 +428,7 @@ class _Overview extends StatelessWidget {
                 onPressed: register,
                 child: const Text(
                   'Register for this Service',
-                  style: TextStyle(fontFamily: 'HomeLato', fontSize: 13.5),
+                  style: TextStyle(fontFamily: 'PublicSans', fontSize: 13.5),
                 ),
               ),
             ),

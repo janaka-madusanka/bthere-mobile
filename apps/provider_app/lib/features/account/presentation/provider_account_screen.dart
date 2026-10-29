@@ -215,7 +215,7 @@ class _ProviderAccountScreenState extends ConsumerState<ProviderAccountScreen> {
                                 ),
                                 child: DefaultTextStyle(
                                   style: const TextStyle(
-                                    fontFamily: 'HomeInter',
+                                    fontFamily: 'PublicSans',
                                     color: _ink,
                                     fontSize: 10,
                                     height: 1.22,

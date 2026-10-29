@@ -293,7 +293,11 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
         .where((o) => value.selected.contains(o.optionId))
         .toList();
     final available = value.schema.options
-        .where((o) => !value.selected.contains(o.optionId))
+        .where(
+          (o) =>
+              !value.selected.contains(o.optionId) &&
+              !value.registrationSources.containsKey(o.optionId),
+        )
         .toList();
     final languageNames = registrationLanguages(draft['languages'])
         .map((language) => language[0] + language.substring(1).toLowerCase())
@@ -350,7 +354,7 @@ class _DetailsState extends ConsumerState<RegistrationDetails> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         textStyle: const TextStyle(
-                          fontFamily: 'HomeInter',
+                          fontFamily: 'PublicSans',
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
