@@ -35,6 +35,26 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_svg: ^2.3.0
+  xml: ^7.0.1
+  file_picker: ^13.1.0
+  http_parser: ^4.1.2
+  flutter_riverpod: ^3.4.3
+  go_router: ^18.0.2
+  bthere_design_system: ^0.0.1
+  bthere_network: ^0.0.1
+  bthere_session: ^0.0.1
+  lottie: ^3.6.1
+  google_maps_flutter: ^2.19.0
+  timezone: ^0.11.2
+  geolocator: ^14.0.1
+  geocoding: ^5.0.0
+  url_launcher: ^6.3.3
+  collection: ^1.19.1
+  http: ^1.6.0
+  flutter_google_places_sdk: 0.4.2
+  # 0.2.2 uses removed Places 5.x getters and does not compile; keep this pair pinned.
+  flutter_google_places_sdk_android: 0.2.1
 
 dev_dependencies:
   flutter_test:
@@ -57,6 +77,25 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/icons/payment/
+    - assets/illustrations/get_a_service.png
+    - assets/illustrations/payment/
+    - assets/illustrations/booking/
+    - assets/icons/navigation/
+    - assets/branding/
+    - assets/animations/
+  fonts:
+    - family: Public Sans
+      fonts:
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -77,11 +116,31 @@ flutter:
   # fonts:
   #   - family: Schyler
   #     fonts:
+    - family: Public Sans
+      fonts:
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 700
   #       - asset: fonts/Schyler-Regular.ttf
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   #   - family: Trajan Pro
   #     fonts:
+    - family: Public Sans
+      fonts:
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/PublicSans-Variable.ttf
+          weight: 700
   #       - asset: fonts/TrajanPro.ttf
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
