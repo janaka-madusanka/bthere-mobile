@@ -227,68 +227,6 @@ class _Overview extends StatelessWidget {
                       11.5,
                       color: servicesMuted,
                     ),
-                    if (value.service.responsibilities.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFFBFC),
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    text(
-                                      'Key Responsibilities',
-                                      13,
-                                      bold: true,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    for (final line
-                                        in value.service.responsibilities
-                                            .map(
-                                              (item) => item.description == null
-                                                  ? item.title
-                                                  : '${item.title}: ${item.description}',
-                                            )
-                                            .toList())
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 4,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const SizedBox(
-                                              width: 13,
-                                              height: 13,
-                                              child: _Asset('imgCheckBadge'),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: text(
-                                                line,
-                                                11.1,
-                                                color: servicesMuted,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -318,6 +256,60 @@ class _Overview extends StatelessWidget {
             ],
           ),
         ),
+        if (value.service.responsibilities.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFFBFC),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        text('Key Responsibilities', 13, bold: true),
+                        const SizedBox(height: 6),
+                        for (final line
+                            in value.service.responsibilities
+                                .map(
+                                  (item) => item.description == null
+                                      ? item.title
+                                      : '${item.title}: ${item.description}',
+                                )
+                                .toList())
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: _Asset('imgCheckBadge'),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: text(line, 11.1, color: servicesMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (value.service.gallery.any((item) => item.usableUri != null))
           SizedBox(
             height: 88,

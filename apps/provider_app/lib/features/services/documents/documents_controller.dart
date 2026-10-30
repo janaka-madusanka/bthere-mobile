@@ -207,11 +207,20 @@ class DocumentsController extends Notifier<DocumentsState> {
     emit();
     await Future.wait([
       () async {
-        final result = await safe(() => repo.requirements(serviceTypeId));
+        final results = await Future.wait([
+          safe(() => repo.requirements(serviceTypeId)),
+          safe(repo.documentTypes),
+        ]);
         if (!ref.mounted) return;
         state.requirementsLoading = false;
-        if (result case Success<List<DocumentRequirement>>(:final value)) {
-          state.requirements = value;
+        final requiredResult = results[0];
+        final typesResult = results[1];
+        if (requiredResult is Success<List<DocumentRequirement>> &&
+            typesResult is Success<List<ProviderDocumentTypeDefinition>>) {
+          state.requirements = applyDocumentTypeDefinitions(
+            requiredResult.value,
+            typesResult.value,
+          );
         } else {
           state.requirementsError =
               'Unable to load document requirements. Please retry.';
@@ -384,6 +393,12 @@ class DocumentsController extends Notifier<DocumentsState> {
       emit();
       return;
     }
+    if (draft.requirement.parts.isNotEmpty) {
+      state.operationError =
+          'This document needs multiple configured parts. Reload the document requirements and use the matching document form.';
+      emit();
+      return;
+    }
     draft.errors.clear();
     if (draft.file == null) {
       draft.errors['file'] = 'Please choose a document file.';
@@ -395,7 +410,19 @@ class DocumentsController extends Notifier<DocumentsState> {
       draft.errors['issued'] =
           'The saved issued date is invalid. Please reopen the document.';
     }
-    if (draft.requirement.hasExpiry &&
+    if (draft.requirement.issuedDateRequired && draft.issued.isEmpty) {
+      draft.errors['issued'] = 'Enter the issued date.';
+    }
+    if (draft.requirement.expiryDateRequired && draft.expiry.isEmpty) {
+      draft.errors['expiry'] = 'Enter the expiry date.';
+    }
+    if (!draft.requirement.issuedDateVisible && draft.issued.isNotEmpty) {
+      draft.errors['issued'] = 'This document type does not accept an issued date.';
+    }
+    if (!draft.requirement.expiryDateVisible && draft.expiry.isNotEmpty) {
+      draft.errors['expiry'] = 'This document type does not accept an expiry date.';
+    }
+    if (draft.requirement.expiryDateVisible &&
         draft.expiry.isNotEmpty &&
         !dateValid(draft.expiry)) {
       draft.errors['expiry'] =
@@ -453,8 +480,8 @@ class DocumentsController extends Notifier<DocumentsState> {
           name: draft.name.trim(),
           number: draft.number,
           key: draft.upload!.key,
-          issuedDate: draft.issued,
-          expiryDate: draft.requirement.hasExpiry ? draft.expiry : null,
+          issuedDate: draft.requirement.issuedDateVisible ? draft.issued : '',
+          expiryDate: draft.requirement.expiryDateVisible ? draft.expiry : null,
         ),
       );
       if (!ref.mounted) return;

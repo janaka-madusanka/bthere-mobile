@@ -563,6 +563,9 @@ void main() {
     'unregistered subservice opens its editor and back returns to overview',
     (tester) async {
       final f = ServiceFixture(existing: true);
+      (f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts).drafts[3] = readyRegistrationDraft();
       await pump(tester, f, route: '/services/3');
       await tester.ensureVisible(find.text('Work type 13'));
       await tester.tap(find.text('Work type 13'));
@@ -585,6 +588,53 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RegistrationOptionEditor), findsNothing);
       expect(find.text('Your Registered Sub-services'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'missing service languages exposes the full form when adding a subservice',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      await pump(
+        tester,
+        f,
+        route: '/services/3/register?optionId=13&details=1',
+      );
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(find.byType(RegistrationOptionEditor), findsNothing);
+      await tester.ensureVisible(find.text('Select languages'));
+      await tester.tap(find.text('Select languages'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English'));
+      await tester.tap(find.text('Save Languages'));
+      await tester.pumpAndSettle();
+      expect(find.text('English'), findsOneWidget);
+      expect(f.options.saves, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'new required skill configuration exposes service details despite saved languages',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      final data = optionsSchema();
+      data['serviceSetup']['skills'] = [
+        {'skillId': 987, 'name': 'New configured skill', 'required': true},
+      ];
+      f.schema.result = Success(parseProviderSchema(data, 3));
+      (f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts).drafts[3] = readyRegistrationDraft();
+      await pump(
+        tester,
+        f,
+        route: '/services/3/register?optionId=13&details=1',
+      );
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(find.byType(RegistrationOptionEditor), findsNothing);
+      expect(find.byKey(const ValueKey('skill-987')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

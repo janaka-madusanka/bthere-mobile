@@ -98,6 +98,7 @@ class AssignedBooking {
         'rateId',
         'expectedAmount',
         'paymentMethod',
+        'paymentFundingMode',
         'platformFeePercentage',
         'platformFee',
         'pricingSelections',
@@ -114,9 +115,16 @@ class AssignedBooking {
   Object? get pricingSelections => details['pricingSelections'];
   Object? get pricingSnapshot => details['pricingSnapshot'];
   bool get completed => status == 'COMPLETED';
-  bool get paid => paymentStatus == 'PAID' || paymentStatus == 'SETTLED';
-  bool get canStart => paid && status == 'BOOKING_CONFIRMED';
-  bool get canComplete => paid && status == 'IN_PROGRESS';
+  // A customer-funded wallet reservation is funded for provider START and
+  // completion even though it is not reported as PAID.
+  bool get funded =>
+      paymentStatus == 'PAID' ||
+      paymentStatus == 'SETTLED' ||
+      (paymentMethod == 'WALLET' && paymentStatus == 'RESERVED');
+  bool get paid => funded;
+  String? get paymentMethod => details['paymentMethod'] as String?;
+  bool get canStart => funded && status == 'BOOKING_CONFIRMED';
+  bool get canComplete => funded && status == 'IN_PROGRESS';
   String get earningsLabel => "You'll earn $currency $earnings";
   String get statusLabel => switch (status) {
     'AWAITING_COMPLETION_CONFIRMATION' => 'Waiting for customer confirmation',

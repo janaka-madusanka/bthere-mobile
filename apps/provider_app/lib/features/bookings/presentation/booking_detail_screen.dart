@@ -420,9 +420,9 @@ class BookingDetailScreen extends ConsumerWidget {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          maxLength: 6,
+          maxLength: 4,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Six-digit code'),
+          decoration: const InputDecoration(labelText: 'Four-digit code'),
         ),
         actions: [
           TextButton(

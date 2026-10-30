@@ -647,14 +647,14 @@ class DocumentMetadataForm extends StatelessWidget {
                 decoration: const InputDecoration(labelText: 'Document number'),
                 onChanged: (v) => draft.number = v,
               ),
-              DocumentDateField(
+              if (draft.requirement.issuedDateVisible) DocumentDateField(
                 value: draft.issued,
                 enabled: enabled,
                 label: 'Issued date (YYYY-MM-DD)',
                 error: draft.errors['issued'],
                 onChanged: (value) => draft.issued = value,
               ),
-              if (draft.requirement.hasExpiry)
+              if (draft.requirement.expiryDateVisible)
                 DocumentDateField(
                   value: draft.expiry,
                   enabled: enabled,

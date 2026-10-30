@@ -34,6 +34,40 @@ List<DocumentRequirement> parseRequirements(Object? data) {
       if (!ids.add('$id:${optionId ?? 'common'}')) {
         throw const FormatException('Duplicate document requirement');
       }
+      final issuedMode = m['issuedDateMode'] == null
+          ? 'OPTIONAL'
+          : json.string(m['issuedDateMode']);
+      final expiryMode = m['expiryDateMode'] == null
+          ? null
+          : json.string(m['expiryDateMode']);
+      if (!const {'HIDDEN', 'OPTIONAL', 'REQUIRED'}.contains(issuedMode) ||
+          (expiryMode != null &&
+              !const {'HIDDEN', 'OPTIONAL', 'REQUIRED'}.contains(expiryMode))) {
+        throw const FormatException('Invalid document date mode');
+      }
+      final parts = (m['parts'] == null ? const <dynamic>[] : json.array(m['parts']))
+          .map((raw) {
+            final part = json.object(raw);
+            final maxFiles = json.integer(part['maximumFiles'], positive: true);
+            final maxSize = json.integer(part['maximumFileSizeMb'], positive: true);
+            if (maxFiles > 100 || maxSize > 100) {
+              throw const FormatException('Invalid document part limits');
+            }
+            return DocumentPartDefinition(
+              code: json.string(part['code']),
+              label: json.string(part['label']),
+              required: json.boolean(part['required']),
+              maximumFiles: maxFiles,
+              maximumFileSizeMb: maxSize,
+              allowedFileTypes: part['allowedFileTypes'] == null
+                  ? const []
+                  : List.unmodifiable(json.array(part['allowedFileTypes']).map(json.string)),
+            );
+          })
+          .toList();
+      if (parts.map((part) => part.code).toSet().length != parts.length) {
+        throw const FormatException('Duplicate document part');
+      }
       return DocumentRequirement(
         id,
         json.string(m['documentTypeName']),
@@ -42,9 +76,66 @@ List<DocumentRequirement> parseRequirements(Object? data) {
         json.boolean(m['required']),
         json.boolean(m['requiresApproval']),
         optionId: optionId,
+        issuedDateMode: issuedMode,
+        expiryDateMode: expiryMode,
+        parts: List.unmodifiable(parts),
       );
     }),
   );
+}
+
+List<ProviderDocumentTypeDefinition> parseDocumentTypes(Object? data) =>
+    List.unmodifiable(json.array(data).map((raw) {
+      final item = json.object(raw);
+      final id = json.integer(item['id'], positive: true);
+      final issued = json.string(item['issuedDateMode']);
+      final expiry = json.string(item['expiryDateMode']);
+      if (!const {'HIDDEN', 'OPTIONAL', 'REQUIRED'}.contains(issued) ||
+          !const {'HIDDEN', 'OPTIONAL', 'REQUIRED'}.contains(expiry)) {
+        throw const FormatException('Invalid document date mode');
+      }
+      final parts = parseRequirements([
+        {
+          'documentTypeId': id,
+          'documentTypeName': json.string(item['name']),
+          'hasExpiry': expiry != 'HIDDEN',
+          'required': false,
+          'requiresApproval': false,
+          'issuedDateMode': issued,
+          'expiryDateMode': expiry,
+          'parts': item['parts'] ?? const [],
+        },
+      ]).single.parts;
+      return ProviderDocumentTypeDefinition(
+        id: id,
+        name: json.string(item['name']),
+        issuedDateMode: issued,
+        expiryDateMode: expiry,
+        parts: parts,
+      );
+    }));
+
+List<DocumentRequirement> applyDocumentTypeDefinitions(
+  List<DocumentRequirement> requirements,
+  List<ProviderDocumentTypeDefinition> definitions,
+) {
+  final byId = {for (final definition in definitions) definition.id: definition};
+  return List.unmodifiable(requirements.map((requirement) {
+    final definition = byId[requirement.id];
+    if (definition == null) return requirement;
+    return DocumentRequirement(
+      requirement.id,
+      requirement.name,
+      requirement.description,
+      definition.expiryDateMode != 'HIDDEN',
+      requirement.required,
+      requirement.requiresApproval,
+      optionId: requirement.optionId,
+      issuedDateMode: definition.issuedDateMode,
+      expiryDateMode: definition.expiryDateMode,
+      parts: definition.parts,
+    );
+  }));
 }
 
 List<ProviderDocument> parseDocuments(Object? data) {
@@ -60,6 +151,13 @@ List<ProviderDocument> parseDocuments(Object? data) {
       final id = read('documentId', (v) => json.integer(v, positive: true));
       if (!ids.add(id)) throw const FormatException('Duplicate document');
       final date = read('expiryDate', (v) => v == null ? null : dateOnly(v));
+      List<Map<String, Object?>> maps(String key) {
+        final raw = m[key];
+        if (raw == null) return const [];
+        return List.unmodifiable(
+          json.array(raw).map((item) => Map<String, Object?>.unmodifiable(json.object(item))),
+        );
+      }
       return ProviderDocument(
         id,
         read('documentTypeId', (v) => json.integer(v, positive: true)),
@@ -91,6 +189,8 @@ List<ProviderDocument> parseDocuments(Object? data) {
               DateTime.tryParse(json.string(v)) ??
               (throw const FormatException('Invalid created date')),
         ),
+        parts: maps('parts'),
+        partDefinitions: maps('partDefinitions'),
       );
     }),
   );
@@ -151,6 +251,17 @@ class ApiDocumentsRepository implements DocumentsRepository {
           )).data,
         );
       }, resource: 'document-requirements');
+  @override
+  Future<Result<List<ProviderDocumentTypeDefinition>>> documentTypes() =>
+      request(
+        () async => parseDocumentTypes(
+          (await client.get<Object?>(
+            '/document-types',
+            requiresAuth: true,
+          )).data,
+        ),
+        resource: 'document-types',
+      );
   @override
   Future<Result<List<ProviderDocument>>> documents() => request(
     () async => parseDocuments(

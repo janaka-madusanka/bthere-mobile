@@ -104,7 +104,6 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       var service = await current();
       if (!mounted) return;
       if (widget.optionId != null &&
-          service.registered.isNotEmpty &&
           service.schema.options.any((o) => o.optionId == widget.optionId) &&
           !service.selected.contains(widget.optionId)) {
         ref
@@ -544,7 +543,11 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     if (step == 2 &&
         detailsReady &&
         focusedOption != null &&
-        cached!.registered.isNotEmpty &&
+        // Linked registrations do not establish this service's shared details.
+        // Use the focused editor only when service-level requirements are ready;
+        // otherwise expose the full form so every validation error is actionable.
+        cached!.assignment != null &&
+        validateRegistrationDraft(cached!.schema, <int>{}, draft) == null &&
         !cached!.registered.any(
           (option) => option.optionId == focusedOption.optionId,
         )) {

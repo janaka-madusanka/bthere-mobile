@@ -1,3 +1,6 @@
+import 'package:provider_app/features/services/presentation/registration_details.dart';
+import 'package:provider_app/features/services/presentation/registration_option_editor.dart';
+
 import 'dart:convert';
 
 import 'package:bthere_common/bthere_common.dart';
@@ -91,6 +94,23 @@ void main() {
         expect(value.registrationSources[12]!.assignmentId, 140);
         expect(value.selected, isEmpty);
         expect(find.text('Your Registered Sub-services'), findsOneWidget);
+        // A linked registration must not hide the new service's prerequisites.
+        expect(find.text('Work type 12'), findsOneWidget);
+        await tester.ensureVisible(find.text('Work type 13'));
+        await tester.tap(find.text('Work type 13'));
+        await tester.pumpAndSettle();
+        expect(find.byType(RegistrationDetails), findsOneWidget);
+        expect(find.byType(RegistrationOptionEditor), findsNothing);
+        expect(find.text('Select languages'), findsOneWidget);
+        expect(find.byKey(const ValueKey('sub-service-12')), findsNothing);
+        final editing = await fixture.container.read(
+          serviceDetailControllerProvider(serviceId).future,
+        );
+        expect((editing as Success<ServiceDetailState>).value.selected, {13});
+        expect(fixture.services.submissions, 0);
+        expect(registration.writes, isEmpty);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
         final row = find.byKey(const ValueKey('registered-option-12'));
         expect(row, findsOneWidget);
         await tester.ensureVisible(row);

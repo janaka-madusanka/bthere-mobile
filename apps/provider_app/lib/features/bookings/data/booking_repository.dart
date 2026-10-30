@@ -51,9 +51,9 @@ class BookingRepository {
     await _readMoney('$_base/bookings/${bookingId(jobId)}'),
   );
   Future<BookingTransition> start(int jobId, String code) async {
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+    if (!RegExp(r'^\d{4}$').hasMatch(code)) {
       throw const FormatException(
-        'Enter the six-digit code from your customer.',
+        'Enter the four-digit code from your customer.',
       );
     }
     return BookingTransition.fromJson(
