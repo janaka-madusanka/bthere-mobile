@@ -86,7 +86,11 @@ class BookingController extends AsyncNotifier<BookingState> {
     if (events.any((e) => e.type == 'BOOKING_COMPLETED')) {
       ref.invalidate(walletControllerProvider);
     }
-    final next = BookingRecovery(after: cursor, jobs: _recovery.jobs);
+    final next = BookingRecovery(
+      after: cursor,
+      jobs: _recovery.jobs,
+      requests: _recovery.requests,
+    );
     await ref.read(bookingJournalProvider).write(_owner!, next);
     _check(epoch);
     _recovery = next;
@@ -138,12 +142,22 @@ class BookingController extends AsyncNotifier<BookingState> {
     final epoch = _epoch;
     final owner = _owner!;
     return _mutate(() async {
+      final currentOffers = await _repository.offers();
+      _check(epoch);
+      if (!currentOffers.any(
+        (current) =>
+            current.id == offer.id &&
+            current.pendingAt(ref.read(clockProvider)()),
+      )) {
+        throw const FormatException('This offer is no longer available.');
+      }
       final result = await _repository.decide(offer.id, accept: accept);
       _check(epoch);
       if (accept && result.jobId != null) {
         final next = BookingRecovery(
           after: _recovery.after,
           jobs: {..._recovery.jobs, result.jobId!},
+          requests: {..._recovery.requests, result.jobId!: result.requestId},
         );
         _recovery = next;
         await ref.read(bookingJournalProvider).write(owner, next);
@@ -164,6 +178,14 @@ class BookingController extends AsyncNotifier<BookingState> {
       }
     });
   }
+
+  int? requestIdFor(int jobId) => _recovery.requests[jobId];
+
+  Future<bool> cancelUnpaid(int requestId) =>
+      _mutate(() => _repository.cancelUnpaid(requestId));
+
+  Future<bool> extendDeadline(int requestId, DateTime target) =>
+      _mutate(() => _repository.extendDeadline(requestId, target));
 
   Future<bool> complete(AssignedBooking booking) async {
     if (!booking.canComplete) return false;

@@ -17,6 +17,9 @@ class BookingJournal {
     if (raw == null) return const BookingRecovery();
     final j = jsonDecode(raw) as Map<String, dynamic>;
     return BookingRecovery(
+      requests: (j['requests'] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(int.parse(key), value as int),
+      ),
       after: j['after'] as int,
       jobs: (j['jobs'] as List).cast<int>().toSet(),
     );
@@ -24,12 +27,23 @@ class BookingJournal {
 
   Future<void> write(int owner, BookingRecovery recovery) => store.write(
     _key(owner),
-    jsonEncode({'after': recovery.after, 'jobs': recovery.jobs.toList()}),
+    jsonEncode({
+      'after': recovery.after,
+      'jobs': recovery.jobs.toList(),
+      'requests': recovery.requests.map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
+    }),
   );
 }
 
 class BookingRecovery {
-  const BookingRecovery({this.after = 0, this.jobs = const {}});
+  const BookingRecovery({
+    this.after = 0,
+    this.jobs = const {},
+    this.requests = const {},
+  });
   final int after;
   final Set<int> jobs;
+  final Map<int, int> requests;
 }

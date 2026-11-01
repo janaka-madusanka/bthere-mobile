@@ -90,6 +90,7 @@ void main() {
       isTrue,
     );
     expect((await journal.read(12)).jobs, {70});
+    expect((await journal.read(12)).requests, {70: 501});
     expect(
       container
           .read(bookingControllerProvider)

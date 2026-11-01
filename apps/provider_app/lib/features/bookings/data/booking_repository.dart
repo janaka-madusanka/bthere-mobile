@@ -38,15 +38,24 @@ class BookingRepository {
         .toList();
   }
 
-  Future<BookingDecision> decide(
-    int offerId, {
-    required bool accept,
-  }) async => BookingDecision.fromJson(
-    (await client.post<Object?>(
-      '$_base/booking-offers/${bookingId(offerId)}/${accept ? 'accept' : 'decline'}',
-      requiresAuth: true,
-    )).data,
-  );
+  Future<BookingDecision> decide(int offerId, {required bool accept}) async {
+    try {
+      return BookingDecision.fromJson(
+        (await client.post<Object?>(
+          '$_base/booking-offers/${bookingId(offerId)}/${accept ? 'accept' : 'decline'}',
+          requiresAuth: true,
+        )).data,
+      );
+    } on NetworkException catch (e) {
+      if (e.statusCode == 409) {
+        throw const FormatException(
+          'This offer is no longer available. Another provider may have accepted it.',
+        );
+      }
+      rethrow;
+    }
+  }
+
   Future<AssignedBooking> booking(int jobId) async => AssignedBooking.fromJson(
     await _readMoney('$_base/bookings/${bookingId(jobId)}'),
   );
@@ -72,6 +81,28 @@ class BookingRepository {
           requiresAuth: true,
         )).data,
       );
+  Future<BookingPaymentWindow> paymentWindow(int requestId) async =>
+      BookingPaymentWindow.fromJson(
+        await _readMoney(
+          '$_base/booking-requests/${bookingId(requestId)}/payment-window',
+        ),
+      );
+
+  Future<void> cancelUnpaid(int requestId) async {
+    await client.post<Object?>(
+      '$_base/booking-requests/${bookingId(requestId)}/cancel',
+      requiresAuth: true,
+    );
+  }
+
+  Future<void> extendDeadline(int requestId, DateTime target) async {
+    await client.put<Object?>(
+      '$_base/booking-requests/${bookingId(requestId)}/payment-deadline',
+      requiresAuth: true,
+      data: {'confirmationExpiresAt': target.toUtc().toIso8601String()},
+    );
+  }
+
   Future<int> registerDevice({
     required String token,
     required String platform,

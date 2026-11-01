@@ -166,6 +166,18 @@ class WalletController extends AsyncNotifier<WalletViewState> {
     }
   }
 
+  Future<void> removeMethod(int methodId) => _perform((epoch) async {
+    final current = state.requireValue;
+    await _repository.removeMethod(methodId);
+    _check(epoch);
+    return WalletViewState(
+      snapshot: await _repository.load(),
+      request: current.request,
+      intent: current.intent,
+      notice: 'Payment method removed.',
+    );
+  });
+
   Future<void> addMethod(String type) => _perform((epoch) async {
     final current = state.requireValue;
     final c = current.snapshot.capabilities;

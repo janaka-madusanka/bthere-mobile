@@ -64,10 +64,13 @@ class BookingDecision {
 }
 
 class AssignedBooking {
-  AssignedBooking.fromJson(Object? value) {
+  AssignedBooking.fromJson(Object? value, {int? knownRequestId}) {
     final j = bookingObject(value);
     id = bookingId(j['jobId']);
     serviceTypeId = bookingId(j['serviceTypeId']);
+    requestId = j['requestId'] == null
+        ? knownRequestId
+        : bookingId(j['requestId']);
     status = j['status'] as String;
     paymentStatus = j['paymentStatus'] as String;
     currency = j['currencyCode'] as String;
@@ -108,6 +111,7 @@ class AssignedBooking {
     });
   }
   late final int id, serviceTypeId;
+  late final int? requestId;
   late final String status, paymentStatus, currency, earnings;
   late final String? start, end, address;
   late final Object? answers;
@@ -123,10 +127,14 @@ class AssignedBooking {
       (paymentMethod == 'WALLET' && paymentStatus == 'RESERVED');
   bool get paid => funded;
   String? get paymentMethod => details['paymentMethod'] as String?;
-  bool get canStart => funded && status == 'BOOKING_CONFIRMED';
+  bool get canStart =>
+      funded && ['BOOKING_CONFIRMED', 'CONFIRMED'].contains(status);
   bool get canComplete => funded && status == 'IN_PROGRESS';
   String get earningsLabel => "You'll earn $currency $earnings";
   String get statusLabel => switch (status) {
+    'CONFIRMED' || 'BOOKING_CONFIRMED' => 'Confirmed',
+    'CANCELLED' => 'Cancelled',
+    'EXPIRED' => 'Expired',
     'AWAITING_COMPLETION_CONFIRMATION' => 'Waiting for customer confirmation',
     'AWAITING_PAYMENT' => 'Waiting for customer payment',
     'AWAITING_CUSTOMER_CONFIRMATION' => 'Waiting for customer confirmation',
@@ -155,4 +163,21 @@ class BookingTransition {
   }
   late final bool successful;
   late final String status;
+}
+
+class BookingPaymentWindow {
+  BookingPaymentWindow.fromJson(Object? value) {
+    final j = bookingObject(value);
+    requestId = bookingId(j['requestId']);
+    status = j['status'] as String;
+    paymentStatus = j['paymentStatus'] as String;
+    deadline = DateTime.parse(j['confirmationExpiresAt'] as String).toUtc();
+    limit = DateTime.parse(j['paymentDeadlineLimit'] as String).toUtc();
+    canCancel = j['canCancel'] == true;
+    canExtend = j['canExtend'] == true;
+  }
+  late final int requestId;
+  late final String status, paymentStatus;
+  late final DateTime deadline, limit;
+  late final bool canCancel, canExtend;
 }

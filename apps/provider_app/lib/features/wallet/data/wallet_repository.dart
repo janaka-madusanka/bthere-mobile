@@ -80,6 +80,27 @@ class WalletRepository {
           .map(WalletMethod.fromJson)
           .toList();
 
+  Future<void> removeMethod(int methodId) async {
+    if (methodId <= 0) throw const FormatException('Invalid payment method');
+    try {
+      await client.delete<Object?>(
+        '/me/payment-methods/$methodId',
+        requiresAuth: true,
+      );
+    } on NetworkException catch (e) {
+      final message = switch (e.statusCode) {
+        409 => 'This method is used by a pending payment. Wait for it to finish, then retry.',
+        404 => 'Payment method not found. Refresh saved methods.',
+        _ => e.message,
+      };
+      throw NetworkException(
+        kind: e.kind,
+        message: message,
+        statusCode: e.statusCode,
+      );
+    }
+  }
+
   Future<WalletMethod> setup(String type) async {
     if (!['CARD', 'BANK_ACCOUNT'].contains(type)) {
       throw const FormatException('Invalid method');

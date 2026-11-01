@@ -27,9 +27,49 @@ class _MethodsSheet extends ConsumerWidget {
               'Add a payment method to use with your wallet.',
               style: TextStyle(fontSize: 12),
             ),
+            if (c.testMode)
+              const _WalletMessage(
+                text: 'Test payments - Saved methods are synthetic. No real card is charged.',
+              ),
             const SizedBox(height: 16),
             for (final method in value.snapshot.methods)
-              _MethodRow(method: method, scale: 1),
+              Row(
+                children: [
+                  Expanded(child: _MethodRow(method: method, scale: 1)),
+                  IconButton(
+                    tooltip: 'Remove ${method.label}',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: !enabled
+                        ? null
+                        : () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Remove saved method?'),
+                                content: Text(
+                                  'Remove ${method.label}? Completed payments and wallet balances are kept.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Keep'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Remove'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              await controller.removeMethod(method.id);
+                            }
+                          },
+                  ),
+                ],
+              ),
             if (value.snapshot.methods.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(12),

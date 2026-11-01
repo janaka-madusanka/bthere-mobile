@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -26,6 +27,54 @@ class PreviewBookings extends BookingController {
 }
 
 void main() {
+  testWidgets('incoming offer requires a completed slide and blocks repeats', (
+    tester,
+  ) async {
+    var accepts = 0;
+    var declines = 0;
+    final pending = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              child: IncomingOfferSlider(
+                busy: false,
+                onAccept: () {
+                  accepts++;
+                  return pending.future;
+                },
+                onDecline: () async {
+                  declines++;
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final handle = find.byKey(const ValueKey('incoming-offer-handle'));
+    final origin = tester.getCenter(handle);
+    await tester.tap(find.byIcon(Icons.check));
+    await tester.tap(handle);
+    expect(accepts, 0);
+    await tester.drag(handle, const Offset(45, 0));
+    await tester.pumpAndSettle();
+    expect(accepts, 0);
+    expect(tester.getCenter(handle), origin);
+    await tester.tap(find.byTooltip('Decline request'));
+    expect(declines, 1);
+    await tester.drag(handle, const Offset(140, 0));
+    await tester.pump();
+    expect(accepts, 1);
+    await tester.drag(handle, const Offset(140, 0));
+    expect(accepts, 1);
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(handle), origin);
+  });
+
   for (final width in [320.0, 430.0]) {
     testWidgets('booking screens and incoming request fit width $width', (
       tester,

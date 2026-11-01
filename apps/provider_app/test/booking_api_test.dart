@@ -162,8 +162,8 @@ void main() {
         'successful': false,
         'status': 'INVALID_CODE',
       };
-      expect((await repository.start(70, '123456')).successful, isFalse);
-      expect(adapter.requests.single.data, {'code': '123456'});
+      expect((await repository.start(70, '0123')).successful, isFalse);
+      expect(adapter.requests.single.data, {'code': '0123'});
       adapter.responses['/providers/me/bookings/70/complete'] = {
         'successful': true,
         'status': 'AWAITING_COMPLETION_CONFIRMATION',
@@ -189,6 +189,65 @@ void main() {
       expect(waiting.canComplete, isFalse);
     },
   );
+  test(
+    'payment window uses request IDs and extension sends absolute UTC',
+    () async {
+      const base = '/providers/me/booking-requests/501';
+      adapter.responses['$base/payment-window'] = {
+        'requestId': 501,
+        'status': 'AWAITING_CUSTOMER_CONFIRMATION',
+        'paymentStatus': 'FAILED',
+        'confirmationExpiresAt': '2030-01-02T12:15:00Z',
+        'paymentDeadlineLimit': '2030-01-02T12:30:00Z',
+        'canPay': false,
+        'canCancel': true,
+        'canExtend': true,
+      };
+      final window = await repository.paymentWindow(501);
+      expect(window.canCancel, isTrue);
+      expect(window.canExtend, isTrue);
+      expect(adapter.requests.last.method, 'GET');
+      expect(adapter.requests.last.data, isNull);
+      adapter.responses['$base/payment-deadline'] = {
+        'status': 'AWAITING_CUSTOMER_CONFIRMATION',
+      };
+      final target = DateTime.parse('2030-01-02T17:50:00+05:30');
+      await repository.extendDeadline(501, target);
+      expect(adapter.requests.last.method, 'PUT');
+      expect(adapter.requests.last.data, {
+        'confirmationExpiresAt': '2030-01-02T12:20:00.000Z',
+      });
+      adapter.responses['$base/cancel'] = {'status': 'CANCELLED'};
+      await repository.cancelUnpaid(501);
+      expect(adapter.requests.last.method, 'POST');
+      expect(adapter.requests.last.data, isNull);
+      expect(
+        adapter.requests.last.headers['Authorization'],
+        'Bearer synthetic-access',
+      );
+    },
+  );
+
+  test(
+    'CONFIRMED starts only when funded; four digits preserve zeros',
+    () async {
+      expect(
+        AssignedBooking.fromJson(
+          bookingJson(status: 'CONFIRMED', payment: 'PAID'),
+        ).canStart,
+        isTrue,
+      );
+      expect(
+        AssignedBooking.fromJson(bookingJson(status: 'CONFIRMED')).canStart,
+        isFalse,
+      );
+      for (final code in ['123456', '123', 'abcd', '12 3']) {
+        await expectLater(repository.start(70, code), throwsFormatException);
+      }
+      expect(adapter.requests, isEmpty);
+    },
+  );
+
   test(
     'event cursor and booking device contracts are provider authenticated',
     () async {
