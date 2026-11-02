@@ -385,6 +385,9 @@ void main() {
         find.byType(RegistrationOptionEditor),
       );
       expect(editor.assignmentId, 14);
+      expect(editor.asSheet, isTrue);
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.byType(RegistrationPage), findsOneWidget);
       expect(editor.loadSavedLocations, isFalse);
       expect(repository.areaLoads, isEmpty);
       expect(find.text('Retry loading locations'), findsNothing);
@@ -396,6 +399,38 @@ void main() {
     await pump(tester, f, route: '/services/register');
     expect(find.text('What service do you offer?'), findsOneWidget);
   });
+  testWidgets(
+    'failed service setup shows its safe error and Continue retries fresh data',
+    (tester) async {
+      final f = ServiceFixture();
+      f.schema.result = const Failure(
+        AppFailure(
+          message: 'Unable to load service requirements. Please try again.',
+          code: 'SCHEMA_INVALID_RESPONSE',
+        ),
+      );
+      await pump(tester, f, route: '/services/register');
+      await tester.tap(find.text('Home Nurse'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Unable to load service requirements. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('What service do you offer?'), findsOneWidget);
+      final calls = f.schema.calls.length;
+      f.schema.result = Success(parseProviderSchema(schema(), 3));
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(f.schema.calls.length, greaterThan(calls));
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(f.services.submissions, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'saved languages preselect the picker despite an old empty draft',
     (tester) async {
@@ -528,6 +563,9 @@ void main() {
     'unregistered subservice opens its editor and back returns to overview',
     (tester) async {
       final f = ServiceFixture(existing: true);
+      (f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts).drafts[3] = readyRegistrationDraft();
       await pump(tester, f, route: '/services/3');
       await tester.ensureVisible(find.text('Work type 13'));
       await tester.tap(find.text('Work type 13'));
@@ -550,6 +588,53 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RegistrationOptionEditor), findsNothing);
       expect(find.text('Your Registered Sub-services'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'missing service languages exposes the full form when adding a subservice',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      await pump(
+        tester,
+        f,
+        route: '/services/3/register?optionId=13&details=1',
+      );
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(find.byType(RegistrationOptionEditor), findsNothing);
+      await tester.ensureVisible(find.text('Select languages'));
+      await tester.tap(find.text('Select languages'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English'));
+      await tester.tap(find.text('Save Languages'));
+      await tester.pumpAndSettle();
+      expect(find.text('English'), findsOneWidget);
+      expect(f.options.saves, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'new required skill configuration exposes service details despite saved languages',
+    (tester) async {
+      final f = ServiceFixture(existing: true);
+      final data = optionsSchema();
+      data['serviceSetup']['skills'] = [
+        {'skillId': 987, 'name': 'New configured skill', 'required': true},
+      ];
+      f.schema.result = Success(parseProviderSchema(data, 3));
+      (f.container.read(
+        registrationDraftStoreProvider,
+      ) as MemoryRegistrationDrafts).drafts[3] = readyRegistrationDraft();
+      await pump(
+        tester,
+        f,
+        route: '/services/3/register?optionId=13&details=1',
+      );
+      expect(find.byType(RegistrationDetails), findsOneWidget);
+      expect(find.byType(RegistrationOptionEditor), findsNothing);
+      expect(find.byKey(const ValueKey('skill-987')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -690,11 +775,18 @@ void main() {
     final experience = find.byKey(const ValueKey('option-12-Experience'));
     final location = find.byKey(const ValueKey('option-12-Location & Area'));
     expect(
-      find.descendant(of: experience, matching: find.text('Not added')),
+      find.descendant(of: experience, matching: find.text('Added')),
       findsOneWidget,
     );
     expect(
       find.descendant(of: location, matching: find.text('Not added')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('option-12-Additional Information')),
+        matching: find.text('Not added'),
+      ),
       findsOneWidget,
     );
     expect(find.text('Incomplete'), findsOneWidget);

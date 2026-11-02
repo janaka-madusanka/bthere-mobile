@@ -45,12 +45,14 @@ final class ServiceSetupData {
                     fields.any((field) => field.required)),
           )
           .every((row) => row.completed);
-  List<ProviderRequirementField> get fields => List.unmodifiable([
-    ...schema.commonFields,
-    ...schema.options
-        .where((o) => selected.contains(o.optionId))
-        .expand((o) => o.fields),
-  ]);
+  List<ProviderRequirementField> get fields => List.unmodifiable(
+    [
+      ...schema.commonFields,
+      ...schema.options
+          .where((o) => selected.contains(o.optionId))
+          .expand((o) => o.fields),
+    ].where((f) => f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT'),
+  );
   List<ProviderRequirementRow> get rows {
     final filtered = ProviderOnboardingSchema(
       serviceTypeId: schema.serviceTypeId,

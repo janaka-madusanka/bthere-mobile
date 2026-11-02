@@ -48,7 +48,7 @@ class ProviderHomeScreen extends ConsumerWidget {
     final registered =
         result is Success<List<ProviderServiceAssignment>> &&
         result.value.isNotEmpty;
-    final foreground = registered ? const Color(0xFF080B42) : homeInk;
+    final foreground = registered ? const Color(0xFF0B3037) : homeInk;
     if (MediaQuery.textScalerOf(context).scale(14) > 18.2) {
       return HomeAccessible(
         assignments: result is Success<List<ProviderServiceAssignment>>
@@ -62,7 +62,7 @@ class ProviderHomeScreen extends ConsumerWidget {
     return Theme(
       data: Theme.of(context).copyWith(
         textTheme: Theme.of(context).textTheme.apply(
-          fontFamily: registered ? 'HomeLato' : 'HomeInter',
+          fontFamily: registered ? 'PublicSans' : 'PublicSans',
           bodyColor: foreground,
           displayColor: foreground,
         ),
@@ -93,8 +93,8 @@ class ProviderHomeScreen extends ConsumerWidget {
                             child: DefaultTextStyle(
                               style: TextStyle(
                                 fontFamily: registered
-                                    ? 'HomeLato'
-                                    : 'HomeInter',
+                                    ? 'PublicSans'
+                                    : 'PublicSans',
                                 color: foreground,
                                 fontSize: 14,
                                 height: 1.3,

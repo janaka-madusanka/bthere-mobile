@@ -25,9 +25,9 @@ abstract final class BThereTheme {
       colorScheme: scheme,
       textTheme: base.textTheme.copyWith(
         headlineLarge: BThereTypography.h1.copyWith(
-          fontSize: 28,
-          fontWeight: FontWeight.w800,
-          height: 1.3,
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          height: 32 / 24,
           color: scheme.onSurface,
         ),
       ),
@@ -90,7 +90,9 @@ abstract final class BThereTheme {
         ).copyWith(
           primary: dark ? BThereDarkColors.primary : BThereColors.primary,
           onPrimary: dark ? BThereDarkColors.onPrimary : BThereColors.surface,
-          primaryContainer: dark ? BThereColors.primary : BThereColors.softMint,
+          primaryContainer: dark
+              ? BThereColors.primary
+              : BThereColors.selection,
           onPrimaryContainer: dark
               ? BThereDarkColors.textPrimary
               : BThereColors.textPrimary,
@@ -137,7 +139,7 @@ abstract final class BThereTheme {
           borderSide: BorderSide(color: color, width: width),
         );
     final buttonStyle = ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(Size(48, 56)),
+      minimumSize: const WidgetStatePropertyAll(Size(48, 52)),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(
           horizontal: BThereSpacing.lg,

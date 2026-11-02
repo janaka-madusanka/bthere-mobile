@@ -91,7 +91,7 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
-      expect(find.text('Key Responsibilities'), findsOneWidget);
+      expect(find.text('Key Responsibilities'), findsNothing);
       expect(find.text('Childcare'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await expectLater(

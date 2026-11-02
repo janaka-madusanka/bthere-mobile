@@ -10,6 +10,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../app/providers/app_providers.dart';
 import '../data/registration_device_location.dart';
 import '../data/registration_geocoder.dart';
+import '../data/registration_region.dart';
 import 'registration_widgets.dart';
 
 Future<Map<String, dynamic>?> showRegistrationLocation(
@@ -28,7 +29,7 @@ double serviceAreaMapZoom(
   double? radiusKm, {
   double viewportExtent = 180,
 }) {
-  if (point == null) return 2;
+  if (point == null) return 7;
   if (radiusKm == null || !radiusKm.isFinite || radiusKm <= 0) return 14;
   final scale = 156543.03392 * math.cos(point.latitude * math.pi / 180).abs();
   return (math.log(scale * viewportExtent / (radiusKm * 2000)) / math.ln2)
@@ -43,7 +44,8 @@ LatLng? _areaPoint(Map area) {
       !lat.isFinite ||
       !lng.isFinite ||
       lat.abs() > 90 ||
-      lng.abs() > 180) {
+      lng.abs() > 180 ||
+      !isSriLankaPoint(lat.toDouble(), lng.toDouble())) {
     return null;
   }
   return LatLng(lat.toDouble(), lng.toDouble());
@@ -69,7 +71,7 @@ final registrationMapBuilderProvider =
       (ref) =>
           (state) => GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: state.point ?? const LatLng(0, 0),
+              target: state.point ?? sriLankaCenter,
               zoom: serviceAreaMapZoom(
                 state.point,
                 state.radiusKm,
@@ -77,6 +79,8 @@ final registrationMapBuilderProvider =
               ),
             ),
             onMapCreated: state.onCreated,
+            cameraTargetBounds: CameraTargetBounds(sriLankaBounds),
+            minMaxZoomPreference: const MinMaxZoomPreference(7, 20),
             onTap: state.readOnly ? null : state.onSelect,
             myLocationButtonEnabled: false,
             mapToolbarEnabled: false,
@@ -144,7 +148,7 @@ class RegistrationLocationPicker extends ConsumerStatefulWidget {
 class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   final form = GlobalKey<FormState>();
   final search = TextEditingController();
-  late final TextEditingController name, radius;
+  late final TextEditingController name, radius, capacity;
   late Map<String, dynamic> values;
   LatLng? point;
   GoogleMapController? map;
@@ -153,6 +157,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   DeviceLocationIssue? locationIssue;
   bool searching = false, resolving = false, locating = false;
   int generation = 0;
+  Timer? searchDebounce;
   List<Map<String, dynamic>> results = [];
   bool get visitsCustomer => widget.mode == 'PROVIDER_TO_CUSTOMER';
   double? get radiusKm {
@@ -168,6 +173,9 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     radius = TextEditingController(
       text: values['radiusKm']?.toString() ?? (visitsCustomer ? '5' : ''),
     );
+    capacity = TextEditingController(
+      text: values['capacity']?.toString() ?? '',
+    );
     point = _areaPoint(values);
     if (point == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -178,15 +186,17 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
 
   @override
   void dispose() {
+    searchDebounce?.cancel();
     generation++;
     map?.dispose();
-    for (final controller in [search, name, radius]) {
+    for (final controller in [search, name, radius, capacity]) {
       controller.dispose();
     }
     super.dispose();
   }
 
   Future<void> useCurrentLocation() async {
+    searchDebounce?.cancel();
     if (locating) return;
     final request = ++generation;
     setState(() {
@@ -225,12 +235,31 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     }
   }
 
-  Future<void> find() async {
-    if (search.text.trim().isEmpty) return;
-    FocusScope.of(context).unfocus();
+  void searchChanged(String query) {
+    searchDebounce?.cancel();
+    generation++;
+    setState(() {
+      results = [];
+      searching = false;
+      resolving = false;
+      locating = false;
+      error = null;
+    });
+    if (query.trim().length < 3) return;
+    searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) unawaited(find(dismissKeyboard: false));
+    });
+  }
+
+  Future<void> find({bool dismissKeyboard = true}) async {
+    searchDebounce?.cancel();
+    final query = search.text.trim();
+    if (query.isEmpty) return;
+    if (dismissKeyboard) FocusScope.of(context).unfocus();
     final request = ++generation;
     setState(() {
       searching = true;
+      results = [];
       resolving = false;
       locating = false;
       error = null;
@@ -239,12 +268,14 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
     try {
       final found = await ref
           .read(registrationGeocoderProvider)
-          .search(search.text.trim());
+          .search(query)
+          .timeout(const Duration(seconds: 15));
       if (!mounted || request != generation) return;
       setState(() {
         results = found.where((result) => _areaPoint(result) != null).toList();
         if (results.isEmpty) {
-          error = 'No places found. Try a nearby city or a fuller address.';
+          error =
+              'No places found in Sri Lanka. Try a city or a fuller address.';
         }
       });
     } catch (_) {
@@ -260,6 +291,16 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   }
 
   Future<void> select(LatLng selected, {String? label}) async {
+    searchDebounce?.cancel();
+    if (!isSriLankaPoint(selected.latitude, selected.longitude)) {
+      generation++;
+      setState(() {
+        searching = resolving = locating = false;
+        results = [];
+        error = 'Choose a location in Sri Lanka.';
+      });
+      return;
+    }
     final request = ++generation;
     setState(() {
       point = selected;
@@ -287,6 +328,13 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
           name.text = address['locationName'] as String? ?? label ?? '';
         }
       });
+    } on OutsideSriLanka {
+      if (mounted && request == generation) {
+        setState(() {
+          point = null;
+          error = 'Choose a location in Sri Lanka.';
+        });
+      }
     } catch (_) {
       if (mounted && request == generation) {
         setState(
@@ -315,7 +363,11 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
   }
 
   void save() {
-    if (!form.currentState!.validate() || point == null) return;
+    if (!form.currentState!.validate() ||
+        point == null ||
+        !isSriLankaPoint(point!.latitude, point!.longitude)) {
+      return;
+    }
     Navigator.pop(context, <String, dynamic>{
       ...values,
       'locationName': name.text.trim().isEmpty
@@ -324,6 +376,7 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
       'latitude': point!.latitude,
       'longitude': point!.longitude,
       'radiusKm': radiusKm,
+      'capacity': visitsCustomer ? null : int.tryParse(capacity.text),
     });
   }
 
@@ -376,10 +429,11 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
                         key: const ValueKey('location-search'),
                         controller: search,
                         textInputAction: TextInputAction.search,
+                        onChanged: searchChanged,
                         onSubmitted: (_) => find(),
                         style: const TextStyle(fontSize: 13),
                         decoration: InputDecoration(
-                          hintText: 'Search city or address',
+                          hintText: 'Search city or address in Sri Lanka',
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -578,6 +632,24 @@ class _LocationState extends ConsumerState<RegistrationLocationPicker> {
                     ],
                   ),
                 ),
+                if (widget.mode == 'CUSTOMER_TO_PROVIDER') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const ValueKey('location-capacity'),
+                    controller: capacity,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Location capacity',
+                      helperText: 'Number of customers you can serve at once',
+                    ),
+                    validator: (text) =>
+                        text == null ||
+                            text.trim().isEmpty ||
+                            (int.tryParse(text) != null && int.parse(text) > 0)
+                        ? null
+                        : 'Enter a positive whole number.',
+                  ),
+                ],
                 if (visitsCustomer) ...[
                   const SizedBox(height: 8),
                   Row(

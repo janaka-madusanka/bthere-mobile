@@ -190,14 +190,14 @@ class ApplicationStatusView extends StatelessWidget {
     double size, {
     Color color = const Color(0xFF060B43),
     bool bold = false,
-    String font = 'Nunito',
+    String font = 'PublicSans',
   }) => registrationText(
     label,
     size,
     color: color,
     bold: bold,
     fontFamily: font,
-    weight: bold ? FontWeight.w800 : FontWeight.w500,
+    weight: bold ? FontWeight.w700 : FontWeight.w500,
   );
   @override
   Widget build(BuildContext context) {
@@ -223,9 +223,9 @@ class ApplicationStatusView extends StatelessWidget {
               : 'Your application is Under Review',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontFamily: 'Nunito',
+            fontFamily: 'PublicSans',
             fontSize: rejected ? 22 : 24,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             height: 1.22,
             color: const Color(0xFF060B43),
           ),
@@ -237,7 +237,7 @@ class ApplicationStatusView extends StatelessWidget {
               : 'We are checking your details and submitted documents.\nYou will receive an update within 1-2 days.',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontFamily: 'Nunito',
+            fontFamily: 'PublicSans',
             fontSize: 14,
             height: 1.5,
             fontWeight: FontWeight.w500,
@@ -290,13 +290,13 @@ class ApplicationStatusView extends StatelessWidget {
           RegistrationNotice('Service review: ${data.reason}', warning: true),
         ],
         const SizedBox(height: 16),
-        text('What we are reviewing', 17, bold: true, font: 'HomeLato'),
+        text('What we are reviewing', 17, bold: true, font: 'PublicSans'),
         const SizedBox(height: 4),
         text(
           'Track the status of each item below.',
           12.2,
           color: const Color(0xFF7D80A5),
-          font: 'HomeLato',
+          font: 'PublicSans',
         ),
         const SizedBox(height: 12),
         if (data.items.isEmpty)
@@ -476,7 +476,7 @@ class ApplicationStatusView extends StatelessWidget {
                     9,
                     color: foreground,
                     bold: true,
-                    font: 'HomeLato',
+                    font: 'PublicSans',
                   ),
                 ),
               ),

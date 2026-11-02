@@ -1,10 +1,13 @@
 import 'package:bthere_common/bthere_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../app/providers/app_providers.dart';
 import '../../onboarding/application/provider_completion_controller.dart';
 import '../../onboarding/domain/provider_completion.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
+import '../../onboarding/requirements/data/provider_schema_response.dart'
+    show schemaValue, InvalidSchemaValue;
 import '../data/registration_repository.dart';
 import '../documents/document_models.dart';
 import '../documents/documents_controller.dart';
@@ -146,7 +149,8 @@ List<ApplicationReviewItem> applicationReviewItems({
   List<Map> records(String name) =>
       (snapshot[name] as List? ?? []).whereType<Map>().toList();
   final skills = records('skills');
-  for (final configured in service.schema.serviceSetup.skills) {
+  for (final (index, configured)
+      in service.schema.serviceSetup.skills.indexed) {
     final skill = skills
         .where((skill) => skill['skillId'] == configured.metadata['skillId'])
         .firstOrNull;
@@ -154,10 +158,16 @@ List<ApplicationReviewItem> applicationReviewItems({
     items.add(
       ApplicationReviewItem(
         id: 'skill-${configured.metadata['skillId']}',
-        label: configured.metadata['name'] as String,
+        label: schemaValue(
+          'serviceSetup.skills[$index].name',
+          () => configured.metadata['name'] as String,
+        ),
         kind: ApplicationItemKind.skill,
         state: applicationItemState(skill?['verificationStatus']),
-        reason: skill?['rejectionReason'] as String?,
+        reason: schemaValue(
+          'skills[$index].rejectionReason',
+          () => skill?['rejectionReason'] as String?,
+        ),
       ),
     );
   }
@@ -209,16 +219,22 @@ List<ApplicationReviewItem> applicationReviewItems({
       items.add(
         ApplicationReviewItem(
           id: '$resource-${record['certificateId'] ?? record['educationId'] ?? index}',
-          label:
-              (record['name'] ?? record['qualificationName']) as String? ??
-              label,
+          label: schemaValue(
+            '$resource[$index].name',
+            () =>
+                (record['name'] ?? record['qualificationName']) as String? ??
+                label,
+          ),
           kind: kind,
           state:
               expiry != null &&
                   expiry.isBefore(DateTime(now.year, now.month, now.day))
               ? ApplicationItemState.expired
               : applicationItemState(record['verificationStatus']),
-          reason: record['rejectionReason'] as String?,
+          reason: schemaValue(
+            '$resource[$index].rejectionReason',
+            () => record['rejectionReason'] as String?,
+          ),
         ),
       );
     }
@@ -249,13 +265,23 @@ List<ApplicationReviewItem> applicationReviewItems({
         label: field.label,
         kind: ApplicationItemKind.field,
         state: applicationItemState(submission?['verificationStatus']),
-        reason: submission?['reviewNote'] as String?,
+        reason: schemaValue(
+          'submissions.reviewNote',
+          () => submission?['reviewNote'] as String?,
+        ),
         optionId: field.optionIds.where(service.selected.contains).firstOrNull,
       ),
     );
   }
   return List.unmodifiable(items);
 }
+
+final applicationStatusDiagnosticLoggerProvider =
+    Provider<void Function(String)>(
+      (_) => (message) {
+        if (kDebugMode) debugPrint(message);
+      },
+    );
 
 final applicationStatusProvider = AsyncNotifierProvider.autoDispose
     .family<ApplicationStatusController, Result<ApplicationStatusData>, int>(
@@ -267,6 +293,7 @@ final applicationStatusProvider = AsyncNotifierProvider.autoDispose
         registrationRepositoryProvider,
         registrationDraftStoreProvider,
         clockProvider,
+        applicationStatusDiagnosticLoggerProvider,
       ],
     );
 
@@ -276,18 +303,31 @@ class ApplicationStatusController
   final int serviceTypeId;
   @override
   Future<Result<ApplicationStatusData>> build() async {
+    var stage = 'service';
+    final log = ref.watch(applicationStatusDiagnosticLoggerProvider);
+    void report(String outcome) => log(
+      '[ApplicationStatus] serviceTypeId=$serviceTypeId stage=$stage outcome=$outcome',
+    );
     try {
       final service = await ref.watch(
         serviceDetailControllerProvider(serviceTypeId).future,
       );
+      if (service is! Success<ServiceDetailState>) {
+        report('failed');
+        return failure();
+      }
+      stage = 'completion';
       final progress = await ref.watch(
         providerCompletionControllerProvider.future,
       );
-      if (service is! Success<ServiceDetailState> ||
-          service.value.assignment == null ||
+      if (service.value.assignment == null ||
           progress is! Success<ProviderCompletion>) {
+        report(
+          service.value.assignment == null ? 'missing-assignment' : 'failed',
+        );
         return failure();
       }
+      stage = 'matching-completion';
       final completion = progress.value.services
           .where(
             (record) =>
@@ -295,7 +335,11 @@ class ApplicationStatusController
                 record.assignmentId == service.value.assignment!.assignmentId,
           )
           .firstOrNull;
-      if (completion == null) return failure();
+      if (completion == null) {
+        report('missing');
+        return failure();
+      }
+      stage = 'review-data';
       final documents = ref.watch(documentsRepositoryProvider),
           repository = ref.watch(registrationRepositoryProvider);
       final results = await Future.wait<Object>([
@@ -306,32 +350,54 @@ class ApplicationStatusController
           service.value.schema.serviceSetup,
         ),
       ]);
-      if (!ref.mounted ||
-          results[0] is! Success<List<DocumentRequirement>> ||
+      if (!ref.mounted) return failure();
+      for (final (index, resource) in [
+        'document-requirements',
+        'documents',
+        'registration-snapshot',
+      ].indexed) {
+        if (results[index] is Failure) {
+          stage = resource;
+          report('failed');
+        }
+      }
+      if (results[0] is! Success<List<DocumentRequirement>> ||
           results[1] is! Success<List<ProviderDocument>> ||
           results[2] is! Success<Map<String, dynamic>>) {
         return failure();
       }
+      stage = 'local-review-history';
       final reuploads = await ref
           .watch(registrationDraftStoreProvider)
           .reviewUploads(serviceTypeId);
       if (!ref.mounted) return failure();
-      return Success(
-        ApplicationStatusData(
+      stage = 'review-items';
+      final data = ApplicationStatusData(
+        service: service.value,
+        completion: completion,
+        items: applicationReviewItems(
           service: service.value,
-          completion: completion,
-          items: applicationReviewItems(
-            service: service.value,
-            requirements:
-                (results[0] as Success<List<DocumentRequirement>>).value,
-            documents: (results[1] as Success<List<ProviderDocument>>).value,
-            snapshot: (results[2] as Success<Map<String, dynamic>>).value,
-            now: ref.watch(clockProvider)(),
-            reuploaded: reuploads,
-          ),
+          requirements:
+              (results[0] as Success<List<DocumentRequirement>>).value,
+          documents: (results[1] as Success<List<ProviderDocument>>).value,
+          snapshot: (results[2] as Success<Map<String, dynamic>>).value,
+          now: ref.watch(clockProvider)(),
+          reuploaded: reuploads,
         ),
       );
-    } catch (_) {
+      stage = 'status';
+      report(
+        data.pending || data.rejected || data.approved || data.inactive
+            ? 'loaded'
+            : 'unsupported-state',
+      );
+      return Success(data);
+    } catch (error) {
+      report(
+        error is InvalidSchemaValue
+            ? 'invalid-path:${error.path}'
+            : 'exception:${error.runtimeType}',
+      );
       return failure();
     }
   }

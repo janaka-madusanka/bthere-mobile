@@ -67,6 +67,10 @@ class FakeDocuments implements DocumentsRepository {
   }
 
   @override
+  Future<Result<List<ProviderDocumentTypeDefinition>>> documentTypes() async =>
+      const Success([]);
+
+  @override
   Future<Result<List<ProviderDocument>>> documents() async {
     documentCalls++;
     return pendingDocuments?.future ?? documentsResult;

@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="33" height="33" viewBox="0 0 33 33" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Notifications">
+<rect width="33" height="33" rx="16.5" fill="#028592"/>
+<g id="Notification bell">
+<path id="Vector" d="M16.5 26.6562C17.6458 26.6562 18.5833 25.7188 18.5833 24.5729H14.4167C14.4167 25.7188 15.3542 26.6562 16.5 26.6562ZM22.75 20.4062V15.1979C22.75 12 21.0521 9.32292 18.0625 8.61458V7.90625C18.0625 7.04167 17.3646 6.34375 16.5 6.34375C15.6354 6.34375 14.9375 7.04167 14.9375 7.90625V8.61458C11.9583 9.32292 10.25 11.9896 10.25 15.1979V20.4062L8.16667 22.4896V23.5312H24.8333V22.4896L22.75 20.4062ZM20.6667 21.4479H12.3333V15.1979C12.3333 12.6146 13.9062 10.5104 16.5 10.5104C19.0937 10.5104 20.6667 12.6146 20.6667 15.1979V21.4479Z" fill="white"/>
+</g>
+<circle id="Notification indicator" cx="25.5" cy="6.5" r="3.5" fill="#FF8616"/>
+<circle id="Indicator center" cx="25.5" cy="6.5" r="1.1" fill="white"/>
+</g>
+</svg>

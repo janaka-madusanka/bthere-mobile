@@ -126,3 +126,75 @@ assignment, selected option, and supported delivery mode before showing progress
 Change returns to registration service selection. Common schema fields and the
 required numeric assignment experience remain available when applicable; no
 sample services, skills, answers, or selection counts are inserted in production.
+
+
+## Dynamic option configuration (20 October 2026)
+
+The supplied Complete Service Configuration APIs ? V1 document is configuration
+reference only; no admin endpoints are called by registration. Existing provider
+schema and public-option responses retain `locationEnabled`, `defaultCapacity`,
+and `bookingMode`. Option location controls, validation, saving, summaries, and
+profile editing respect both the service and option location flags. Older
+responses without the option flag retain existing behavior.
+
+Fixed customer-visit locations support a positive integer capacity override,
+prefilled from the option default for new locations. Coverage areas retain a
+positive radius and null capacity; fixed locations retain a null radius. Capacity
+is optional so the server can apply its configured default. Admin scheduling,
+fulfillment, and pricing settings remain server configuration, not provider inputs.
+
+Common conditional fields can read option answers, and option editors receive
+the full selected field context. Select answers reject removed/invalid choices;
+valid emails and calendar dates pass the corrected validators.
+
+
+### Provider location UI correction
+
+Delivery mode is service configuration, not a provider registration input. The
+provider app has no delivery-mode selector or prompts to choose one. A single
+configured mode is applied automatically, including overriding stale local
+choices. Saved location context is retained for existing services. Missing or unsupported configuration is reported explicitly; multiple configured
+modes are supported as independent location groups, without asking the provider
+to select a delivery mode. The app does not invent missing configuration. The mode remains internal because section 12 of Complete
+Provider Registration and Service Approval API Flow (2).pdf requires it in the
+location API path. Online services require no physical locations.
+
+
+### Service-independent rendering
+
+Catalog, detail, registration, review, setup, and subservice profile screens use
+service/option IDs and configuration. No caregiver, hospital, elderly, or other
+service-name checks select artwork or form behavior. Supplied icons (including
+SVG) and responsibilities render from API data; absent artwork uses neutral
+icons, and absent responsibilities produce no empty panel.
+
+Custom provider fields follow `displayOrder`, `scope`, `status`, conditions, and
+selected option IDs. Labels containing ?experience? do not change field grouping
+or validation. Assignment experience remains part of the existing provider API
+contract. Public subservice `displayOrder` determines ordering. Disabled or
+unconfigured skills, qualifications, locations, and descriptions do not appear
+as missing review requirements. Deselected option drafts do not override active
+answers. Purely online/location-disabled options do not create physical-location
+setup rows. Tests cover caregiver, parking, charging, rides, and arbitrary names
+with identical metadata, plus custom-field ordering and deselected drafts.
+
+
+### Multiple location groups
+
+The earlier single-mode resolver incorrectly treated a valid multi-mode option
+as unavailable and restored only its first saved location group. Registration
+now renders independent coverage and premises sections directly from all
+configured modes. ONLINE needs no area. Multiple groups retain separate drafts,
+load/retry state, radius/capacity rules, validation, and provider API writes.
+`locationsByMode` stores local groups; the provider API still receives direct area
+arrays at its existing documented per-option/per-mode paths. Legacy single-mode
+drafts remain readable. Local edits merge by group so they cannot erase another
+saved location group. Failed location reads must be retried successfully before
+replacement. No service-name rules, admin calls, or provider mode selector are
+introduced.
+
+The live catalog is authenticated (unauthenticated reads return 401). The PDFs
+confirm the API contract but cannot identify the deployed option values. If an
+option has no supported mode in either the schema or public-option response,
+its redacted responses are needed to distinguish missing backend metadata from
+an unhandled response shape; the app never guesses a radius or location type.

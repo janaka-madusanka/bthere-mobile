@@ -8,7 +8,7 @@ Text _walletText(
 }) => Text(
   label,
   style: TextStyle(
-    fontFamily: 'HomeLato',
+    fontFamily: 'PublicSans',
     fontSize: size,
     height: 1.25,
     fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
@@ -233,9 +233,7 @@ class _BalanceCardState extends State<_BalanceCard> {
                     ),
                     const SizedBox(height: 6),
                     _walletText(
-                      balance.mock
-                          ? 'Test funds · No real money'
-                          : 'Earnings from your services',
+                      'Available wallet balance',
                       11 * s,
                       color: const Color(0xFFD2F5F1),
                     ),
@@ -630,7 +628,7 @@ class _MethodRow extends StatelessWidget {
               _walletText(method.label, 10.5 * scale, bold: true),
               const SizedBox(height: 3),
               _walletText(
-                method.usable ? 'Test method · No real payment' : method.status,
+                method.usable ? 'Ready to use' : method.status,
                 9 * scale,
                 color: _walletMuted,
               ),
@@ -692,7 +690,9 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _walletText(
-                    'Wallet operation #${entry.operationId}',
+                    entry.jobId == null
+                        ? 'Wallet operation #${entry.operationId}'
+                        : 'Booking #${entry.jobId} earnings',
                     18,
                     bold: true,
                   ),
@@ -736,7 +736,9 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _walletText(
-                    entries.length > 1
+                    entry.type == 'CARD_BOOKING_SETTLE'
+                        ? 'Booking earnings'
+                        : entries.length > 1
                         ? 'Wallet transfer'
                         : negative
                         ? 'Wallet debit'
@@ -746,7 +748,9 @@ class _TransactionRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   _walletText(
-                    'Operation #${entry.operationId} · ${entry.bucket.toLowerCase()}',
+                    entry.jobId == null
+                        ? 'Operation #${entry.operationId} · ${entry.bucket.toLowerCase()}'
+                        : 'Booking #${entry.jobId}',
                     10 * scale,
                     color: _walletMuted,
                   ),
@@ -760,7 +764,7 @@ class _TransactionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   _walletText(
-                    '${negative ? '-' : '+'} LKR ${WalletMoney(entry.delta.minor.abs()).formatted}',
+                    '${negative ? '-' : '+'} ${entry.currency} ${WalletMoney(entry.delta.minor.abs()).formatted}',
                     12 * scale,
                     bold: true,
                     color: negative ? _walletMuted : _walletTeal,
@@ -798,10 +802,14 @@ class _PendingPayment extends ConsumerWidget {
     final permitted = request.purpose == 'TOPUP'
         ? caps.topups && caps.cardLinking
         : caps.withdrawals;
-    final test =
+    final canConfirm =
         permitted &&
         value.intent?.status == 'PENDING' &&
-        value.snapshot.methods.any((m) => m.id == request.methodId && m.usable);
+        (request.methodId == null
+            ? request.purpose == 'TOPUP'
+            : value.snapshot.methods.any(
+                (m) => m.id == request.methodId && m.usable,
+              ));
     return Card(
       color: const Color(0xFFF0FBFA),
       child: Padding(
@@ -826,9 +834,9 @@ class _PendingPayment extends ConsumerWidget {
                     : 'Check payment status',
               ),
             ),
-            if (test && value.snapshot.canMove) ...[
+            if (canConfirm && value.snapshot.canMove) ...[
               const Text(
-                'Test payment only. These controls simulate a result; no real money moves.',
+                'Choose a result to complete this payment.',
                 style: TextStyle(fontSize: 11),
               ),
               Wrap(
@@ -838,13 +846,13 @@ class _PendingPayment extends ConsumerWidget {
                     onPressed: value.busy
                         ? null
                         : () => controller.simulate('SUCCESS'),
-                    child: const Text('Simulate success'),
+                    child: const Text('Confirm payment'),
                   ),
                   TextButton(
                     onPressed: value.busy
                         ? null
                         : () => controller.simulate('FAILURE'),
-                    child: const Text('Simulate failure'),
+                    child: const Text('Decline payment'),
                   ),
                   TextButton(
                     onPressed: value.busy

@@ -1,6 +1,7 @@
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,12 +19,19 @@ import 'registration_documents.dart';
 import 'registration_review.dart';
 import '../application/registration_payload.dart';
 import '../data/registration_repository.dart';
+import '../domain/service_registration.dart';
+import '../application/shared_option_route.dart';
 import '../documents/documents_controller.dart';
 import 'service_catalog_visuals.dart';
 import '../../../app/providers/app_providers.dart';
 import '../../onboarding/application/provider_completion_controller.dart';
 import '../../onboarding/domain/provider_completion.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
+
+class _ServiceDetailsLoadFailure implements Exception {
+  const _ServiceDetailsLoadFailure(this.failure);
+  final AppFailure failure;
+}
 
 class ServiceRegistrationScreen extends ConsumerStatefulWidget {
   const ServiceRegistrationScreen({
@@ -68,7 +76,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       serviceDetailControllerProvider(selected!).future,
     );
     if (result is Failure<ServiceDetailState>) {
-      throw StateError(result.failure.message);
+      throw _ServiceDetailsLoadFailure(result.failure);
     }
     return (result as Success<ServiceDetailState>).value;
   }
@@ -81,12 +89,21 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       error = null;
     });
     try {
+      if (widget.optionId != null &&
+          await openExistingSource([widget.optionId!]))
+        return;
       final local = await ref
           .read(registrationDraftStoreProvider)
           .read(selected!);
+      if (!mounted) return;
+      final previous = ref.read(serviceDetailControllerProvider(selected!));
+      if (previous.hasError ||
+          previous.asData?.value is Failure<ServiceDetailState>) {
+        ref.read(serviceDetailControllerProvider(selected!).notifier).retry();
+      }
       var service = await current();
+      if (!mounted) return;
       if (widget.optionId != null &&
-          service.registered.isNotEmpty &&
           service.schema.options.any((o) => o.optionId == widget.optionId) &&
           !service.selected.contains(widget.optionId)) {
         ref
@@ -133,10 +150,11 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
               }
               return;
             }
-            restored['options'] = {
-              ...(locations as Success<Map<String, dynamic>>).value,
-              ...(restored['options'] as Map? ?? const {}),
-            };
+            restored['options'] = mergeRegistrationLocations(
+              service.schema,
+              (locations as Success<Map<String, dynamic>>).value,
+              restored['options'] as Map? ?? {},
+            );
           }
         }
       }
@@ -164,7 +182,19 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
               : 2;
         });
       }
-    } catch (_) {
+    } on _ServiceDetailsLoadFailure catch (failure) {
+      if (kDebugMode) {
+        debugPrint(
+          '[ServiceRegistration] serviceTypeId=$selected load failed: ${failure.failure.code ?? 'SERVICE_LOAD_FAILED'}',
+        );
+      }
+      if (mounted) setState(() => error = failure.failure.message);
+    } catch (failure) {
+      if (kDebugMode) {
+        debugPrint(
+          '[ServiceRegistration] serviceTypeId=$selected restore failed: ${failure.runtimeType}',
+        );
+      }
       if (mounted) {
         setState(
           () => error = 'Unable to restore your service details. Please retry.',
@@ -220,6 +250,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       error = null;
     });
     try {
+      if (await openExistingSource(service.selected)) return;
       final saved = await ref
           .read(serviceDetailControllerProvider(selected!).notifier)
           .continueSetup();
@@ -252,6 +283,8 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
         draft = persisted;
         step = 3;
       });
+    } on _ServiceDetailsLoadFailure catch (failure) {
+      if (mounted) setState(() => error = failure.failure.message);
     } catch (_) {
       if (mounted) {
         setState(() => error = 'Unable to save service details. Please retry.');
@@ -259,6 +292,26 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  // A linked catalog entry does not own another enrollment. Resolve the source
+  // before creating an assignment or writing any of its requirements.
+  Future<bool> openExistingSource(Iterable<int> optionIds) async {
+    final repository = ref.read(registrationRepositoryProvider);
+    for (final optionId in optionIds) {
+      final result = await repository.sharedRegistration(optionId);
+      if (!mounted) return true;
+      if (result is Failure<SharedOptionRegistration?>) {
+        throw _ServiceDetailsLoadFailure(result.failure);
+      }
+      final registration = (result as Success<SharedOptionRegistration?>).value;
+      if (registration != null &&
+          registration.registrationServiceTypeId != selected) {
+        context.go(sharedOptionRoute(registration));
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> submit() async {
@@ -351,7 +404,7 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       if (service.schema.serviceSetup.serviceAreasEnabled &&
           !completion.serviceAreasCompleted) {
         setState(
-          () => error = 'Your service locations still need attention. Confirm each delivery mode and location.',
+          () => error = 'Your service locations still need attention. Check the locations for each selected service.',
         );
         return;
       }
@@ -468,7 +521,10 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
       ref.watch(documentsControllerProvider(selected!));
     }
     if (step == 5) {
-      return RegistrationCompleteScreen(approved: approved, firstStep: firstStep);
+      return RegistrationCompleteScreen(
+        approved: approved,
+        firstStep: firstStep,
+      );
     }
     final saving =
         busy || (result is Success<ServiceDetailState> && result.value.busy);
@@ -487,7 +543,11 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     if (step == 2 &&
         detailsReady &&
         focusedOption != null &&
-        cached!.registered.isNotEmpty &&
+        // Linked registrations do not establish this service's shared details.
+        // Use the focused editor only when service-level requirements are ready;
+        // otherwise expose the full form so every validation error is actionable.
+        cached!.assignment != null &&
+        validateRegistrationDraft(cached!.schema, <int>{}, draft) == null &&
         !cached!.registered.any(
           (option) => option.optionId == focusedOption.optionId,
         )) {
@@ -510,17 +570,24 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
           description: focusedOption.description,
           icon: focusedOption.icon,
           deliveryModes: focusedOption.deliveryModes,
+          displayOrder: focusedOption.displayOrder,
+          locationEnabled: focusedOption.locationEnabled,
+          defaultCapacity: focusedOption.defaultCapacity,
+          bookingMode: focusedOption.bookingMode,
         ),
         service: service.service,
         setup: service.schema.serviceSetup,
-        commonFields: service.schema.commonFields,
+        commonFields: activeRegistrationFields(
+          service.schema,
+          service.selected,
+        ),
         assignmentId: service.assignment?.assignmentId,
         loadSavedLocations: false,
         initial: {
           ...Map<String, dynamic>.from(
             options['${focusedOption.optionId}'] as Map? ?? {},
           ),
-          'fields': registrationAnswers(draft),
+          'fields': registrationAnswers(draft, selected: service.selected),
           'submissions': (draft['server'] as Map? ?? {})['submissions'] ?? [],
           if (draft['availability'] != null)
             'availability': draft['availability'],
@@ -700,7 +767,7 @@ class RegistrationSelection extends StatelessWidget {
         const RegistrationHeading(
           'What service do you offer?',
           'Choose one service to get started.',
-          fontFamily: 'Nunito',
+          fontFamily: 'PublicSans',
         ),
         if (services.isEmpty)
           const RegistrationNotice('No services are currently available.'),
@@ -831,8 +898,8 @@ class RegistrationCategory extends StatelessWidget {
                       service.name,
                       13.4,
                       bold: true,
-                      fontFamily: 'Nunito',
-                      weight: FontWeight.w800,
+                      fontFamily: 'PublicSans',
+                      weight: FontWeight.w700,
                     ),
                   ],
                 ),

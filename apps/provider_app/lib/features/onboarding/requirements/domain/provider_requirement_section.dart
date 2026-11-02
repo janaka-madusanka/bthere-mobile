@@ -63,13 +63,18 @@ List<ProviderRequirementRow> requirementRows(
         ProviderRequirementSection.availability,
         service.availabilityCompleted,
       ),
-    if (s.serviceAreasEnabled)
+    if (s.serviceAreasEnabled &&
+        schema.options.any(
+          (o) => o.locationEnabled && o.configuredLocationMode() != 'ONLINE',
+        ))
       ProviderRequirementRow(
         ProviderRequirementSection.locations,
         service.serviceAreasCompleted,
       ),
-    if (schema.commonFields.isNotEmpty ||
-        schema.options.any((o) => o.fields.isNotEmpty))
+    if ([
+      ...schema.commonFields,
+      ...schema.options.expand((o) => o.fields),
+    ].any((f) => f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT'))
       ProviderRequirementRow(
         ProviderRequirementSection.additional,
         service.customRequirementsCompleted,

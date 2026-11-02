@@ -1,7 +1,7 @@
 import 'package:bthere_common/bthere_common.dart';
 
-const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
-const maximumDocumentBytes = 5000000;
+const documentExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+const maximumDocumentBytes = 100000000;
 
 class DocumentRequirement {
   const DocumentRequirement(
@@ -12,14 +12,53 @@ class DocumentRequirement {
     this.required,
     this.requiresApproval, {
     this.optionId,
+    this.issuedDateMode = 'OPTIONAL',
+    this.expiryDateMode,
+    this.parts = const [],
   });
   final int id;
   final String name;
   final String? description;
   final bool hasExpiry, required, requiresApproval;
   final int? optionId;
+  final String issuedDateMode;
+  final String? expiryDateMode;
+  final List<DocumentPartDefinition> parts;
+  bool get issuedDateRequired => issuedDateMode == 'REQUIRED';
+  bool get issuedDateVisible => issuedDateMode != 'HIDDEN';
+  bool get expiryDateRequired => expiryDateMode == 'REQUIRED';
+  bool get expiryDateVisible =>
+      expiryDateMode == null ? hasExpiry : expiryDateMode != 'HIDDEN';
   bool get isSelfie =>
       RegExp(r'self[ -]?ie', caseSensitive: false).hasMatch(name);
+}
+
+class ProviderDocumentTypeDefinition {
+  const ProviderDocumentTypeDefinition({
+    required this.id,
+    required this.name,
+    required this.issuedDateMode,
+    required this.expiryDateMode,
+    required this.parts,
+  });
+  final int id;
+  final String name, issuedDateMode, expiryDateMode;
+  final List<DocumentPartDefinition> parts;
+}
+
+class DocumentPartDefinition {
+  const DocumentPartDefinition({
+    required this.code,
+    required this.label,
+    required this.required,
+    required this.maximumFiles,
+    required this.maximumFileSizeMb,
+    required this.allowedFileTypes,
+  });
+  final String code, label;
+  final bool required;
+  final int maximumFiles, maximumFileSizeMb;
+  final List<String> allowedFileTypes;
 }
 
 class ProviderDocument {
@@ -35,10 +74,13 @@ class ProviderDocument {
     this.key = '',
     this.issuedDate = '',
     this.createdAt,
+    this.parts = const [],
+    this.partDefinitions = const [],
   });
   final int id, typeId;
   final String typeName, name, number, key, issuedDate;
   final DateTime? createdAt;
+  final List<Map<String, Object?>> parts, partDefinitions;
   final String verificationStatus;
   final String? rejectionReason;
   final DateTime? expiryDate;
@@ -67,10 +109,10 @@ class DocumentFile {
   final Stream<List<int>> Function() openRead;
   String? get validation {
     if (!documentExtensions.contains(name.split('.').last.toLowerCase())) {
-      return 'Choose a PDF, JPG, JPEG or PNG file.';
+      return 'Choose a PDF, JPG, JPEG, PNG or WebP file.';
     }
     if (size <= 0 || size > maximumDocumentBytes) {
-      return 'Choose a file up to 5 MB.';
+      return 'Choose a file up to 100 MB.';
     }
     return null;
   }
@@ -90,15 +132,18 @@ class DocumentRegistration {
     required this.key,
     required this.issuedDate,
     required this.expiryDate,
+    this.parts = const [],
   });
   final int typeId;
   final String name, number, key, issuedDate;
   final String? expiryDate;
+  final List<Map<String, Object?>> parts;
   Map<String, Object?> toJson() => {
     'documentTypeId': typeId,
     'documentName': name,
     if (number.trim().isNotEmpty) 'documentNumber': number,
-    'documentKey': key,
+    if (parts.isEmpty) 'documentKey': key,
+    if (parts.isNotEmpty) 'parts': parts,
     if (issuedDate.isNotEmpty) 'issuedDate': issuedDate,
     if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
   };
@@ -106,6 +151,7 @@ class DocumentRegistration {
 
 abstract interface class DocumentsRepository {
   Future<Result<List<DocumentRequirement>>> requirements(int serviceTypeId);
+  Future<Result<List<ProviderDocumentTypeDefinition>>> documentTypes();
   Future<Result<List<ProviderDocument>>> documents();
   Future<Result<Uri>> viewUrl(String key);
   Future<Result<DocumentUpload>> upload(

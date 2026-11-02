@@ -248,7 +248,7 @@ class _ProviderProfileScreenState extends ConsumerState<ProviderProfileScreen> {
               'Complete your profile',
               style: theme.textTheme.headlineMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),

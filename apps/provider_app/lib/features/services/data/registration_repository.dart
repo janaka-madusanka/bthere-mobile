@@ -1,8 +1,12 @@
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_network/bthere_network.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../app/providers/app_providers.dart';
+import '../domain/service_registration.dart';
+import '../../onboarding/services/data/provider_service_response.dart';
+import '../../onboarding/data/provider_completion_response.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/data/provider_schema_response.dart'
     as json;
@@ -14,8 +18,70 @@ final registrationRepositoryProvider = Provider<RegistrationRepository>(
 
 /// Provider API, section 9–20. Paths are relative to the configured /api/v1 base.
 class RegistrationRepository {
-  RegistrationRepository(this.client);
+  RegistrationRepository(this.client, {this.diagnosticLogger});
   final ApiClient client;
+  final void Function(String)? diagnosticLogger;
+  void _diagnostic(String message) {
+    if (diagnosticLogger != null) {
+      diagnosticLogger!(message);
+    } else if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
+  /// A missing enrollment is the only lookup failure that means "register new".
+  Future<Result<SharedOptionRegistration?>> sharedRegistration(int optionId) =>
+      safe(() async {
+        if (optionId <= 0) throw const FormatException('Invalid option');
+        try {
+          final data = (await client.get<Object?>(
+            '/providers/me/service-options/$optionId/registration',
+            requiresAuth: true,
+          )).data;
+          final j = json.object(data);
+          int id(String key) {
+            final value = j[key];
+            if (value is! int || value <= 0) {
+              throw const FormatException('Invalid registration');
+            }
+            return value;
+          }
+
+          if (id('optionId') != optionId) {
+            throw const FormatException('Mismatched option');
+          }
+          return SharedOptionRegistration(
+            optionId: optionId,
+            providerOptionId: id('providerOptionId'),
+            assignmentId: id('assignmentId'),
+            registrationServiceTypeId: id('registrationServiceTypeId'),
+            providerStatus: json.string(j['providerStatus']),
+            adminStatus: json.string(j['adminStatus']),
+            verificationStatus: json.string(j['verificationStatus']),
+          );
+        } on NetworkException catch (e) {
+          if (e.statusCode == 404) return null;
+          rethrow;
+        }
+      });
+
+  /// Never automatically retry creation after an uncertain response. Recover via
+  /// the assignment list, then use individual update APIs for existing services.
+  Future<Result<ServiceRegistrationResult>> register(
+    ServiceRegistrationInput input,
+  ) => safe(() async {
+    final response = json.object(
+      (await client.post<Object?>(
+        '/providers/me/service-registrations',
+        data: input.toJson(),
+        requiresAuth: true,
+      )).data,
+    );
+    return ServiceRegistrationResult(
+      assignment: parseProviderServiceAssignment(response['assignment']),
+      completion: parseProviderCompletion(response['completion']),
+    );
+  });
   String path(int assignment, String resource) {
     if (assignment <= 0) throw const FormatException('Invalid assignment');
     return '/providers/me/services/$assignment/$resource';
@@ -57,7 +123,24 @@ class RegistrationRepository {
       if (setup.education.level != ProviderRequirementLevel.disabled)
         'education',
     ];
-    final results = await Future.wait(names.map((name) => read(id, name)));
+    final results = await Future.wait(
+      names.map((name) async {
+        try {
+          final raw = await read(id, name);
+          return name == 'availability' ? json.object(raw) : json.array(raw);
+        } on NetworkException catch (error) {
+          _diagnostic(
+            '[RegistrationSnapshot] resource=$name outcome=${error.kind.name} status=${error.statusCode}',
+          );
+          rethrow;
+        } catch (error) {
+          _diagnostic(
+            '[RegistrationSnapshot] resource=$name outcome=invalid-response exception=${error.runtimeType}',
+          );
+          rethrow;
+        }
+      }),
+    );
     final result = <String, dynamic>{};
     for (var i = 0; i < names.length; i++) {
       result[names[i]] = names[i] == 'availability'
@@ -71,7 +154,7 @@ class RegistrationRepository {
     List<ProviderSchemaOption> options,
   ) => safe(() async {
     final contexts = [
-      for (final option in options)
+      for (final option in options.where((o) => o.locationEnabled))
         for (final mode in option.deliveryModes.where(physicalModes.contains))
           (option: option, mode: mode),
     ];
@@ -86,24 +169,49 @@ class RegistrationRepository {
     for (var index = 0; index < contexts.length; index++) {
       final context = contexts[index];
       final areas = json.array(snapshots[index]);
-      if (areas.isNotEmpty) {
-        restored.putIfAbsent(
-          '${context.option.optionId}',
-          () => {'deliveryMode': context.mode, 'areas': areas},
-        );
+      final data = restored.putIfAbsent(
+        '${context.option.optionId}',
+        () => <String, dynamic>{'locationsByMode': <String, dynamic>{}},
+      ) as Map<String, dynamic>;
+      (data['locationsByMode'] as Map)[context.mode] = {'areas': areas};
+      if (areas.isNotEmpty && data['deliveryMode'] == null) {
+        data['deliveryMode'] = context.mode;
+        data['areas'] = areas;
       }
     }
     for (final option in options) {
-      if (option.deliveryModes.length == 1 &&
-          option.deliveryModes.single == 'ONLINE') {
+      final modes = option.configuredLocationModes();
+      if (modes.length == 1 && modes.single == 'ONLINE') {
         restored['${option.optionId}'] = {
           'deliveryMode': 'ONLINE',
           'areas': <Object>[],
+          'locationsByMode': <String, dynamic>{},
         };
       }
     }
     return restored;
   });
+
+  Future<Result<void>> saveOptionLocations(
+    int assignmentId,
+    ProviderSchemaOption option,
+    Map data,
+  ) async {
+    final validation = option.validateLocations(data);
+    if (validation != null) return Failure(AppFailure(message: validation));
+    for (final entry in option.locationGroups(data).entries) {
+      final result = await saveAreas(
+        assignmentId,
+        option.optionId,
+        entry.key,
+        (entry.value['areas'] as List)
+            .map((a) => Map<String, dynamic>.from(a as Map))
+            .toList(),
+      );
+      if (result is Failure<void>) return result;
+    }
+    return const Success(null);
+  }
 
   Future<Result<void>> languages(int id, List<String> values) => safe(() async {
     final languages = values.map((s) => s.toUpperCase()).toSet().toList();
@@ -250,6 +358,10 @@ class RegistrationRepository {
           (mode == 'PROVIDER_TO_CUSTOMER' &&
               (radius is! num || !radius.isFinite || radius <= 0))) {
         throw const FormatException('Invalid coordinates');
+      }
+      final capacity = area['capacity'];
+      if (capacity != null && (capacity is! int || capacity <= 0)) {
+        throw const FormatException('Invalid location capacity');
       }
       values.add({
         for (final key in [

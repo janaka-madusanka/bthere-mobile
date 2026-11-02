@@ -7,18 +7,24 @@ import 'provider_schema_remote_data_source.dart';
 import 'provider_schema_response.dart';
 
 final class ProviderSchemaRepositoryImpl implements ProviderSchemaRepository {
-  const ProviderSchemaRepositoryImpl(this.remote);
+  const ProviderSchemaRepositoryImpl(this.remote, {this.diagnosticLogger});
   final ProviderSchemaRemoteDataSource remote;
+  final void Function(String)? diagnosticLogger;
   @override
   Future<Result<ProviderOnboardingSchema>> loadSchema(int serviceTypeId) async {
     try {
       integer(serviceTypeId, positive: true);
-      final schema = parseProviderSchema(
-        await remote.loadSchema(serviceTypeId),
-        serviceTypeId,
+      final raw = await remote.loadSchema(serviceTypeId);
+      final schema = schemaValue(
+        'onboarding-schema',
+        () => parseProviderSchema(raw, serviceTypeId),
       );
+      final options = await remote.loadOptions(serviceTypeId);
       return Success(
-        applyPublicOptions(schema, await remote.loadOptions(serviceTypeId)),
+        schemaValue(
+          'public-options',
+          () => applyPublicOptions(schema, options),
+        ),
       );
     } on NetworkException catch (e) {
       return Failure(e.toAppFailure());
@@ -27,6 +33,16 @@ final class ProviderSchemaRepositoryImpl implements ProviderSchemaRepository {
         AppFailure(
           message: 'This service uses unsupported requirement settings. Please try again.',
           code: 'SCHEMA_UNSUPPORTED_METADATA',
+        ),
+      );
+    } on InvalidSchemaValue catch (error) {
+      diagnosticLogger?.call(
+        '[ProviderSchema] serviceTypeId=$serviceTypeId invalidPath=${error.path}',
+      );
+      return const Failure(
+        AppFailure(
+          message: 'Unable to load service requirements. Please try again.',
+          code: 'SCHEMA_INVALID_RESPONSE',
         ),
       );
     } catch (_) {

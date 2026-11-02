@@ -149,15 +149,15 @@ void main() {
       ],
       [4, 8, 12, 16, 24, 32, 40, 48],
     );
-    expect(BThereRadius.control, 16);
-    expect(BThereRadius.surface, 24);
+    expect(BThereRadius.control, 12);
+    expect(BThereRadius.surface, 14);
   });
   for (final dark in [false, true]) {
     test('${dark ? 'dark' : 'light'} Material 3 theme has readable roles', () {
       final theme = dark ? BThereTheme.dark() : BThereTheme.light();
       expect(theme.useMaterial3, isTrue);
       expect(theme.brightness, dark ? Brightness.dark : Brightness.light);
-      expect(theme.textTheme.headlineLarge!.fontSize, 28);
+      expect(theme.textTheme.headlineLarge!.fontSize, 24);
       expect(
         theme.textTheme.bodyMedium!.fontFamily,
         BThereTypography.fontFamily,

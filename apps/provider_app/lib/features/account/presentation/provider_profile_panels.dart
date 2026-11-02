@@ -39,8 +39,8 @@ class _PersonalPanel extends ConsumerWidget {
       'December',
     ];
     final birth = date == null
-        ? '—'
-        : '${date.year} ${months[date.month - 1]} ${date.day} · $age years';
+        ? '\u2014'
+        : '${date.year} ${months[date.month - 1]} ${date.day} \u00B7 $age years';
     final location = [
       supplement?.city,
       supplement?.country,
@@ -49,7 +49,7 @@ class _PersonalPanel extends ConsumerWidget {
       _PersonalField('imgIcon', name, label: 'Name'),
       _PersonalField(
         'imgMail',
-        email?.trim().isNotEmpty == true ? email! : '—',
+        email?.trim().isNotEmpty == true ? email! : '\u2014',
         label: 'Email',
       ),
       _PersonalField('imgIcon1', birth, label: 'Date of birth'),
@@ -57,17 +57,17 @@ class _PersonalPanel extends ConsumerWidget {
     final right = [
       _PersonalField(
         'imgPhone',
-        phone?.trim().isNotEmpty == true ? phone! : '—',
+        phone?.trim().isNotEmpty == true ? phone! : '\u2014',
         label: 'Phone',
       ),
       _PersonalField(
         'imgMapPin',
-        location.isEmpty ? '—' : location,
+        location.isEmpty ? '\u2014' : location,
         label: 'Location',
       ),
       _PersonalField(
         'imgVenus',
-        profile == null ? '—' : _readable(profile!['gender']),
+        profile == null ? '\u2014' : _readable(profile!['gender']),
         label: 'Gender',
       ),
     ];
@@ -198,7 +198,7 @@ class _PayoutField extends StatelessWidget {
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            value?.isNotEmpty == true ? value! : '—',
+            value?.isNotEmpty == true ? value! : '\u2014',
             style: const TextStyle(fontSize: 8, color: _muted),
           ),
         ),
@@ -424,7 +424,7 @@ class _DocumentStatus extends StatelessWidget {
                   : pending
                   ? 'Reviewing'
                   : status,
-              style: TextStyle(fontSize: 6.5, color: color),
+              style: TextStyle(fontSize: 8, color: color),
             ),
           ),
         ],
@@ -472,7 +472,7 @@ class _DocumentThumbnail extends ConsumerWidget {
                     ),
                   )
                 : Text(
-                    'Document number: ${document.number.isEmpty ? '—' : document.number}\nVerification: ${_readable(document.verificationStatus)}',
+                    'Document number: ${document.number.isEmpty ? '\u2014' : document.number}\nVerification: ${_readable(document.verificationStatus)}',
                   ),
             actions: [
               TextButton(

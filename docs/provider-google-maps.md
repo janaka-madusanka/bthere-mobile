@@ -65,6 +65,15 @@ Never paste the Maps key into issue reports or logs.
 
 ## Location behavior and API contract
 
+The map starts over Sri Lanka and constrains its camera target to the Sri Lanka
+envelope (5.8–9.9 N, 79.5–82.0 E), with a minimum zoom of 7. Search appends
+Sri Lanka to unscoped queries, filters coordinates to that envelope, removes
+duplicate results, and rejects addresses whose resolved country code is not LK.
+Device locations and manual pins outside the envelope cannot be selected.
+The envelope includes surrounding water; it is not a coastline polygon, and
+when native reverse lookup is unavailable the envelope is the fallback check.
+Search continues to use native geocoding and does not require a Places API key.
+
 Select Location opens a searchable Google map. The provider can search an address,
 tap the map, drag the pin, and set a positive radius. The map displays a coverage
 circle and adjusts zoom to the radius. Address search and reverse lookup use the

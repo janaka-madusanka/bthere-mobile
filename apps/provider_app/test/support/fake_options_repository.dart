@@ -21,6 +21,7 @@ final class FakeOptionsRepository implements ProviderOptionsRepository {
   final List<int> loads = [];
   final List<({int assignmentId, List<int> ids})> saves = [];
   Result<List<ProviderSelectedOption>> selections = const Success([]);
+  final selectionsByAssignment = <int, Result<List<ProviderSelectedOption>>>{};
   Result<void> saveResult = const Success(null);
   Completer<Result<List<ProviderSelectedOption>>>? pendingLoad;
   Completer<Result<void>>? pendingSave;
@@ -28,7 +29,9 @@ final class FakeOptionsRepository implements ProviderOptionsRepository {
   @override
   Future<Result<List<ProviderSelectedOption>>> loadSelections(int id) async {
     loads.add(id);
-    return pendingLoad != null ? pendingLoad!.future : selections;
+    return pendingLoad != null
+        ? pendingLoad!.future
+        : selectionsByAssignment[id] ?? selections;
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'registration_option_summary.dart';
+
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
@@ -10,11 +12,43 @@ import '../../home/presentation/provider_home_widgets.dart';
 import '../../onboarding/requirements/domain/provider_onboarding_schema.dart';
 import '../../onboarding/requirements/options/domain/provider_selected_option.dart';
 import '../application/service_detail_controller.dart';
+import '../data/registration_repository.dart';
+import '../domain/service_registration.dart';
+import '../application/shared_option_route.dart';
 import 'service_catalog_visuals.dart';
 
 class ServiceDetailScreen extends ConsumerWidget {
   const ServiceDetailScreen({required this.serviceTypeId, super.key});
   final int serviceTypeId;
+  Future<bool> openSource(
+    BuildContext context,
+    WidgetRef ref,
+    int optionId,
+  ) async {
+    final result = await ref
+        .read(registrationRepositoryProvider)
+        .sharedRegistration(optionId);
+    if (!context.mounted) return true;
+    if (result is Failure<SharedOptionRegistration?>) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(result.failure.message)));
+      return true;
+    }
+    final source = (result as Success<SharedOptionRegistration?>).value;
+    if (source != null && source.registrationServiceTypeId != serviceTypeId) {
+      final value = ref
+          .read(serviceDetailControllerProvider(serviceTypeId))
+          .asData
+          ?.value;
+      final incomplete =
+          value is Success<ServiceDetailState> &&
+          value.value.incompleteRegistrationIds.contains(optionId);
+      context.push(sharedOptionRoute(source, incomplete: incomplete));
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final provider = serviceDetailControllerProvider(serviceTypeId);
@@ -48,7 +82,10 @@ class ServiceDetailScreen extends ConsumerWidget {
                                 register: () => context.push(
                                   '/services/$serviceTypeId/register?details=1',
                                 ),
-                                manage: (id) {
+                                manage: (id) async {
+                                  if (await openSource(context, ref, id) ||
+                                      !context.mounted)
+                                    return;
                                   final option = result.value.registered
                                       .where((option) => option.optionId == id)
                                       .firstOrNull;
@@ -73,7 +110,10 @@ class ServiceDetailScreen extends ConsumerWidget {
                                         : '/services/$serviceTypeId/register?optionId=$id',
                                   );
                                 },
-                                startOption: (id) {
+                                startOption: (id) async {
+                                  if (await openSource(context, ref, id) ||
+                                      !context.mounted)
+                                    return;
                                   if (!result.value.selected.contains(id)) {
                                     ref.read(provider.notifier).toggle(id);
                                   }
@@ -136,10 +176,10 @@ class _Overview extends StatelessWidget {
   }) => Text(
     value,
     style: TextStyle(
-      fontFamily: 'HomeLato',
+      fontFamily: 'PublicSans',
       fontSize: size,
       height: 1.3,
-      fontWeight: bold ? FontWeight.w900 : FontWeight.w400,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
       color: color,
     ),
   );
@@ -183,76 +223,10 @@ class _Overview extends StatelessWidget {
                     const SizedBox(height: 6),
                     text(
                       value.service.description ??
-                          'Service details are available from the backend.',
+                          'Explore this service and its available options.',
                       11.5,
                       color: servicesMuted,
                     ),
-                    if (value.service.responsibilities.isNotEmpty ||
-                        [
-                          'caregiving',
-                          'caregiver',
-                        ].contains(value.service.name.trim().toLowerCase()))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFFBFC),
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    text(
-                                      'Key Responsibilities',
-                                      13,
-                                      bold: true,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    for (final line
-                                        in value.service.responsibilities
-                                            .map(
-                                              (item) => item.description == null
-                                                  ? item.title
-                                                  : '${item.title}: ${item.description}',
-                                            )
-                                            .toList())
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 4,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const SizedBox(
-                                              width: 13,
-                                              height: 13,
-                                              child: _Asset('imgCheckBadge'),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: text(
-                                                line,
-                                                11.1,
-                                                color: servicesMuted,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -282,6 +256,60 @@ class _Overview extends StatelessWidget {
             ],
           ),
         ),
+        if (value.service.responsibilities.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFFBFC),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        text('Key Responsibilities', 13, bold: true),
+                        const SizedBox(height: 6),
+                        for (final line
+                            in value.service.responsibilities
+                                .map(
+                                  (item) => item.description == null
+                                      ? item.title
+                                      : '${item.title}: ${item.description}',
+                                )
+                                .toList())
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: _Asset('imgCheckBadge'),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: text(line, 11.1, color: servicesMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (value.service.gallery.any((item) => item.usableUri != null))
           SizedBox(
             height: 88,
@@ -348,13 +376,15 @@ class _Overview extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              text('Sub Services', 16, bold: true),
+              if (value.schema.options.isNotEmpty)
+                text('Sub Services', 16, bold: true),
               const SizedBox(height: 5),
-              text(
-                'This service includes the following areas.',
-                12,
-                color: servicesMuted,
-              ),
+              if (value.schema.options.isNotEmpty)
+                text(
+                  'This service includes the following areas.',
+                  12,
+                  color: servicesMuted,
+                ),
               const SizedBox(height: 5),
               for (final option in available)
                 row(
@@ -363,7 +393,7 @@ class _Overview extends StatelessWidget {
                       .where((saved) => saved.optionId == option.optionId)
                       .firstOrNull,
                 ),
-              if (available.isEmpty)
+              if (available.isEmpty && value.schema.options.isNotEmpty)
                 text(
                   'All available sub-services are registered.',
                   12,
@@ -390,7 +420,7 @@ class _Overview extends StatelessWidget {
                 onPressed: register,
                 child: const Text(
                   'Register for this Service',
-                  style: TextStyle(fontFamily: 'HomeLato', fontSize: 13.5),
+                  style: TextStyle(fontFamily: 'PublicSans', fontSize: 13.5),
                 ),
               ),
             ),
@@ -409,8 +439,6 @@ class _Overview extends StatelessWidget {
     ),
     child: text(label, 10, color: teal ? homeTeal : const Color(0xFFBD6100)),
   );
-  Widget symbol(String name) =>
-      const Icon(Icons.volunteer_activism_outlined, color: homeTeal);
   Widget row(
     ProviderSchemaOption option, {
     ProviderSelectedOption? registered,
@@ -464,7 +492,7 @@ class _Overview extends StatelessWidget {
                   SizedBox(
                     width: registered == null ? 42 : 38,
                     height: registered == null ? 42 : 38,
-                    child: symbol(option.name),
+                    child: RegistrationOptionArtwork(option: option),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
