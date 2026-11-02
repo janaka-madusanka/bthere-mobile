@@ -35,6 +35,17 @@ planned dependency ownership and currently implemented foundation components.
 
 ## Workspace commands
 
+Customer run/build values now live in `config/customer.local.json` (Git-ignored).
+See [Customer configuration](docs/customer-configuration.md) for JSON settings,
+environment-specific builds and release commands. From the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-customer.ps1
+```
+
+For repeated Java/Android notifications when opening VS Code, see
+[editor and Android troubleshooting](docs/editor-android-troubleshooting.md).
+
 The repository uses Dart Pub Workspaces with one root lockfile and shared
 dependency resolution. Run commands from the workspace root where supported:
 

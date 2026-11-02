@@ -1,0 +1,17 @@
+{
+  "jdk.serverVmOptions": ["-Dproject.limitScanRoot=${workspaceFolder}"],
+  "search.followSymlinks": false,
+  "search.exclude": {
+    "**/.dart_tool/**": true,
+    "**/.gradle/**": true,
+    "**/.plugin_symlinks/**": true,
+    "**/build/**": true
+  },
+  "files.watcherExclude": {
+    "**/.dart_tool/**": true,
+    "**/.gradle/**": true,
+    "**/.plugin_symlinks/**": true,
+    "**/build/**": true
+  },
+  "postman.settings.dotenv-detection-notification-visibility": false
+}

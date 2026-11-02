@@ -13,6 +13,9 @@ coverage/
 # IDE and local files. VS Code configuration can be shared.
 .idea/
 .vscode/
+!/.vscode/
+/.vscode/*
+!/.vscode/settings.json
 *.iml
 *.ipr
 *.iws
