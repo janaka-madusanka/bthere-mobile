@@ -31,7 +31,11 @@ final customerMapBuilderProvider = Provider<Widget Function(CustomerMapState)>(
     return GoogleMap(
       initialCameraPosition: state.camera,
       onMapCreated: state.onCreated,
+      onCameraMoveStarted: state.onCameraMoveStarted,
+      onCameraMove: state.onCameraMove,
+      onCameraIdle: state.onCameraIdle,
       onTap: state.onSelect,
+      onLongPress: state.onSelect,
       markers: state.markers,
       circles: state.circles,
       polylines: state.polylines,
@@ -56,6 +60,9 @@ class CustomerMapState {
     required this.circles,
     this.polylines = const {},
     this.bottomPadding = 0,
+    this.onCameraMoveStarted,
+    this.onCameraIdle,
+    this.onCameraMove,
   });
   final CameraPosition camera;
   final ValueChanged<GoogleMapController> onCreated;
@@ -64,4 +71,7 @@ class CustomerMapState {
   final Set<Circle> circles;
   final Set<Polyline> polylines;
   final double bottomPadding;
+  final VoidCallback? onCameraMoveStarted;
+  final VoidCallback? onCameraIdle;
+  final ValueChanged<CameraPosition>? onCameraMove;
 }

@@ -9,11 +9,13 @@ class BookingChoiceTiles extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.enabled = true,
+    this.filterStyle = false,
   });
   final List<Map<String, String>> choices;
   final Set<String> selected;
   final void Function(String, bool) onChanged;
   final bool enabled;
+  final bool filterStyle;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
@@ -36,7 +38,12 @@ class BookingChoiceTiles extends StatelessWidget {
                 selected: selected.contains(choice['value']),
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(44, 44),
+                    minimumSize: Size(44, filterStyle ? 46 : 44),
+                    shape: filterStyle
+                        ? RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          )
+                        : null,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 10,
@@ -52,7 +59,16 @@ class BookingChoiceTiles extends StatelessWidget {
                           ? CustomerColors.action
                           : CustomerColors.border,
                     ),
-                    textStyle: CustomerTypography.compact,
+                    textStyle: filterStyle
+                        ? TextStyle(
+                            fontFamily: CustomerTypography.family,
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: selected.contains(choice['value'])
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          )
+                        : CustomerTypography.compact,
                   ),
                   onPressed: enabled
                       ? () => onChanged(
