@@ -20,6 +20,7 @@ import '../features/booking/domain/booking_models.dart';
 import '../features/booking/domain/booking_option_draft.dart';
 import '../features/booking/presentation/customer_booking_screen.dart';
 import '../features/booking/presentation/customer_bookings_screen.dart';
+import '../features/booking/presentation/customer_booking_details_screen.dart';
 import '../features/wallet/presentation/customer_wallet_screen.dart';
 
 class CustomerBootstrap extends StatefulWidget {
@@ -68,9 +69,11 @@ final customerRouterProvider = Provider<GoRouter>(
                                     '/market',
                                     '/services',
                                     '/bookings',
+                                    '/opportunities',
                                     '/wallet',
                                   ].contains(state.uri.path) ||
-                                  state.uri.path.startsWith('/booking/'))
+                                  state.uri.path.startsWith('/booking/') ||
+                                  state.uri.path.startsWith('/bookings/'))
                               ? state.uri.path
                               : '/home'
                         : discovery?.marketStage == DiscoveryStage.loading ||
@@ -105,6 +108,20 @@ final customerRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: '/bookings',
           builder: (_, _) => const CustomerBookingsScreen(),
+        ),
+        GoRoute(
+          path: '/opportunities',
+          builder: (_, _) =>
+              const CustomerBookingsScreen(asOpportunities: true),
+        ),
+        GoRoute(
+          path: '/bookings/:jobId',
+          builder: (_, state) => CustomerBookingDetailsScreen(
+            jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
+            extras: state.extra is BookingDetailsExtras
+                ? state.extra as BookingDetailsExtras
+                : null,
+          ),
         ),
         GoRoute(
           path: '/booking/:service/:option',

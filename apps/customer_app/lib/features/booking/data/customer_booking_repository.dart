@@ -7,10 +7,21 @@ import '../../auth/data/customer_auth_service.dart';
 import '../../discovery/domain/customer_discovery.dart';
 import '../../profile/data/customer_photo_upload.dart';
 import '../domain/booking_models.dart';
+import '../domain/booking_card_checkout.dart';
 
 class CustomerBookingRepository {
   CustomerBookingRepository(this.auth);
   final CustomerAuthService auth;
+  Future<BookingCardCheckout> confirmRequestCard(
+    int id,
+    Map<String, String> billing,
+  ) async => BookingCardCheckout.parse(
+    await request(
+      'POST',
+      '/customers/me/booking-requests/$id/confirm',
+      data: billing,
+    ),
+  );
   Future<Map<String, dynamic>> cancelRequest(int id) async {
     final view = requestView(
       await request('POST', '/customers/me/booking-requests/$id/cancel'),

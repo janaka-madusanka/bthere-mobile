@@ -55,6 +55,7 @@ dependencies:
   flutter_google_places_sdk: 0.4.2
   # 0.2.2 uses removed Places 5.x getters and does not compile; keep this pair pinned.
   flutter_google_places_sdk_android: 0.2.1
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
