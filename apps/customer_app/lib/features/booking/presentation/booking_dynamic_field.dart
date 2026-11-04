@@ -323,6 +323,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
       );
     } else {
       input = TextFormField(
+        scrollPadding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         key: ValueKey(
           'booking-input-${widget.reusable ? 'requirement' : 'field'}-${f.id}',
         ),

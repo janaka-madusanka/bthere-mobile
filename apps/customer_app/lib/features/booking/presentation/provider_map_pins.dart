@@ -16,7 +16,7 @@ class ProviderMapPin {
 List<ProviderMapPin> providerMapPins(
   List<ProviderCandidate> candidates, {
   GeoPoint? searchPoint,
-  double radiusKm = 5,
+  double radiusKm = 10,
 }) {
   final groups = <String, List<ProviderCandidate>>{};
   for (final candidate in candidates) {

@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../discovery/presentation/customer_discovery_style.dart';
 import '../domain/booking_models.dart';
 import 'customer_booking_map.dart';
+import '../../../app/widgets/search_range_ripple.dart';
 import 'customer_map_marker_icons.dart';
 import 'provider_map_pins.dart';
 import '../data/customer_location_address.dart';
@@ -49,7 +50,7 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
     super.key,
     required this.point,
     required this.onChanged,
-    this.radiusKm = 5,
+    this.radiusKm = 10,
     this.candidates = const [],
     this.enabled = true,
     this.label = 'Service location',
@@ -60,6 +61,9 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
     this.showRecenter = false,
     this.onProviderSelected,
     this.preferProviderPhotos = false,
+    this.filterPulseKey,
+    this.animateLocationChanges = true,
+    this.showControls = true,
   });
   final GeoPoint? point;
   final ValueChanged<GeoPoint> onChanged;
@@ -74,6 +78,9 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
   final bool showRecenter;
   final ValueChanged<ProviderCandidate>? onProviderSelected;
   final bool preferProviderPhotos;
+  final String? filterPulseKey;
+  final bool animateLocationChanges;
+  final bool showControls;
   @override
   ConsumerState<BookingLocationPicker> createState() =>
       _BookingLocationPickerState();
@@ -81,6 +88,13 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
 
 class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
   GoogleMapController? _map;
+  Offset? _rippleCenter;
+  double? _rippleRadius;
+  Offset? _rippleEast, _rippleNorth;
+  Timer? _projectionTimer;
+  bool _cameraMoving = false;
+  bool _draggingLocation = false;
+  int _projectionRevision = 0;
   Timer? _cameraTimer;
   bool _locating = false;
   final _icons = <String, BitmapDescriptor>{};
@@ -100,6 +114,51 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
     }
   }
 
+  Future<void> _projectRipple() async {
+    final map = _map;
+    final point = widget.point;
+    final revision = ++_projectionRevision;
+    if (map == null || point == null) return;
+    try {
+      final latitudeOffset = widget.radiusKm * 1000 / 6371009 * 180 / math.pi;
+      final longitudeOffset =
+          latitudeOffset /
+          math.cos(point.latitude * math.pi / 180).abs().clamp(.01, 1);
+      final coordinates = await Future.wait([
+        map.getScreenCoordinate(LatLng(point.latitude, point.longitude)),
+        map.getScreenCoordinate(
+          LatLng(
+            (point.latitude + latitudeOffset).clamp(-85.0, 85.0),
+            point.longitude,
+          ),
+        ),
+        map.getScreenCoordinate(
+          LatLng(
+            point.latitude,
+            ((point.longitude + longitudeOffset + 180) % 360) - 180,
+          ),
+        ),
+      ]);
+      if (!mounted || revision != _projectionRevision) return;
+      final scale = defaultTargetPlatform == TargetPlatform.android
+          ? MediaQuery.devicePixelRatioOf(context)
+          : 1.0;
+      final origin = Offset(coordinates[0].x / scale, coordinates[0].y / scale);
+      final edge = Offset(coordinates[1].x / scale, coordinates[1].y / scale);
+      final east =
+          Offset(coordinates[2].x / scale, coordinates[2].y / scale) - origin;
+      if (east.distance <= 1 || (origin - edge).distance <= 1) return;
+      setState(() {
+        _rippleCenter = origin;
+        _rippleRadius = east.distance;
+        _rippleEast = east;
+        _rippleNorth = edge - origin;
+      });
+    } catch (_) {
+      // A disposed native map must never interrupt filter editing.
+    }
+  }
+
   double get _radiusZoom {
     final size = MediaQuery.sizeOf(context);
     final viewport = math.min(size.width, widget.height).clamp(64, 2000) * .8;
@@ -115,33 +174,74 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
         .clamp(2, 17);
   }
 
+  bool _samePoint(GeoPoint? a, GeoPoint? b) =>
+      a?.latitude == b?.latitude && a?.longitude == b?.longitude;
+
+  String? get _rippleTrigger =>
+      widget.filterPulseKey ??
+      (widget.animateLocationChanges && widget.enabled && widget.point != null
+          ? '${widget.point!.latitude},${widget.point!.longitude}|${widget.radiusKm}'
+          : null);
+
+  void _cameraMoved(CameraPosition _) {
+    if (_projectionTimer?.isActive ?? false) return;
+    _projectionTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) _projectRipple();
+    });
+  }
+
+  Future<void> _cameraIdle() async {
+    // An idle event from the previous location must not release the next pulse.
+    if (_cameraTimer?.isActive ?? false) return;
+    _projectionTimer?.cancel();
+    _projectionRevision++;
+    if (mounted) setState(() => _cameraMoving = false);
+    await _projectRipple();
+  }
+
   @override
   void didUpdateWidget(BookingLocationPicker old) {
     super.didUpdateWidget(old);
-    if (old.point != widget.point ||
-        old.radiusKm != widget.radiusKm ||
-        old.height != widget.height ||
-        !listEquals(old.candidates, widget.candidates)) {
-      if (old.point != widget.point) {
-        if (_emittedPoint?.latitude != widget.point?.latitude ||
-            _emittedPoint?.longitude != widget.point?.longitude) {
-          _selection++;
-        }
-        _emittedPoint = null;
+    final locationChanged = !_samePoint(old.point, widget.point);
+    final filterChanged = old.filterPulseKey != widget.filterPulseKey;
+    if (locationChanged) {
+      _projectionRevision++;
+      _rippleCenter = null;
+      _rippleRadius = null;
+      if (_emittedPoint?.latitude != widget.point?.latitude ||
+          _emittedPoint?.longitude != widget.point?.longitude) {
+        _selection++;
       }
+      _emittedPoint = null;
+      _cameraTimer?.cancel();
       if (widget.point case final point?) {
         if (_map != null) {
-          _cameraTimer?.cancel();
+          _cameraMoving = true;
+          // Only a location change moves the camera. Provider responses and
+          // panel resizing must not undo the user's zoom or pan.
           _cameraTimer = Timer(const Duration(milliseconds: 120), () {
             if (mounted) _moveCamera(point);
           });
+        } else {
+          _cameraMoving = false;
         }
       }
+    } else if (filterChanged) {
+      _projectRipple();
+    }
+    if (!locationChanged &&
+        (old.radiusKm != widget.radiusKm || old.height != widget.height)) {
+      // Project after the native view receives its new dimensions.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _projectRipple();
+      });
     }
   }
 
   @override
   void dispose() {
+    _projectionRevision++;
+    _projectionTimer?.cancel();
     _cameraTimer?.cancel();
     _map?.dispose();
     super.dispose();
@@ -185,7 +285,6 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
         return;
       }
       _choose(p);
-      _moveCamera(p);
     } catch (e) {
       if (mounted &&
           (!initial || widget.point == null && selection == _selection)) {
@@ -199,6 +298,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
   }
 
   Future<void> _moveCamera(GeoPoint point) async {
+    _cameraMoving = true;
     try {
       final pins = providerMapPins(
         widget.candidates,
@@ -248,25 +348,33 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
         ),
       );
     } catch (_) {
-      // A platform view can be disposed while a GPS/search result is arriving.
+      // Keep filter editing usable if the platform view has gone away.
+    } finally {
+      // moveCamera can finish without another idle event (for example after
+      // choosing the same camera target). Always release and reproject here.
+      if (mounted && _samePoint(point, widget.point)) await _cameraIdle();
     }
   }
 
   void _loadMarkerIcons() {
     for (final candidate in widget.candidates) {
-      final photo = widget.preferProviderPhotos && candidate.markerIcon == null;
-      final url = candidate.markerIcon ?? (photo ? candidate.photo : null);
-      final key = photo ? 'photo:$url' : url;
-      if (url == null || key == null || !_loadingIcons.add(key)) continue;
-      final loader = ref.read(
-        photo
-            ? customerProviderPhotoMarkerLoaderProvider
-            : customerMarkerIconLoaderProvider,
-      );
-      loader(url).then((icon) {
-        if (mounted && icon != null) setState(() => _icons[key] = icon);
-      });
+      final custom = candidate.markerIcon;
+      final photo = widget.preferProviderPhotos ? candidate.photo : null;
+      if (custom != null) _loadMarker(custom, custom, false);
+      if (photo != null) _loadMarker('photo:$photo', photo, true);
     }
+  }
+
+  void _loadMarker(String key, String url, bool photo) {
+    if (!_loadingIcons.add(key)) return;
+    final loader = ref.read(
+      photo
+          ? customerProviderPhotoMarkerLoaderProvider
+          : customerMarkerIconLoaderProvider,
+    );
+    loader(url).then((icon) {
+      if (mounted && icon != null) setState(() => _icons[key] = icon);
+    });
   }
 
   @override
@@ -311,8 +419,17 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                         return;
                       }
                       _map = controller;
-                      if (widget.point case final point?) _moveCamera(point);
+                      if (widget.point case final point?) {
+                        _moveCamera(point);
+                      } else {
+                        _projectRipple();
+                      }
                     },
+                    onCameraMoveStarted: () {
+                      if (mounted) setState(() => _cameraMoving = true);
+                    },
+                    onCameraMove: _cameraMoved,
+                    onCameraIdle: _cameraIdle,
                     onSelect: widget.enabled
                         ? (value) =>
                               _choose(GeoPoint(value.latitude, value.longitude))
@@ -324,8 +441,8 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                           circleId: const CircleId('search-radius'),
                           center: LatLng(p.latitude, p.longitude),
                           radius: widget.radiusKm * 1000,
-                          fillColor: catalogTeal.withValues(alpha: .12),
-                          strokeColor: catalogTeal,
+                          fillColor: catalogTeal.withValues(alpha: .045),
+                          strokeColor: catalogTeal.withValues(alpha: .45),
                           strokeWidth: 1,
                         ),
                     },
@@ -349,10 +466,22 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                             BitmapDescriptor.hueCyan,
                           ),
                           draggable: widget.enabled,
+                          infoWindow: InfoWindow(
+                            title: widget.label,
+                            snippet: widget.enabled
+                                ? 'Touch and hold the pin, then drag to move it.'
+                                : null,
+                          ),
+                          onDragStart: widget.enabled
+                              ? (_) => setState(() => _draggingLocation = true)
+                              : null,
                           onDragEnd: widget.enabled
-                              ? (value) => _choose(
-                                  GeoPoint(value.latitude, value.longitude),
-                                )
+                              ? (value) {
+                                  setState(() => _draggingLocation = false);
+                                  _choose(
+                                    GeoPoint(value.latitude, value.longitude),
+                                  );
+                                }
                               : null,
                         ),
                       for (final pin in pins)
@@ -363,14 +492,13 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                               ? null
                               : () => widget.onProviderSelected!(pin.candidate),
                           icon:
-                              _icons[pin.candidate.markerIcon ??
-                                  (widget.preferProviderPhotos
-                                      ? 'photo:${pin.candidate.photo}'
-                                      : null)] ??
+                              (widget.preferProviderPhotos
+                                  ? _icons['photo:${pin.candidate.photo}']
+                                  : null) ??
+                              _icons[pin.candidate.markerIcon] ??
                               BitmapDescriptor.defaultMarker,
                           anchor:
-                              pin.candidate.markerIcon == null &&
-                                  widget.preferProviderPhotos &&
+                              widget.preferProviderPhotos &&
                                   _icons['photo:${pin.candidate.photo}'] != null
                               ? const Offset(.5, .5)
                               : const Offset(.5, 1),
@@ -388,6 +516,17 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                           ),
                         ),
                     },
+                  ),
+                ),
+                Positioned.fill(
+                  child: SearchRangeRipple(
+                    repeat: widget.enabled,
+                    trigger: _rippleTrigger,
+                    center: _rippleCenter,
+                    radius: _rippleRadius,
+                    east: _rippleEast,
+                    north: _rippleNorth,
+                    paused: _cameraMoving || _draggingLocation,
                   ),
                 ),
                 if (widget.mapOnly && _error != null)
@@ -410,7 +549,8 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                       ),
                     ),
                   ),
-                if (widget.enabled || widget.showRecenter)
+                if (widget.showControls &&
+                    (widget.enabled || widget.showRecenter))
                   Positioned(
                     top: widget.mapOnly ? null : 8,
                     bottom: widget.mapOnly

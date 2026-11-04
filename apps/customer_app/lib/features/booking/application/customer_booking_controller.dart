@@ -83,7 +83,44 @@ class CustomerBookingController extends ChangeNotifier {
       ? 'Additional details needed'
       : checkingAvailability
       ? 'Checking providers…'
-      : availabilityError ?? availabilityLabel;
+      : availabilityError ?? availabilityLabel ?? availabilityInputHint;
+
+  /// Explain a blocked live search without claiming zero providers.
+  String? get availabilityInputHint {
+    if (!autoAvailability || context == null || stage != BookingStage.details) {
+      return null;
+    }
+    try {
+      searchInput(locationStep: true);
+    } on BookingProblem catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Choose a valid location and schedule to check providers.';
+    }
+    return null;
+  }
+
+  String? _startTimeIssue(DateTime from) {
+    if (!from.isAfter(now())) return 'Choose a future start time.';
+    if (usesRequestPolicy &&
+        from.difference(now()) <
+            Duration(minutes: requestPolicy['minimumNoticeMinutes'] as int)) {
+      return 'Choose a start time at least ${requestPolicy['minimumNoticeMinutes']} minutes from now.';
+    }
+    return null;
+  }
+
+  String? get startTimeError {
+    if (context == null) return null;
+    if (start.trim().isEmpty) return 'Choose a date and start time.';
+    try {
+      return _startTimeIssue(MarketTime.parse(start, context!.zone));
+    } on BookingProblem catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Choose a valid date and start time.';
+    }
+  }
 
   String? _availabilityFingerprint() {
     try {
@@ -414,7 +451,7 @@ class CustomerBookingController extends ChangeNotifier {
   String start = '', end = '', address = '', destinationAddress = '', note = '';
   String? mode, method;
   GeoPoint? point, destination;
-  double radius = 5;
+  double radius = 10;
   bool busy = false, uncertain = false, hasNext = false, _disposed = false;
   int _epoch = 0, _page = 0;
   bool get allowed => access?['eligible'] == true;
@@ -791,16 +828,8 @@ class CustomerBookingController extends ChangeNotifier {
       throw const BookingProblem('Choose a radius between 0.1 and 500 km.');
     }
     final from = MarketTime.parse(start, ctx.zone);
-    if (!from.isAfter(now())) {
-      throw const BookingProblem('Choose a future start time.');
-    }
-    if (usesRequestPolicy &&
-        from.difference(now()) <
-            Duration(minutes: requestPolicy['minimumNoticeMinutes'] as int)) {
-      throw BookingProblem(
-        'Choose a start time at least ${requestPolicy['minimumNoticeMinutes']} minutes from now.',
-      );
-    }
+    final timeIssue = _startTimeIssue(from);
+    if (timeIssue != null) throw BookingProblem(timeIssue);
     if (usesRequestPolicy &&
         radius > (requestPolicy['maximumRadiusKm'] as num)) {
       throw BookingProblem(
@@ -1105,8 +1134,9 @@ class CustomerBookingController extends ChangeNotifier {
     if (context!.route && (destination == null || !destination!.valid)) {
       fieldErrors['Destination'] = 'Choose the destination.';
     }
-    if (start.trim().isEmpty) {
-      fieldErrors['Start time'] = 'Choose a date and start time.';
+    final timeIssue = startTimeError;
+    if (timeIssue != null) {
+      fieldErrors['Start time'] = timeIssue;
     } else {
       try {
         final from = MarketTime.parse(start, context!.zone);
