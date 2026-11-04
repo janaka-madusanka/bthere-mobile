@@ -1,0 +1,277 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="2610" viewBox="0 0 2560 2610" role="img" aria-labelledby="title description">
+<title id="title">BThere customer app UI and navigation map</title><desc id="description">Audited implemented customer screens, overlays, scheduled booking states and enhancement order. Pending features and backend constraints are called out separately.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#458B93"/></marker></defs>
+<rect width="2560" height="2610" fill="#FFFFFF"/>
+<rect width="2560" height="170" fill="#006D75"/>
+<text x="40" y="65" font-family="Arial, sans-serif" font-size="38" fill="#FFFFFF" font-weight="700">BThere / Customer app</text>
+<text x="40" y="105" font-family="Arial, sans-serif" font-size="25" fill="#CEF4F1" font-weight="400">UI inventory + navigation map</text>
+<text x="40" y="140" font-family="Arial, sans-serif" font-size="17" fill="#CEF4F1" font-weight="400">Audit: 30 Oct 2026  |  Screen IDs match customer-ui-inventory.md  |  All units pending visual review</text>
+<text x="1390" y="65" font-family="Arial, sans-serif" font-size="15" fill="#CEF4F1" font-weight="700">READING THE MAP</text>
+<text x="1390" y="98" font-family="Arial, sans-serif" font-size="17" fill="#FFFFFF" font-weight="400">White: screen   /   Lavender: overlay   /   Teal: state   /   Yellow: decision</text>
+<text x="1390" y="130" font-family="Arial, sans-serif" font-size="17" fill="#FFFFFF" font-weight="400">Solid arrows: main journey   /   Dashed arrows: optional or supporting action</text>
+<rect x="40" y="210" width="560" height="1900" rx="24" fill="#F5FAFA" stroke="#D7E6E8"/>
+<text x="64" y="250" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">01 / Authentication &amp; profile</text>
+<text x="64" y="278" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">Session guards choose the required next step</text>
+<rect x="630" y="210" width="560" height="1900" rx="24" fill="#F5FAFA" stroke="#D7E6E8"/>
+<text x="654" y="250" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">02 / Home &amp; discovery</text>
+<text x="654" y="278" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">Main entry points and browsing</text>
+<rect x="1220" y="210" width="700" height="1900" rx="24" fill="#F5FAFA" stroke="#D7E6E8"/>
+<text x="1244" y="250" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">03 / Booking &amp; payment</text>
+<text x="1244" y="278" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">Scheduled request flow; both selection modes</text>
+<rect x="1950" y="210" width="570" height="1900" rx="24" fill="#F5FAFA" stroke="#D7E6E8"/>
+<text x="1974" y="250" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">04 / Wallet</text>
+<text x="1974" y="278" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">Saved methods and test top-ups</text>
+<g id="A01"><rect x="64" y="310" width="512" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="80" y="333" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A01</text>
+<text x="80" y="358" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Startup / session restore</text>
+<text x="80" y="381" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Existing session may skip authentication</text>
+</g>
+<g id="A02"><rect x="64" y="443" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="466" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A02</text>
+<text x="80" y="491" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Email sign in</text>
+<text x="80" y="514" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Auth entry; switch to registration or phone</text>
+</g>
+<g id="A03"><rect x="64" y="576" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="599" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A03</text>
+<text x="80" y="624" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Email registration</text>
+<text x="80" y="647" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Alternative to sign in</text>
+</g>
+<g id="A04"><rect x="64" y="709" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="732" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A04</text>
+<text x="80" y="757" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Phone sign in</text>
+<text x="80" y="780" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Request phone OTP</text>
+</g>
+<g id="A05"><rect x="64" y="842" width="512" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="80" y="865" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A05</text>
+<text x="80" y="890" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Email OTP verification</text>
+<text x="80" y="913" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Email registration branch</text>
+</g>
+<g id="A06"><rect x="64" y="975" width="512" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="80" y="998" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A06</text>
+<text x="80" y="1023" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Phone OTP verification</text>
+<text x="80" y="1046" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Phone sign-in branch</text>
+</g>
+<g id="A07"><rect x="64" y="1108" width="512" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="80" y="1131" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">A07</text>
+<text x="80" y="1156" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Verification success</text>
+<text x="80" y="1179" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Continue through profile / market guards</text>
+</g>
+<g id="P01"><rect x="64" y="1241" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="1264" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">P01</text>
+<text x="80" y="1289" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Create customer profile</text>
+<text x="80" y="1312" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Only when profile is missing</text>
+</g>
+<g id="P03"><rect x="64" y="1374" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="1397" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">P03</text>
+<text x="80" y="1422" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Account</text>
+<text x="80" y="1445" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Reached from the top-bar profile action</text>
+</g>
+<g id="P02"><rect x="64" y="1507" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="80" y="1530" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">P02</text>
+<text x="80" y="1555" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Edit profile / photo</text>
+<text x="80" y="1578" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Existing-profile editing mode</text>
+</g>
+<g id="P04"><rect x="64" y="1640" width="512" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="80" y="1663" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">P04</text>
+<text x="80" y="1688" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Sign-out confirmation</text>
+<text x="80" y="1711" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Account session action</text>
+</g>
+<g id="S01"><rect x="64" y="1773" width="512" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="80" y="1796" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">S01</text>
+<text x="80" y="1821" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Configuration help</text>
+<text x="80" y="1844" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Shown when runtime configuration is missing</text>
+</g>
+<path d="M320.0,398 V420.5 H320.0 V443" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="328.0" y="414.5" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">If signed out</text>
+<text x="70" y="710" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">A02 / A03 / A04 are alternative entry modes.</text>
+<path d="M320.0,1063 V1085.5 H320.0 V1108" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M320.0,1196 V1218.5 H320.0 V1241" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="328.0" y="1212.5" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">If profile missing</text>
+<path d="M320.0,1462 V1484.5 H320.0 V1507" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<g id="D01"><rect x="654" y="310" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="670" y="333" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">D01</text>
+<text x="670" y="358" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Market selection</text>
+<text x="670" y="381" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Required when no market is active</text>
+</g>
+<g id="D02"><rect x="654" y="460" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="670" y="483" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">D02</text>
+<text x="670" y="508" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Home</text>
+<text x="670" y="531" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Services, recent bookings, wallet and account</text>
+</g>
+<g id="D03"><rect x="654" y="610" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="670" y="633" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">D03</text>
+<text x="670" y="658" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Services / search / options</text>
+<text x="670" y="681" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Expandable service catalog</text>
+</g>
+<g id="D04"><rect x="654" y="760" width="512" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="670" y="783" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">D04</text>
+<text x="670" y="808" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Service option information</text>
+<text x="670" y="831" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Description and access reasons</text>
+</g>
+<g id="H01"><rect x="654" y="910" width="512" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="670" y="933" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">H01</text>
+<text x="670" y="958" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Booking history</text>
+<text x="670" y="981" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Home &gt; Recent services &gt; View all</text>
+</g>
+<g id="H02"><rect x="654" y="1060" width="512" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="670" y="1083" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">H02</text>
+<text x="670" y="1108" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Historical booking details</text>
+<text x="670" y="1131" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Tap a booking history item</text>
+</g>
+<path d="M910.0,398 V429.0 H910.0 V460" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M910.0,548 V579.0 H910.0 V610" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M910.0,698 V729.0 H910.0 V760" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M910.0,998 V1029.0 H910.0 V1060" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="660" y="1280" font-family="Arial, sans-serif" font-size="16" fill="#183C44" font-weight="700">HOME DESTINATIONS</text>
+<text x="660" y="1320" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">Services -&gt; D03</text>
+<text x="660" y="1354" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">Recent bookings -&gt; H01 / H02</text>
+<text x="660" y="1388" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">Wallet tab -&gt; W01</text>
+<text x="660" y="1422" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">Profile action -&gt; P03 / P02</text>
+<text x="660" y="1510" font-family="Arial, sans-serif" font-size="16" fill="#9A6B22" font-weight="700">VISIBLE, NOT IMPLEMENTED SCREENS</text>
+<text x="660" y="1550" font-family="Arial, sans-serif" font-size="18" fill="#796B51" font-weight="400">Opportunities: coming-soon action</text>
+<text x="660" y="1584" font-family="Arial, sans-serif" font-size="18" fill="#796B51" font-weight="400">Messages: coming-soon action</text>
+<text x="660" y="1618" font-family="Arial, sans-serif" font-size="18" fill="#796B51" font-weight="400">Notifications: coming-soon action</text>
+<text x="660" y="1652" font-family="Arial, sans-serif" font-size="18" fill="#796B51" font-weight="400">Recurring services: coming soon</text>
+<text x="660" y="1755" font-family="Arial, sans-serif" font-size="17" fill="#617B82" font-weight="400">These are separate future functional work.</text>
+<g id="B01"><rect x="1244" y="310" width="652" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1260" y="333" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B01</text>
+<text x="1260" y="358" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Additional service requirements</text>
+<text x="1260" y="381" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Conditional access form; continue only when access allows</text>
+</g>
+<g id="B02"><rect x="1244" y="450" width="652" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1260" y="473" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B02</text>
+<text x="1260" y="498" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Filters / location / schedule / availability</text>
+<text x="1260" y="521" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Live provider availability and required selections</text>
+</g>
+<g id="G01"><rect x="1244" y="600" width="300" height="88" rx="14" fill="#FFF6DA" stroke="#DEC570" stroke-width="2"/>
+<text x="1260" y="623" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">G01</text>
+<text x="1260" y="648" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Providers available?</text>
+<text x="1260" y="671" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">No -&gt; remain on filters</text>
+</g>
+<g id="B06"><rect x="1596" y="600" width="300" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1612" y="623" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B06</text>
+<text x="1612" y="648" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Choose provider</text>
+<text x="1612" y="671" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Direct request only</text>
+</g>
+<g id="B07"><rect x="1244" y="770" width="652" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1260" y="793" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B07</text>
+<text x="1260" y="818" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Booking details + estimated cost</text>
+<text x="1260" y="841" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Open request skips B06; direct request arrives after selection</text>
+</g>
+<g id="B08"><rect x="1244" y="910" width="652" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1260" y="933" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B08</text>
+<text x="1260" y="958" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Review booking / payment category</text>
+<text x="1260" y="981" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Backend-supported methods only</text>
+</g>
+<g id="B09"><rect x="1596" y="1050" width="300" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1612" y="1073" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B09</text>
+<text x="1612" y="1098" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Select saved card</text>
+<text x="1612" y="1121" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Card branch; add W03</text>
+</g>
+<g id="B10"><rect x="1244" y="1190" width="652" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1260" y="1213" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B10</text>
+<text x="1260" y="1238" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Payment confirmation</text>
+<text x="1260" y="1261" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Creates request using current backend policy</text>
+</g>
+<g id="B11"><rect x="1244" y="1330" width="652" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1260" y="1353" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B11</text>
+<text x="1260" y="1378" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Finding a provider</text>
+<text x="1260" y="1401" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">MATCHING; authoritative status polling</text>
+</g>
+<g id="B12"><rect x="1244" y="1470" width="652" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1260" y="1493" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B12</text>
+<text x="1260" y="1518" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Provider accepted</text>
+<text x="1260" y="1541" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Backend deadline; acceptance alone is not payment success</text>
+</g>
+<g id="B13"><rect x="1244" y="1610" width="652" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1260" y="1633" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B13</text>
+<text x="1260" y="1658" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Request details / supported payment action</text>
+<text x="1260" y="1681" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Current scheduled flow confirms payment after acceptance</text>
+</g>
+<g id="B14"><rect x="1244" y="1780" width="300" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1260" y="1803" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B14</text>
+<text x="1260" y="1828" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Payment successful</text>
+<text x="1260" y="1851" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Confirmed paid / reserved</text>
+</g>
+<g id="B15"><rect x="1596" y="1780" width="300" height="88" rx="14" fill="#E3F8F6" stroke="#82CBC6" stroke-width="2"/>
+<text x="1612" y="1803" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">B15</text>
+<text x="1612" y="1828" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Payment failed</text>
+<text x="1612" y="1851" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Known failure; retry</text>
+</g>
+<path d="M1570.0,398 V424.0 H1570.0 V450" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,538 V569.0 H1394.0 V600" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,858 V884.0 H1570.0 V910" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1746.0,1138 V1164.0 H1570.0 V1190" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,1278 V1304.0 H1570.0 V1330" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,1418 V1444.0 H1570.0 V1470" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,1558 V1584.0 H1570.0 V1610" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,1698 V1739.0 H1394.0 V1780" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1544,644.0 H1570.0 V644.0 H1596" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="1578.0" y="636.0" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">Direct</text>
+<path d="M1394.0,688 V729.0 H1570.0 V770" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="1402.0" y="723.0" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">Open</text>
+<path d="M1746.0,688 V729.0 H1570.0 V770" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M1570.0,998 V1024.0 H1746.0 V1050" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="1578.0" y="1018.0" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">Card</text>
+<path d="M1570.0,998 V1094.0 H1570.0 V1190" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="1578.0" y="1088.0" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">Wallet / other</text>
+<path d="M1570.0,1698 V1739.0 H1746.0 V1780" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<text x="1248" y="1940" font-family="Arial, sans-serif" font-size="15" fill="#183C44" font-weight="700">SUPPORTING OVERLAYS</text>
+<text x="1248" y="1972" font-family="Arial, sans-serif" font-size="16" fill="#617B82" font-weight="400">B03 Location picker   /   B04 Radius   /   B05 Date, time, duration</text>
+<text x="1248" y="2004" font-family="Arial, sans-serif" font-size="16" fill="#617B82" font-weight="400">B16 Cancel unpaid request / change method confirmation</text>
+<text x="1248" y="2036" font-family="Arial, sans-serif" font-size="16" fill="#617B82" font-weight="400">B15 retry -&gt; B13   |   B14 View booking -&gt; B13</text>
+<text x="1248" y="2068" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">B02 opens B03-B05; B11-B13 may expose B16 when allowed.</text>
+<g id="W01"><rect x="1974" y="310" width="522" height="88" rx="14" fill="#FFFFFF" stroke="#B8D3D7" stroke-width="2"/>
+<text x="1990" y="333" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W01</text>
+<text x="1990" y="358" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Wallet overview</text>
+<text x="1990" y="381" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Balance, methods and recent transactions</text>
+</g>
+<g id="W02"><rect x="1974" y="475" width="522" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1990" y="498" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W02</text>
+<text x="1990" y="523" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Manage payment methods</text>
+<text x="1990" y="546" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Saved cards and add-card action</text>
+</g>
+<g id="W03"><rect x="1974" y="640" width="522" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1990" y="663" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W03</text>
+<text x="1990" y="688" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Add new card</text>
+<text x="1990" y="711" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Validation and card brand detection</text>
+</g>
+<g id="W06"><rect x="1974" y="805" width="522" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1990" y="828" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W06</text>
+<text x="1990" y="853" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Saved-card actions / remove</text>
+<text x="1990" y="876" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Method action menu</text>
+</g>
+<g id="W04"><rect x="1974" y="970" width="522" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1990" y="993" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W04</text>
+<text x="1990" y="1018" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Add money</text>
+<text x="1990" y="1041" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Quick / custom amount and payment method</text>
+</g>
+<g id="W05"><rect x="1974" y="1135" width="522" height="88" rx="14" fill="#F1F4FF" stroke="#BAC7EB" stroke-width="2"/>
+<text x="1990" y="1158" font-family="Arial, sans-serif" font-size="13" fill="#55767D" font-weight="700">W05</text>
+<text x="1990" y="1183" font-family="Arial, sans-serif" font-size="18" fill="#183C44" font-weight="700">Full payment history</text>
+<text x="1990" y="1206" font-family="Arial, sans-serif" font-size="14" fill="#617B82" font-weight="400">Wallet &gt; Payment history &gt; View all</text>
+</g>
+<path d="M2235.0,398 V436.5 H2235.0 V475" fill="none" stroke="#458B93" stroke-width="2.5"  marker-end="url(#arrow)"/>
+<path d="M2235.0,563 V601.5 H2235.0 V640" fill="none" stroke="#458B93" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<text x="2243.0" y="595.5" font-family="Arial, sans-serif" font-size="13" fill="#356D75" font-weight="700">Add</text>
+<text x="1982" y="1380" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">W01 -&gt; W04: Add money</text>
+<text x="1982" y="1420" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">W01 -&gt; W05: View all history</text>
+<text x="1982" y="1460" font-family="Arial, sans-serif" font-size="19" fill="#183C44" font-weight="400">W02 -&gt; W06: Card actions</text>
+<text x="1982" y="1500" font-family="Arial, sans-serif" font-size="18" fill="#617B82" font-weight="400">B09 reuses W03 for adding a card.</text>
+<text x="1982" y="1610" font-family="Arial, sans-serif" font-size="16" fill="#9A6B22" font-weight="700">PAYMENT CONTRACT LIMITS</text>
+<text x="1982" y="1650" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">Card setup remains test / mock.</text>
+<text x="1982" y="1682" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">Pre-match hold / preauthorization needs</text>
+<text x="1982" y="1714" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">a backend contract before implementation.</text>
+<text x="1982" y="1746" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">No invented 30-second auto approval.</text>
+<text x="1982" y="1778" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">Legacy booking branches need separate</text>
+<text x="1982" y="1810" font-family="Arial, sans-serif" font-size="17" fill="#796B51" font-weight="400">regression checks when their UI changes.</text>
+<rect x="40" y="2150" width="2480" height="200" rx="24" fill="#F5FAFA" stroke="#D7E6E8"/>
+<text x="64" y="2190" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">Shared components / review once, verify everywhere</text>
+<text x="64" y="2218" font-family="Arial, sans-serif" font-size="15" fill="#617B82" font-weight="400">These are reused components, not extra navigation destinations</text>
+<text x="64" y="2250" font-family="Arial, sans-serif" font-size="21" fill="#183C44" font-weight="400">C01 Typography + spacing    C02 Top bar    C03 Bottom navigation    C04 Map controls + dropdowns</text>
+<text x="64" y="2295" font-family="Arial, sans-serif" font-size="21" fill="#183C44" font-weight="400">C05 Form fields + validation    C06 Amounts + payment rows    C07 Loading / empty / error / retry states</text>
+<text x="40" y="2410" font-family="Arial, sans-serif" font-size="18" fill="#006D75" font-weight="700">ENHANCEMENT ORDER</text>
+<text x="40" y="2452" font-family="Arial, sans-serif" font-size="24" fill="#183C44" font-weight="700">Shared baseline -&gt; Home / services -&gt; Booking journey -&gt; History -&gt; Wallet -&gt; Auth / profile -&gt; Full consistency pass</text>
+<text x="40" y="2504" font-family="Arial, sans-serif" font-size="20" fill="#617B82" font-weight="400">Per UI: current screenshot -&gt; agreed reference -&gt; implement -&gt; device review -&gt; approve -&gt; next UI</text>
+<text x="40" y="2550" font-family="Arial, sans-serif" font-size="18" fill="#617B82" font-weight="400">Check small screens, keyboard, long text, larger text, safe areas, back navigation and retained selections.</text>
+</svg>

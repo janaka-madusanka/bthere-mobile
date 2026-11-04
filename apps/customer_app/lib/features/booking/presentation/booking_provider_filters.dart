@@ -18,7 +18,7 @@ class BookingProviderFilters extends StatelessWidget {
         for (final field in c.context!.providerFilters)
           Padding(
             key: ValueKey('provider-filter-${field.id}'),
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 10),
             child: BookingValidationGroup(
               key: ValueKey('provider-filter-validation-${field.id}'),
               error: c.fieldErrors[field.label],
@@ -90,6 +90,7 @@ class BookingProviderFilters extends StatelessWidget {
                     )
                   else if (field.type == 'BOOLEAN')
                     BookingChoiceTiles(
+                      filterStyle: true,
                       choices: const [
                         {'value': 'true', 'label': 'Yes'},
                         {'value': 'false', 'label': 'No'},
@@ -109,6 +110,7 @@ class BookingProviderFilters extends StatelessWidget {
                     )
                   else
                     BookingChoiceTiles(
+                      filterStyle: true,
                       choices: field.options,
                       selected: Set<String>.from(
                         c.providerFilters[field.id] as List? ?? const [],

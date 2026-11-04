@@ -15,10 +15,12 @@ class BookingEstimatedCost extends StatefulWidget {
     required this.controller,
     this.showPricingChoices = true,
     this.compact = false,
+    this.amountFontSize,
   });
   final CustomerBookingController controller;
   final bool showPricingChoices;
   final bool compact;
+  final double? amountFontSize;
   @override
   State<BookingEstimatedCost> createState() => _BookingEstimatedCostState();
 }
@@ -191,9 +193,7 @@ class _BookingEstimatedCostState extends State<BookingEstimatedCost> {
                     style: TextStyle(
                       fontSize: _quote == null
                           ? 12
-                          : widget.compact
-                          ? 16
-                          : 21,
+                          : widget.amountFontSize ?? (widget.compact ? 16 : 21),
                       fontWeight: _quote == null
                           ? FontWeight.w400
                           : FontWeight.w700,

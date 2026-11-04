@@ -1,3 +1,8 @@
+import 'booking_checkout_contents.dart';
+import 'booking_request_receipt.dart';
+import 'booking_payment_visuals.dart';
+import 'customer_booking_details_screen.dart';
+import 'booking_cancel_request_dialog.dart';
 import 'booking_validation_group.dart';
 import '../../../app/customer_providers.dart';
 import '../../wallet/application/customer_wallet_controller.dart';
@@ -7,6 +12,8 @@ import 'booking_choice_tiles.dart';
 import 'booking_review_summary.dart';
 import 'booking_saved_cards_dialog.dart';
 import 'booking_request_progress_screen.dart';
+import 'booking_card_checkout_page.dart';
+import 'booking_billing_contact_dialog.dart';
 import 'booking_payment_result_screen.dart';
 import 'booking_estimated_cost.dart';
 
@@ -57,6 +64,49 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       _paymentConfirmation = false,
       _showRequestProgress = true;
   Map<String, dynamic>? _selectedPaymentCard;
+  String? _replacementMethod;
+
+  String get _selectedCardSummary {
+    final label = '${_selectedPaymentCard?['displayLabel'] ?? ''}';
+    final savedLast4 = _selectedPaymentCard?['last4'];
+    final last4 =
+        savedLast4 is String && RegExp(r'^\d{4}$').hasMatch(savedLast4)
+        ? savedLast4
+        : RegExp(r'(\d{4})\s*$').firstMatch(label)?.group(1);
+    if (last4 == null) return 'Your selected card';
+    return '•••• $last4${label.toUpperCase().contains('TEST') ? ' · Test card' : ''}';
+  }
+
+  void _openCompletedBooking(CustomerBookingController c) {
+    if (!mounted || !c.alive || c.busy) return;
+    final jobId = c.created?['jobId'];
+    if (jobId is! int || jobId <= 0) {
+      c.dismissPaymentResult();
+      return;
+    }
+    final extras = BookingDetailsExtras(
+      jobId: jobId,
+      serviceName: c.context?.name,
+      providers: {
+        for (final provider in [
+          ...c.candidates,
+          ...c.availableCandidates,
+          ...c.selected.values,
+        ])
+          provider.id: provider,
+      }.values.toList(),
+      answerLabels: {
+        for (final field in c.context?.fields ?? <BookingField>[])
+          field.code: field.label,
+      },
+    );
+    c.dismissPaymentResult();
+    if (c.userId != null) {
+      ref.read(customerBookingDetailsExtrasProvider(c.userId!))[jobId] = extras;
+      ref.invalidate(customerBookingHistoryProvider(c.userId!));
+    }
+    context.push('/bookings/$jobId', extra: extras);
+  }
 
   Future<bool> _bookingCard(
     CustomerBookingController c, {
@@ -103,18 +153,9 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       );
       if (!mounted || !c.alive || !added) return false;
       ref.invalidate(customerWalletProvider);
-      if (c.availableMethods.contains('CARD')) {
-        c.method = 'CARD';
-        c.review();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Card added. Card payment is not enabled for this service yet.',
-            ),
-          ),
-        );
-      }
+      // Card setup only updates the saved-card list. The caller owns booking
+      // selection and navigation, including payment-failure recovery.
+      return added;
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -287,12 +328,20 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       child: ListenableBuilder(
         listenable: c,
         builder: (context, _) =>
-            c.stage == BookingStage.created && c.paymentOutcome != null
+            (c.stage == BookingStage.created && c.paymentOutcome != null) ||
+                (_replacementMethod != null &&
+                    c.created == null &&
+                    c.stage == BookingStage.review &&
+                    !c.uncertain)
             ? PopScope(
                 canPop: !c.busy,
                 child: BookingPaymentResultScreen(
                   success: c.paymentOutcome == 'SUCCESS',
                   busy: c.busy,
+                  selectedMethod: _replacementMethod,
+                  selectedCardLabel: _replacementMethod == 'CARD'
+                      ? _selectedCardSummary
+                      : null,
                   testPayment:
                       (c.created?['requestId'] == null &&
                           c.created?['paymentMethod'] == 'CARD') ||
@@ -310,43 +359,30 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                             ? 'Your request has been confirmed.'
                             : 'Your test payment has been completed.'),
                   reason:
+                      (_replacementMethod != null ? c.error : null) ??
                       c.paymentFailureReason ??
                       (c.payment?['status'] == 'FAILED'
                           ? 'The test payment was not completed.'
                           : c.error),
                   onRetry: () async {
-                    await c.pay();
+                    if (_replacementMethod != null) {
+                      await _retryWithReplacementMethod(c);
+                    } else {
+                      if (c.created?['requestId'] is int &&
+                          c.created?['paymentMethod'] == 'CARD') {
+                        await _confirmAcceptedPayment(c);
+                      } else {
+                        await c.pay();
+                      }
+                    }
                     if (mounted) ref.invalidate(customerWalletProvider);
                   },
                   onDifferentMethod: !c.canChangePaymentMethod
                       ? null
                       : () async {
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('Change payment method?'),
-                              content: const Text(
-                                'This will cancel the unpaid request so you can choose another payment method and send a new request. No payment will be made by this action.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, false),
-                                  child: const Text('Keep request'),
-                                ),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, true),
-                                  child: const Text('Change method'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirmed == true && mounted) {
-                            await c.changeRequestPaymentMethod();
-                          }
+                          await _chooseReplacementPaymentMethod(c);
                         },
-                  onBooking: c.dismissPaymentResult,
+                  onBooking: () => _openCompletedBooking(c),
                   onHome: () => context.go('/home'),
                 ),
               )
@@ -359,35 +395,46 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                   }.contains(c.created?['status'])
             ? BookingRequestProgressScreen(
                 controller: c,
-                onDetails: () => setState(() => _showRequestProgress = false),
+                onDetails: () async {
+                  if (c.created?['paymentMethod'] == 'CARD') {
+                    await _confirmAcceptedPayment(c);
+                    return;
+                  }
+                  final amount = c.created?['expectedAmount'];
+                  if (c.created?['paymentMethod'] == 'WALLET' &&
+                      amount is num &&
+                      amount.isFinite &&
+                      c.created?['currencyCode'] is String) {
+                    await c.confirmRequestWallet();
+                    if (mounted) ref.invalidate(customerWalletProvider);
+                  } else {
+                    setState(() => _showRequestProgress = false);
+                  }
+                },
                 onCancel: !c.canCancelCreatedRequest
                     ? null
                     : () async {
                         final cancel = await showDialog<bool>(
                           context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Cancel request?'),
-                            content: const Text(
-                              'Stop finding a provider for this unpaid request?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(dialogContext, false),
-                                child: const Text('Keep request'),
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.pop(dialogContext, true),
-                                child: const Text('Cancel request'),
-                              ),
-                            ],
-                          ),
+                          builder: (_) => const BookingCancelRequestDialog(),
                         );
                         if (cancel == true && mounted) {
                           await c.cancelCreatedRequest();
                         }
                       },
+              )
+            : c.stage == BookingStage.created &&
+                  c.created?['requestId'] is int &&
+                  !c.uncertain
+            ? BookingPaymentPage(
+                onBack: c.busy ? null : () => _back(c),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (c.error != null) _Notice(c.error!),
+                    ..._created(c),
+                  ],
+                ),
               )
             : PopScope(
                 canPop:
@@ -441,6 +488,8 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                             }.contains(c.stage) &&
                             !c.uncertain
                       ? BookingDetailsCanvas(
+                          keyboardOpen:
+                              MediaQuery.viewInsetsOf(context).bottom > 0,
                           controller: c,
                           onBack: () => _back(c),
                           onOptionChanged: (option) =>
@@ -870,10 +919,19 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                       ),
                     ],
                   )
-                : Icon(
-                    payment == 'WALLET'
-                        ? Icons.account_balance_wallet_outlined
-                        : Icons.payments_outlined,
+                : payment == 'WALLET'
+                ? SvgPicture.asset(
+                    'assets/icons/navigation/wallet_selected.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: const ColorFilter.mode(
+                      catalogTeal,
+                      BlendMode.srcIn,
+                    ),
+                    semanticsLabel: 'BThere Wallet',
+                  )
+                : const Icon(
+                    Icons.payments_outlined,
                     color: catalogTeal,
                     size: 20,
                   ),
@@ -900,7 +958,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
           ),
         ),
       ),
-    const SizedBox(height: 6),
     Row(
       key: const ValueKey('booking-review-footer'),
       children: [
@@ -976,6 +1033,223 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     ),
   ];
 
+  Future<void> _chooseReplacementPaymentMethod(
+    CustomerBookingController c,
+  ) async {
+    if (c.busy || !c.canChangePaymentMethod) return;
+    final request = c.created;
+    final method = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Choose a payment method',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: catalogInk,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Choose another method, then tap Try Again to send a new provider request. Your booking details are kept.',
+                style: TextStyle(color: catalogMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              for (final method in c.availableMethods)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    key: ValueKey('replacement-payment-$method'),
+                    enabled: method != request?['paymentMethod'],
+                    tileColor: const Color(0xFFF0FAFA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    leading: Icon(
+                      method == 'CARD'
+                          ? Icons.credit_card_rounded
+                          : method == 'WALLET'
+                          ? Icons.account_balance_wallet_outlined
+                          : Icons.payments_outlined,
+                      color: method == request?['paymentMethod']
+                          ? catalogMuted
+                          : catalogTeal,
+                    ),
+                    title: Text(
+                      method == 'CARD'
+                          ? 'Credit / Debit Card'
+                          : method == 'WALLET'
+                          ? 'BThere Wallet'
+                          : 'Cash on Hand',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: catalogInk,
+                      ),
+                    ),
+                    trailing: Icon(
+                      method == request?['paymentMethod']
+                          ? Icons.check_circle_outline
+                          : Icons.chevron_right,
+                      color: method == request?['paymentMethod']
+                          ? catalogMuted
+                          : catalogTeal,
+                    ),
+                    subtitle: method == request?['paymentMethod']
+                        ? const Text('Current payment method')
+                        : null,
+                    onTap: method == request?['paymentMethod']
+                        ? null
+                        : () => Navigator.pop(sheetContext, method),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || !c.alive || method == null) return;
+    if (method == 'CARD' && !await _selectPaymentCard(c)) {
+      return;
+    }
+    if (!mounted ||
+        !c.alive ||
+        c.busy ||
+        !identical(c.created, request) ||
+        !c.canChangePaymentMethod) {
+      return;
+    }
+    setState(() => _replacementMethod = method);
+  }
+
+  Future<void> _retryWithReplacementMethod(CustomerBookingController c) async {
+    final method = _replacementMethod;
+    if (method == null ||
+        c.busy ||
+        c.uncertain ||
+        !c.availableMethods.contains(method)) {
+      return;
+    }
+    if (c.created != null) {
+      await c.changeRequestPaymentMethod();
+      if (!mounted || !c.alive || c.created != null) return;
+    }
+    c.method = method;
+    _showRequestProgress = true;
+    _paymentConfirmation = false;
+    await c.submit();
+    if (mounted &&
+        c.alive &&
+        (c.created != null || c.stage != BookingStage.review || c.uncertain)) {
+      setState(() => _replacementMethod = null);
+    }
+  }
+
+  bool _openingCheckout = false;
+  Future<void> _confirmAcceptedPayment(CustomerBookingController c) async {
+    if (_openingCheckout || c.busy || !c.alive) return;
+    _openingCheckout = true;
+    try {
+      final card = _selectedPaymentCard;
+      final brand =
+          '${card?['brand'] ?? card?['cardBrand'] ?? card?['displayLabel'] ?? ''}'
+              .toUpperCase();
+      String? method = brand.contains('MASTER')
+          ? 'MASTER'
+          : brand.contains('VISA') || brand.contains('TEST CARD')
+          ? 'VISA'
+          : null;
+      method ??= await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.white,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Choose your card type',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+              ),
+              for (final entry in {
+                'VISA': 'Visa',
+                'MASTER': 'Mastercard',
+              }.entries)
+                ListTile(
+                  leading: const Icon(Icons.credit_card),
+                  title: Text(entry.value),
+                  onTap: () => Navigator.pop(sheetContext, entry.key),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (!mounted || !c.alive || method == null) return;
+      var email = c.auth.user?.email ?? '';
+      var phone = c.auth.user?.phoneNumber ?? '';
+      if (email.trim().isEmpty || phone.trim().isEmpty) {
+        final contact = await showDialog<(String, String)>(
+          context: context,
+          builder: (_) =>
+              BookingBillingContactDialog(email: email, phone: phone),
+        );
+        if (!mounted || !c.alive || contact == null) return;
+        email = contact.$1;
+        phone = contact.$2;
+      }
+      final checkout = await c.confirmRequestCard(
+        method,
+        billingEmail: email,
+        billingPhone: phone,
+      );
+      if (!mounted || !c.alive) return;
+      if (checkout == null) {
+        if (c.paymentOutcome != 'SUCCESS') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                c.error ??
+                    (c.busy
+                        ? 'Request status is updating. Please try again in a moment.'
+                        : 'Card checkout could not be started. Please check your request status.'),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      await ref.read(bookingCardCheckoutPresenterProvider)(
+        context,
+        checkout,
+        c,
+      );
+      if (mounted && c.alive) await c.refreshCreatedRequest();
+    } catch (_) {
+      if (mounted && c.alive) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Secure checkout could not be opened. Checking your payment status.',
+            ),
+          ),
+        );
+        await c.refreshCreatedRequest();
+      }
+    } finally {
+      _openingCheckout = false;
+    }
+  }
+
   Future<bool> _selectPaymentCard(CustomerBookingController c) async {
     final card = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -1032,126 +1306,21 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     }
   }
 
-  List<Widget> _paymentConfirmationContents(CustomerBookingController c) => [
-    const Text(
-      'Payment',
-      key: ValueKey('booking-payment-confirmation'),
-      style: TextStyle(
-        fontSize: 21,
-        fontWeight: FontWeight.w700,
-        color: catalogInk,
-      ),
-    ),
-    const SizedBox(height: 10),
-    BookingEstimatedCost(controller: c, showPricingChoices: false),
-    const SizedBox(height: 10),
-    const Text(
-      'Choose a payment method',
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        color: catalogInk,
-      ),
-    ),
-    const SizedBox(height: 8),
-    RadioGroup<String>(
-      groupValue: c.method,
-      onChanged: (value) async {
-        if (c.busy) return;
-        final previous = c.method;
-        if (value == 'CARD' && !await _selectPaymentCard(c)) return;
-        if (!mounted || !c.alive) return;
-        c.method = value ?? previous;
-        c.review();
-      },
-      child: Column(
-        children: [
-          for (final method in c.availableMethods)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RadioListTile<String>(
-                value: method,
-                enabled: !c.busy,
-                dense: true,
-                selected: c.method == method,
-                selectedTileColor: const Color(0xFFE7F8F8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(
-                    color: c.method == method
-                        ? catalogTeal
-                        : CustomerColors.border,
-                  ),
-                ),
-                title: Text(
-                  switch (method) {
-                    'CARD' => 'Credit / Debit Card',
-                    'WALLET' => 'BThere Wallet',
-                    _ => 'Cash on Hand',
-                  },
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                subtitle: Text(
-                  method == 'CARD'
-                      ? (_selectedPaymentCard?['displayLabel'] as String? ??
-                            'Select a saved card')
-                      : method == 'WALLET'
-                      ? 'Use your available wallet balance'
-                      : 'Pay after service',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                secondary: method == 'CARD'
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/payment/mastercard.svg',
-                            width: 22,
-                            height: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          SvgPicture.asset(
-                            'assets/icons/payment/visa.svg',
-                            width: 26,
-                            height: 18,
-                          ),
-                        ],
-                      )
-                    : Icon(
-                        method == 'WALLET'
-                            ? Icons.account_balance_wallet_outlined
-                            : Icons.payments_outlined,
-                        color: catalogTeal,
-                      ),
-              ),
-            ),
-        ],
-      ),
-    ),
-    if (c.usesRequestPolicy)
-      const Padding(
-        padding: EdgeInsets.symmetric(vertical: 10),
-        child: Text(
-          'You won’t be charged until a provider accepts. You’ll confirm payment after acceptance.',
-          style: TextStyle(fontSize: 12, color: catalogMuted),
-        ),
-      ),
-    TextButton(
-      onPressed: c.busy
-          ? null
-          : () => setState(() => _paymentConfirmation = false),
-      child: const Text('Back to booking review'),
-    ),
-    BThereButton(
-      key: const ValueKey('booking-confirm-and-pay'),
-      label: 'Confirm and Pay',
-      loading: c.busy,
-      onPressed: c.busy ? null : () => _confirmBookingAndPay(c),
-    ),
-  ];
+  List<Widget> _paymentConfirmationContents(CustomerBookingController c) =>
+      bookingCheckoutContents(
+        context: context,
+        controller: c,
+        cardLabel: _selectedPaymentCard?['displayLabel'] as String?,
+        onMethodChanged: (value) async {
+          if (c.busy) return;
+          final previous = c.method;
+          if (value == 'CARD' && !await _selectPaymentCard(c)) return;
+          if (!mounted || !c.alive) return;
+          c.method = value ?? previous;
+          c.review();
+        },
+        onConfirm: () => _confirmBookingAndPay(c),
+      );
 
   Future<void> _chooseLocation(
     CustomerBookingController c, {
@@ -1212,51 +1381,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     ],
   );
 
-  Future<void> _chooseRadius(CustomerBookingController c) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Search radius · ${c.radius.toStringAsFixed(1)} km',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Slider(
-                  key: const ValueKey('booking-radius'),
-                  value: c.radius.clamp(.1, 50),
-                  min: .1,
-                  max: 50,
-                  divisions: 499,
-                  label: '${c.radius.toStringAsFixed(1)} km',
-                  onChanged: c.busy
-                      ? null
-                      : (v) {
-                          c.edit(() => c.radius = v);
-                          update(() {});
-                        },
-                ),
-                BThereButton(
-                  label: 'Done',
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _locationRadius(CustomerBookingController c) => LayoutBuilder(
     builder: (context, bounds) {
       Widget tile(
@@ -1269,7 +1393,12 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         key: key,
         onPressed: tap,
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          backgroundColor: const Color(0xFFF7FBFB),
+          side: const BorderSide(color: Color(0xFFDCE9EB)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         ),
         child: Row(
           children: [
@@ -1288,16 +1417,20 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 10, color: catalogMuted),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: catalogMuted,
+                      height: 1.3,
+                    ),
                   ),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       color: catalogInk,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -1319,26 +1452,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         const ValueKey('booking-choose-location'),
         c.busy ? null : () => _chooseLocation(c),
       );
-      final radius = tile(
-        'Radius',
-        '${c.radius.toStringAsFixed(1)} km',
-        Icons.adjust,
-        const ValueKey('booking-radius-picker'),
-        c.busy ? null : () => _chooseRadius(c),
-      );
-      return bounds.maxWidth >= 300 &&
-              MediaQuery.textScalerOf(context).scale(14) <= 20
-          ? Row(
-              children: [
-                Expanded(flex: 3, child: location),
-                const SizedBox(width: 8),
-                Expanded(flex: 2, child: radius),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [location, const SizedBox(height: 8), radius],
-            );
+      return location;
     },
   );
 
@@ -1370,10 +1484,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     ],
     BookingValidationGroup(
       key: const ValueKey('booking-schedule-validation'),
-      error:
-          c.fieldErrors['Start time'] ??
-          c.fieldErrors['Duration'] ??
-          c.fieldErrors['Schedule'],
+      error: c.fieldErrors['Duration'] ?? c.fieldErrors['Schedule'],
       child: BookingSchedulePicker(controller: c),
     ),
     if (!c.context!.providerFilters.any(
@@ -1384,6 +1495,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         key: const ValueKey('booking-language-validation'),
         error: c.fieldErrors['Language'],
         child: BookingChoiceTiles(
+          filterStyle: true,
           choices: const [
             {'value': 'SINHALA', 'label': 'Sinhala'},
             {'value': 'ENGLISH', 'label': 'English'},
@@ -1420,57 +1532,33 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
   List<Widget> _created(CustomerBookingController c) {
     final b = c.created!;
     if (b['requestId'] is int) {
-      final paid =
-          b['status'] == 'CONFIRMED' &&
-          {'RESERVED', 'PAID', 'SETTLED'}.contains(b['paymentStatus']);
       return [
-        Icon(
-          paid ? Icons.task_alt : Icons.pending_actions_rounded,
-          color: catalogTeal,
-          size: 56,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Request #${b['requestId']}',
-          style: const TextStyle(
-            color: catalogInk,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        _Notice('Request: ${b['status']}\nPayment: ${b['paymentStatus']}'),
-        if (b['expectedAmount'] != null)
-          _Notice(
-            'Expected total: ${b['currencyCode']} ${b['expectedAmount']}',
-          ),
-        if (!paid)
-          _Notice(switch (b['status']) {
-            'MATCHING' => 'Waiting for provider acceptance. Payment can be confirmed after a provider accepts.',
-            'AWAITING_CUSTOMER_CONFIRMATION' => 'A provider has accepted. Confirm your payment before the confirmation deadline.',
-            'PAYMENT_PENDING' => 'Payment confirmation is pending. Refresh the request status to check the result.',
-            _ => 'Check the request and payment status before continuing.',
-          }),
-        if (b['paymentMethod'] == 'WALLET' &&
-            b['status'] == 'AWAITING_CUSTOMER_CONFIRMATION')
-          BThereButton(
-            key: const ValueKey('booking-confirm-wallet'),
-            label: 'Confirm and Pay with Wallet',
-            loading: c.busy,
-            onPressed: c.busy
-                ? null
-                : () async {
-                    await c.confirmRequestWallet();
-                    if (mounted) ref.invalidate(customerWalletProvider);
-                  },
-          ),
-        BThereButton(
-          label: 'Refresh request status',
-          loading: c.busy,
-          onPressed: c.busy ? null : c.refreshCreatedRequest,
-        ),
-        TextButton(
-          onPressed: () => context.go('/home'),
-          child: const Text('Back to Home'),
+        BookingRequestReceipt(
+          request: b,
+          busy: c.busy,
+          onConfirmWallet: () async {
+            if (b['paymentMethod'] == 'CARD') {
+              await _confirmAcceptedPayment(c);
+            } else {
+              await c.confirmRequestWallet();
+            }
+            if (mounted) ref.invalidate(customerWalletProvider);
+          },
+          onRefresh: b['status'] == 'PAYMENT_PENDING'
+              ? () => c.refreshCreatedRequest(background: true)
+              : c.refreshCreatedRequest,
+          onBookingForm: c.returnToBookingForm,
+          onBookingFilters: c.returnToBookingFilters,
+          onSendAgain: c.usesRequestPolicy
+              ? () {
+                  setState(() => _showRequestProgress = true);
+                  c.resendExpiredRequest();
+                }
+              : null,
+          onBookingDetails: b['jobId'] is int && (b['jobId'] as int) > 0
+              ? () => _openCompletedBooking(c)
+              : null,
+          onHome: () => context.go('/home'),
         ),
       ];
     }

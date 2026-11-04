@@ -15,6 +15,10 @@ import '../../discovery/application/customer_discovery_controller.dart';
 import '../../discovery/domain/customer_discovery.dart';
 import '../data/customer_booking_repository.dart';
 import '../domain/booking_models.dart';
+import '../domain/booking_card_checkout.dart';
+import '../../profile/data/customer_profile_repository.dart';
+import '../../wallet/data/customer_wallet_repository.dart'
+    show walletMinorUnits;
 
 final customerBookingRepositoryProvider = Provider<CustomerBookingRepository>(
   (ref) => CustomerBookingRepository(ref.watch(customerAuthServiceProvider)),
@@ -83,7 +87,44 @@ class CustomerBookingController extends ChangeNotifier {
       ? 'Additional details needed'
       : checkingAvailability
       ? 'Checking providers…'
-      : availabilityError ?? availabilityLabel;
+      : availabilityError ?? availabilityLabel ?? availabilityInputHint;
+
+  /// Explain a blocked live search without claiming zero providers.
+  String? get availabilityInputHint {
+    if (!autoAvailability || context == null || stage != BookingStage.details) {
+      return null;
+    }
+    try {
+      searchInput(locationStep: true);
+    } on BookingProblem catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Choose a valid location and schedule to check providers.';
+    }
+    return null;
+  }
+
+  String? _startTimeIssue(DateTime from) {
+    if (!from.isAfter(now())) return 'Choose a future start time.';
+    if (usesRequestPolicy &&
+        from.difference(now()) <
+            Duration(minutes: requestPolicy['minimumNoticeMinutes'] as int)) {
+      return 'Choose a start time at least ${requestPolicy['minimumNoticeMinutes']} minutes from now.';
+    }
+    return null;
+  }
+
+  String? get startTimeError {
+    if (context == null) return null;
+    if (start.trim().isEmpty) return 'Choose a date and start time.';
+    try {
+      return _startTimeIssue(MarketTime.parse(start, context!.zone));
+    } on BookingProblem catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Choose a valid date and start time.';
+    }
+  }
 
   String? _availabilityFingerprint() {
     try {
@@ -285,8 +326,11 @@ class CustomerBookingController extends ChangeNotifier {
         'AWAITING_CUSTOMER_CONFIRMATION',
       }.contains(created?['status']) &&
       {'NOT_STARTED', 'PENDING'}.contains(created?['paymentStatus']);
-  Future<void> cancelCreatedRequest() async {
-    if (!alive || busy || !canCancelCreatedRequest) return;
+  String get _scheduledRequestStoreKey =>
+      'bthere.customer.request.v1.${Uri.encodeComponent(discovery.selectionStore.apiScope)}.$userId.${key.marketId}.${key.serviceId}.${key.optionId}';
+
+  Future<bool> cancelCreatedRequest({bool returnToCheckout = false}) async {
+    if (!alive || busy || !canCancelCreatedRequest) return false;
     final epoch = _epoch;
     busy = true;
     error = null;
@@ -295,7 +339,19 @@ class CustomerBookingController extends ChangeNotifier {
       final result = await repository.cancelRequest(
         created!['requestId'] as int,
       );
-      if (alive && epoch == _epoch) created = {...created!, ...result};
+      if (!alive || epoch != _epoch) return false;
+      created = {...created!, ...result};
+      if (returnToCheckout) {
+        // A cancelled request must never reuse a retained creation identity.
+        await discovery.selectionStore.store.delete(_scheduledRequestStoreKey);
+        if (!alive || epoch != _epoch) return false;
+        created = payment = null;
+        paymentError = null;
+        uncertain = false;
+        _startPaymentPresentation();
+        stage = BookingStage.review;
+      }
+      return true;
     } catch (failure) {
       if (alive && epoch == _epoch) await _failure(failure);
     } finally {
@@ -304,6 +360,76 @@ class CustomerBookingController extends ChangeNotifier {
         _notify();
       }
     }
+    return false;
+  }
+
+  Future<void> returnToBookingForm() async {
+    if (!alive ||
+        busy ||
+        context == null ||
+        !{'CANCELLED', 'EXPIRED', 'UNMATCHED'}.contains(created?['status']) ||
+        created?['requestId'] is! int) {
+      return;
+    }
+    final epoch = _epoch;
+    busy = true;
+    error = null;
+    _notify();
+    try {
+      await discovery.selectionStore.store.delete(_scheduledRequestStoreKey);
+      if (!alive || epoch != _epoch) return;
+      created = payment = null;
+      paymentError = null;
+      uncertain = false;
+      _startPaymentPresentation();
+      stage = BookingStage.serviceDetails;
+    } catch (failure) {
+      if (alive && epoch == _epoch) await _failure(failure);
+    } finally {
+      if (alive && epoch == _epoch) {
+        busy = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> resendExpiredRequest() async {
+    if (!alive ||
+        busy ||
+        !{'EXPIRED', 'UNMATCHED'}.contains(created?['status']) ||
+        !usesRequestPolicy) {
+      return;
+    }
+    await returnToBookingForm();
+    if (!alive ||
+        busy ||
+        created != null ||
+        stage != BookingStage.serviceDetails) {
+      return;
+    }
+    continueServiceDetails();
+    if (stage == BookingStage.review && error == null) await submit();
+  }
+
+  Future<void> returnToBookingFilters() async {
+    if (!{'CANCELLED', 'EXPIRED', 'UNMATCHED'}.contains(created?['status'])) {
+      return;
+    }
+    await returnToBookingForm();
+    if (!alive ||
+        busy ||
+        created != null ||
+        stage != BookingStage.serviceDetails) {
+      return;
+    }
+    // Keep answers, schedule and pricing choices; recheck availability before
+    // the customer continues with the existing draft.
+    stage = BookingStage.details;
+    _availability = null;
+    _availabilityInput = null;
+    _availableCandidates.clear();
+    _scheduleAutoAvailability();
+    _notify();
   }
 
   String? get paymentOutcome {
@@ -414,7 +540,7 @@ class CustomerBookingController extends ChangeNotifier {
   String start = '', end = '', address = '', destinationAddress = '', note = '';
   String? mode, method;
   GeoPoint? point, destination;
-  double radius = 5;
+  double radius = 10;
   bool busy = false, uncertain = false, hasNext = false, _disposed = false;
   int _epoch = 0, _page = 0;
   bool get allowed => access?['eligible'] == true;
@@ -791,16 +917,8 @@ class CustomerBookingController extends ChangeNotifier {
       throw const BookingProblem('Choose a radius between 0.1 and 500 km.');
     }
     final from = MarketTime.parse(start, ctx.zone);
-    if (!from.isAfter(now())) {
-      throw const BookingProblem('Choose a future start time.');
-    }
-    if (usesRequestPolicy &&
-        from.difference(now()) <
-            Duration(minutes: requestPolicy['minimumNoticeMinutes'] as int)) {
-      throw BookingProblem(
-        'Choose a start time at least ${requestPolicy['minimumNoticeMinutes']} minutes from now.',
-      );
-    }
+    final timeIssue = _startTimeIssue(from);
+    if (timeIssue != null) throw BookingProblem(timeIssue);
     if (usesRequestPolicy &&
         radius > (requestPolicy['maximumRadiusKm'] as num)) {
       throw BookingProblem(
@@ -1105,8 +1223,9 @@ class CustomerBookingController extends ChangeNotifier {
     if (context!.route && (destination == null || !destination!.valid)) {
       fieldErrors['Destination'] = 'Choose the destination.';
     }
-    if (start.trim().isEmpty) {
-      fieldErrors['Start time'] = 'Choose a date and start time.';
+    final timeIssue = startTimeError;
+    if (timeIssue != null) {
+      fieldErrors['Start time'] = timeIssue;
     } else {
       try {
         final from = MarketTime.parse(start, context!.zone);
@@ -1492,8 +1611,7 @@ class CustomerBookingController extends ChangeNotifier {
         'providerFilters': criteria['providerFilters'],
     };
     final store = discovery.selectionStore.store;
-    final storeKey =
-        'bthere.customer.request.v1.${Uri.encodeComponent(discovery.selectionStore.apiScope)}.$userId.${key.marketId}.${key.serviceId}.${key.optionId}';
+    final storeKey = _scheduledRequestStoreKey;
     final serialized = jsonEncode(input);
     final saved = await store.read(storeKey);
     final pending = saved == null ? null : jsonDecode(saved) as Map;
@@ -1547,23 +1665,46 @@ class CustomerBookingController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshCreatedRequest() async {
+  bool _requestReadInFlight = false;
+
+  Future<void> refreshCreatedRequest({bool background = false}) async {
     final id = created?['requestId'];
-    if (busy || !alive || id is! int) return;
+    if (busy || _requestReadInFlight || !alive || id is! int) return;
     final epoch = _epoch;
-    busy = true;
-    error = null;
-    _notify();
+    final snapshot = created;
+    bool current() =>
+        alive &&
+        epoch == _epoch &&
+        identical(created, snapshot) &&
+        (!background || (!busy && !uncertain));
+    _requestReadInFlight = true;
+    if (!background) {
+      busy = true;
+      error = null;
+      _notify();
+    }
     try {
       final value = await repository.readRequest(id);
-      if (alive && epoch == _epoch && value['requestId'] == id) {
+      if (current() && value['requestId'] == id) {
         created = {...created!, ...value};
+        if ({
+          'PAID',
+          'RESERVED',
+          'SETTLED',
+          'FAILED',
+        }.contains(value['paymentStatus'])) {
+          _paymentAttemptUncertain = false;
+        }
+        // Polling must not erase a failed payment/checkout action before the
+        // customer can read it. Explicit actions own clearing their errors.
+        if (!background) error = null;
       }
     } catch (failure) {
-      if (alive && epoch == _epoch) await _failure(failure);
+      if (current() && (!background || error == null)) await _failure(failure);
     } finally {
+      _requestReadInFlight = false;
       if (alive && epoch == _epoch) {
-        busy = false;
+        if (!background) busy = false;
         _notify();
       }
     }
@@ -1633,6 +1774,105 @@ class CustomerBookingController extends ChangeNotifier {
         _paymentFailure(e);
         await _failure(e);
       }
+    } finally {
+      if (alive && epoch == _epoch) {
+        busy = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<BookingCardCheckout?> confirmRequestCard(
+    String cardMethod, {
+    String? billingEmail,
+    String? billingPhone,
+  }) async {
+    final id = created?['requestId'];
+    if (busy ||
+        !alive ||
+        id is! int ||
+        created?['paymentMethod'] != 'CARD' ||
+        !{'VISA', 'MASTER'}.contains(cardMethod)) {
+      return null;
+    }
+    final epoch = _epoch;
+    var confirmationStarted = false;
+    var checkoutPhase = 'read-request';
+    _startPaymentPresentation();
+    busy = true;
+    error = null;
+    _notify();
+    try {
+      final latest = await repository.readRequest(id);
+      if (!alive || epoch != _epoch) return null;
+      if (latest['requestId'] != id || latest['paymentMethod'] != 'CARD') {
+        throw const FormatException('Invalid card request identity');
+      }
+      created = {...created!, ...latest};
+      if (!{
+        'AWAITING_CUSTOMER_CONFIRMATION',
+        'PAYMENT_PENDING',
+      }.contains(latest['status'])) {
+        throw const BookingProblem(
+          'Card payment is available after a provider accepts your request.',
+        );
+      }
+      final deadline = DateTime.tryParse('${latest['confirmationExpiresAt']}');
+      if (latest['status'] == 'AWAITING_CUSTOMER_CONFIRMATION' &&
+          deadline != null &&
+          !now().isBefore(deadline)) {
+        throw const BookingProblem(
+          'The payment confirmation window has expired.',
+        );
+      }
+      checkoutPhase = 'load-billing-profile';
+      final profile = await CustomerProfileRepository(repository.auth).load();
+      if (!alive || epoch != _epoch) return null;
+      final details = profile?.details;
+      final email = (billingEmail ?? auth.user?.email)?.trim() ?? '';
+      final phone = (billingPhone ?? auth.user?.phoneNumber)?.trim() ?? '';
+      if (details == null || !details.valid || email.isEmpty || phone.isEmpty) {
+        throw const BookingProblem(
+          'Complete your profile, email and phone details before paying by card.',
+        );
+      }
+      confirmationStarted = true;
+      checkoutPhase = 'confirm-card';
+      final checkout = await repository.confirmRequestCard(id, {
+        'cardMethod': cardMethod,
+        'firstName': details.firstName,
+        'lastName': details.lastName,
+        'email': email,
+        'phone': phone,
+        'address': details.addressLine1,
+        'city': details.city,
+        'country': details.country,
+      });
+      if (!alive || epoch != _epoch) return null;
+      checkoutPhase = 'validate-checkout';
+      if (checkout.fields['currency'] != created?['currencyCode'] ||
+          walletMinorUnits(checkout.fields['amount']) !=
+              walletMinorUnits(created?['expectedAmount'])) {
+        throw const FormatException(
+          'Checkout amount does not match this request',
+        );
+      }
+      created = {...created!, 'status': 'PAYMENT_PENDING'};
+      return checkout;
+    } catch (failure) {
+      if (alive && epoch == _epoch) {
+        debugPrint(
+          'Customer card checkout: phase=$checkoutPhase status=${failure is BookingProblem ? failure.status ?? 'unavailable' : 'unavailable'} outcome=${failure.runtimeType}',
+        );
+        _paymentFailure(failure);
+        await _failure(failure);
+        // A lost confirmation response may already have started checkout.
+        // Show status recovery rather than allowing a second payment attempt.
+        if (confirmationStarted && _paymentAttemptUncertain) {
+          created = {...created!, 'status': 'PAYMENT_PENDING'};
+        }
+      }
+      return null;
     } finally {
       if (alive && epoch == _epoch) {
         busy = false;

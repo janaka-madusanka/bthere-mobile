@@ -7,7 +7,7 @@ import 'package:customer_app/features/booking/data/customer_booking_repository.d
 import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:customer_app/features/discovery/application/customer_discovery_controller.dart';
 
-import 'customer_auth_test.dart' show clock;
+import 'customer_auth_test.dart' show clock, account;
 import 'customer_discovery_test.dart' show DiscoveryFixture, waitForState;
 
 Map<String, dynamic> fieldJson({
@@ -178,7 +178,27 @@ class BookingFixture extends DiscoveryFixture {
   Map<String, dynamic> contextBody = contextJson();
   Map<String, dynamic> policyBody = {'enabled': false};
   int requestCreateStatus = 201;
+  bool cardLinking = false;
+  Map<String, dynamic>? requestCreateBody;
   int walletConfirmationStatus = 200;
+  int cardConfirmationStatus = 200;
+  final cardConfirmationReached = Completer<void>();
+  Completer<void>? pendingCardConfirmation;
+  String? cardPhone;
+  Map<String, dynamic> cardCheckoutBody = {
+    'status': 'PAYMENT_PENDING',
+    'actionUrl': 'https://sandbox.payhere.lk/pay/checkout',
+    'fields': {
+      'merchant_id': 'test-merchant',
+      'order_id': 'request-501',
+      'amount': '1000.00',
+      'currency': 'LKR',
+      'hash': 'server-signature',
+      'return_url': 'https://example.invalid/card-return',
+      'cancel_url': 'https://example.invalid/card-cancel',
+      'custom_field': 'Preserve this & every field',
+    },
+  };
   Map<String, dynamic> requestViewBody = {
     'requestId': 501,
     'status': 'MATCHING',
@@ -200,6 +220,7 @@ class BookingFixture extends DiscoveryFixture {
   bool hasNext = false, throwBooking = false, hasSavedCard = true;
   int? candidateTotal;
   int quoteStatus = 200;
+  int cancelStatus = 200;
   int estimateStatus = 200;
   Map<String, dynamic> estimateBody = {
     'expectedAmount': 3000,
@@ -224,10 +245,16 @@ class BookingFixture extends DiscoveryFixture {
       Object? body;
       var status = 200;
       switch (path) {
+        case '/users/me':
+          if (cardPhone == null) return null;
+          body = {...account(), 'phoneNumber': cardPhone};
         case '/customers/me/booking-requests/policy':
           body = policyBody;
         case '/customers/me/booking-requests':
           status = requestCreateStatus;
+          if (status == 201 && requestCreateBody != null) {
+            requestViewBody = {...requestCreateBody!};
+          }
           body = status == 201
               ? {
                   ...requestViewBody,
@@ -253,7 +280,24 @@ class BookingFixture extends DiscoveryFixture {
           } else {
             body = {'detail': 'Insufficient available wallet balance'};
           }
+        case '/customers/me/booking-requests/501/confirm':
+          if (!cardConfirmationReached.isCompleted) {
+            cardConfirmationReached.complete();
+          }
+          await pendingCardConfirmation?.future;
+          status = cardConfirmationStatus;
+          if (status == 200) {
+            requestViewBody = {...requestViewBody, 'status': 'PAYMENT_PENDING'};
+            body = cardCheckoutBody;
+          } else {
+            body = {'detail': 'Card payment declined'};
+          }
         case '/customers/me/booking-requests/501/cancel':
+          status = cancelStatus;
+          if (cancelStatus != 200) {
+            body = {'detail': 'Cancellation could not be confirmed'};
+            break;
+          }
           requestViewBody = {...requestViewBody, 'status': 'CANCELLED'};
           body = {
             ...requestViewBody,
@@ -286,6 +330,9 @@ class BookingFixture extends DiscoveryFixture {
                 'status': 'VERIFIED_MOCK',
               },
           ];
+        case '/me/payment-methods/setup':
+          hasSavedCard = true;
+          body = {'methodId': 5, 'type': 'CARD', 'status': 'VERIFIED_MOCK'};
         case '/me/wallets/LKR':
           body = {
             'walletId': 10,
@@ -302,7 +349,11 @@ class BookingFixture extends DiscoveryFixture {
         case '/me/payment-settings':
           status = capStatus;
           body = {
-            'capabilities': {'cardCheckout': true, 'bookingReservations': true},
+            'capabilities': {
+              'cardCheckout': true,
+              'bookingReservations': true,
+              'cardLinking': cardLinking,
+            },
           };
         case '/customers/me/requirement-submissions':
           status = requirementStatus;

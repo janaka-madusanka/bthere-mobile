@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:bthere_network/bthere_network.dart';
@@ -11,6 +12,280 @@ import 'booking_fixture.dart';
 import 'customer_discovery_test.dart' show waitForState;
 
 void main() {
+  test('background request reads leave actions enabled and cannot overwrite a later cancellation', () async {
+    final f = BookingFixture();
+    addTearDown(f.dispose);
+    await f.start();
+    final c = f.journey;
+    c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
+    c.stage = BookingStage.created;
+    final stale = {...f.requestViewBody, 'selectionMode': 'DIRECT_REQUEST'};
+    final gate = Completer<void>();
+    final started = Completer<void>();
+    final original = f.f.adapter.extraHandler;
+    var reads = 0;
+    f.f.adapter.extraHandler = (request) async {
+      if (request.method == 'GET' &&
+          request.path.endsWith('/booking-requests/501')) {
+        reads++;
+        started.complete();
+        await gate.future;
+        return ResponseBody.fromString(
+          jsonEncode(stale),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
+      return original?.call(request);
+    };
+    final refresh = c.refreshCreatedRequest(background: true);
+    await started.future;
+    expect(c.busy, isFalse);
+    await c.refreshCreatedRequest(background: true);
+    expect(reads, 1);
+    expect(await c.cancelCreatedRequest(), isTrue);
+    expect(c.created?['status'], 'CANCELLED');
+    gate.complete();
+    await refresh;
+    expect(c.created?['status'], 'CANCELLED');
+    expect(c.busy, isFalse);
+  });
+  test('invalid notice time explains missing map availability and recovers after correction', () async {
+    final f = BookingFixture()
+      ..autoAvailability = true
+      ..availabilityDebounce = const Duration(milliseconds: 10);
+    f.contextBody = contextJson(
+      selectionMode: 'OPEN_REQUEST',
+      methods: ['WALLET'],
+    );
+    f.policyBody = {
+      'enabled': true,
+      'minimumNoticeMinutes': 120,
+      'maximumRadiusKm': 50,
+    };
+    addTearDown(f.dispose);
+    await f.start();
+    final c = f.journey;
+    final tooSoon = MarketTime.local(
+      MarketTime.parse(
+        c.start,
+        c.context!.zone,
+      ).subtract(const Duration(minutes: 60)),
+    );
+    f.input();
+    c.edit(() => c.start = tooSoon);
+    expect(
+      c.availabilityStatusLabel,
+      'Choose a start time at least 120 minutes from now.',
+    );
+    expect(c.availableCandidates, isEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(
+      f.f.adapter.requests.where((r) => r.path.endsWith('/provider-search')),
+      isEmpty,
+    );
+    c.edit(() => c.start = '2030-01-07T08:00:00');
+    await waitForState(c, () => c.availability != null);
+    expect(c.availabilityInputHint, isNull);
+    expect(c.availableCandidates, isNotEmpty);
+    expect(c.availabilityStatusLabel, contains('provider available'));
+  });
+  for (final status in ['EXPIRED', 'UNMATCHED']) {
+    test(
+      'resending $status request preserves details and uses a fresh submission identity',
+      () async {
+        final f = BookingFixture();
+        addTearDown(f.dispose);
+        f.contextBody = contextJson(
+          selectionMode: 'OPEN_REQUEST',
+          methods: ['WALLET'],
+        );
+        f.policyBody = {
+          'enabled': true,
+          'minimumNoticeMinutes': 0,
+          'maximumRadiusKm': 50,
+        };
+        await f.start();
+        f.input();
+        final c = f.journey;
+        c.method = 'WALLET';
+        c.languages.add('ENGLISH');
+        c.skills.add(10);
+        await c.nextServiceDetails();
+        c.continueServiceDetails();
+        await c.submit();
+        final first = f.f.adapter.requests.lastWhere(
+          (r) => r.path == '/customers/me/booking-requests',
+        );
+        c.created!['status'] = status;
+        final location = c.point;
+        await c.resendExpiredRequest();
+        final requests = f.f.adapter.requests
+            .where((r) => r.path == '/customers/me/booking-requests')
+            .toList();
+        expect(requests.length, 2);
+        expect(
+          requests.last.headers['Idempotency-Key'],
+          isNot(first.headers['Idempotency-Key']),
+        );
+        expect(requests.last.data, first.data);
+        expect(c.created?['status'], 'MATCHING');
+        expect(c.point, same(location));
+        await c.resendExpiredRequest();
+        expect(
+          f.f.adapter.requests
+              .where((r) => r.path == '/customers/me/booking-requests')
+              .length,
+          2,
+        );
+      },
+    );
+  }
+  test('unmatched request returns to filters without discarding booking answers or preferences', () async {
+    final f = BookingFixture();
+    addTearDown(f.dispose);
+    await f.start();
+    f.input();
+    final c = f.journey;
+    c.answers['PERSON_NAME'] = 'Patient name';
+    c.languages.add('ENGLISH');
+    c.providerFilters[30] = ['FEMALE'];
+    c.created = {...f.requestViewBody, 'status': 'UNMATCHED'};
+    c.stage = BookingStage.created;
+    final start = c.start, end = c.end, method = c.method, address = c.address;
+    final point = c.point;
+    await c.returnToBookingFilters();
+    expect(c.stage, BookingStage.details);
+    expect(c.created, isNull);
+    expect(c.answers['PERSON_NAME'], 'Patient name');
+    expect(c.languages, contains('ENGLISH'));
+    expect(c.providerFilters[30], ['FEMALE']);
+    expect(c.start, start);
+    expect(c.end, end);
+    expect(c.method, method);
+    expect(c.address, address);
+    expect(c.point, same(point));
+  });
+  test(
+    'expired request reopens the booking form with its draft intact',
+    () async {
+      final f = BookingFixture();
+      addTearDown(f.dispose);
+      await f.start();
+      f.input();
+      final c = f.journey;
+      c.created = {...f.requestViewBody, 'status': 'EXPIRED'};
+      c.stage = BookingStage.created;
+      c.answers['PERSON_NAME'] = 'Patient name';
+      final location = c.point;
+      final count = f.f.adapter.requests.length;
+      await c.returnToBookingForm();
+      expect(c.stage, BookingStage.serviceDetails);
+      expect(c.created, isNull);
+      expect(c.point, same(location));
+      expect(c.answers['PERSON_NAME'], 'Patient name');
+      expect(f.f.adapter.requests.length, count);
+    },
+  );
+  test('cancelled request returns to editable form preserving draft and clearing creation identity', () async {
+    final f = BookingFixture();
+    addTearDown(f.dispose);
+    await f.start();
+    f.input();
+    final c = f.journey;
+    c.answers['PERSON_NAME'] = 'Patient name';
+    c.created = {...f.requestViewBody, 'status': 'MATCHING'};
+    c.stage = BookingStage.created;
+    await c.returnToBookingForm();
+    expect(c.stage, BookingStage.created);
+    c.created!['status'] = 'CANCELLED';
+    final location = c.point;
+    final start = c.start;
+    final key =
+        'bthere.customer.request.v1.${Uri.encodeComponent(f.f.marketStore.apiScope)}.${c.userId}.1.3.12';
+    f.f.marketValues.values[key] = 'old identity';
+    final requestCount = f.f.adapter.requests.length;
+    await c.returnToBookingForm();
+    expect(c.stage, BookingStage.serviceDetails);
+    expect(c.created, isNull);
+    expect(c.answers['PERSON_NAME'], 'Patient name');
+    expect(c.point, same(location));
+    expect(c.start, start);
+    expect(f.f.marketValues.values.containsKey(key), isFalse);
+    expect(f.f.adapter.requests.length, requestCount);
+  });
+  test('confirmed cancellation preserves the draft and sends a new request with a fresh identity', () async {
+    final f = BookingFixture();
+    addTearDown(f.dispose);
+    f.contextBody = contextJson(
+      selectionMode: 'OPEN_REQUEST',
+      methods: ['WALLET'],
+      fields: [fieldJson(id: 20, code: 'PERSON_NAME', required: true)],
+    );
+    f.policyBody = {
+      'enabled': true,
+      'minimumNoticeMinutes': 0,
+      'maximumRadiusKm': 50,
+    };
+    await f.start();
+    f.input();
+    final c = f.journey;
+    c.method = 'WALLET';
+    c.languages.add('ENGLISH');
+    c.skills.add(10);
+    await c.nextServiceDetails();
+    c.answer(c.context!.fields.single, 'Patient name');
+    c.continueServiceDetails();
+    await c.submit();
+    final first = f.f.adapter.requests.singleWhere(
+      (r) => r.path == '/customers/me/booking-requests',
+    );
+    final key =
+        'bthere.customer.request.v1.${Uri.encodeComponent(f.f.marketStore.apiScope)}.${c.userId}.1.3.12';
+    // Simulate a creation identity retained after a local cleanup failure.
+    f.f.marketValues.values[key] = jsonEncode({
+      'key': first.headers['Idempotency-Key'],
+      'input': jsonEncode(first.data),
+    });
+    final location = c.point;
+    final start = c.start;
+    expect(await c.cancelCreatedRequest(returnToCheckout: true), isTrue);
+    expect(c.stage, BookingStage.review);
+    expect(c.created, isNull);
+    expect(c.method, 'WALLET');
+    expect(c.answers['PERSON_NAME'], 'Patient name');
+    expect(c.point, same(location));
+    expect(c.start, start);
+    expect(f.f.marketValues.values.containsKey(key), isFalse);
+    f.requestViewBody['status'] = 'MATCHING';
+    await c.submit();
+    final requests = f.f.adapter.requests
+        .where((r) => r.path == '/customers/me/booking-requests')
+        .toList();
+    expect(requests, hasLength(2));
+    expect(
+      requests.last.headers['Idempotency-Key'],
+      isNot(first.headers['Idempotency-Key']),
+    );
+    expect(requests.last.data, first.data);
+    expect(c.created?['status'], 'MATCHING');
+  });
+
+  test('failed cancellation keeps the active request and does not return to checkout', () async {
+    final f = BookingFixture()..cancelStatus = 503;
+    addTearDown(f.dispose);
+    await f.start();
+    final c = f.journey;
+    c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
+    c.stage = BookingStage.created;
+    expect(await c.cancelCreatedRequest(returnToCheckout: true), isFalse);
+    expect(c.created?['requestId'], 501);
+    expect(c.created?['status'], 'MATCHING');
+    expect(c.stage, BookingStage.created);
+    expect(c.error, isNotNull);
+  });
   test('request cancellation keeps the confirmed server result and cannot cancel funded bookings', () async {
     final f = BookingFixture();
     addTearDown(f.dispose);
@@ -1047,7 +1322,7 @@ void main() {
       'startAt': '2030-01-07T08:00:00+05:30',
       'endAt': '2030-01-07T10:00:00+05:30',
       'location': {'latitude': 6.9271, 'longitude': 79.8612},
-      'radiusKm': 5.0,
+      'radiusKm': 10.0,
       'languages': ['ENGLISH'],
       'requiredSkillIds': [10],
       'page': 0,
@@ -1156,7 +1431,7 @@ void main() {
       expect(f.journey.candidates.length, 2);
       expect((f.f.adapter.requests.last.data as Map)['page'], 1);
       f.journey.select(f.journey.candidates.first);
-      f.journey.edit(() => f.journey.radius = 10);
+      f.journey.edit(() => f.journey.radius = 15);
       expect(f.journey.candidates, isEmpty);
       expect(f.journey.selected, isEmpty);
     },
