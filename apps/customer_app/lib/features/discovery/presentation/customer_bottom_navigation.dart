@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 enum CustomerNavigationTab {
   home('Home'),
-  opportunities('Opportunities'),
+  opportunities('Booking'),
   services('Services'),
   messages('Messages'),
   wallet('Wallet');
@@ -14,7 +14,7 @@ enum CustomerNavigationTab {
   const CustomerNavigationTab(this.label);
   final String label;
   String asset(bool selected) =>
-      'assets/icons/navigation/$name${selected ? '_selected' : ''}.svg';
+      'assets/icons/navigation/${this == opportunities ? 'booking' : name}${selected ? '_selected' : ''}.svg';
 }
 
 /// Main Customer destinations, with the system gesture area kept clear.
@@ -31,6 +31,8 @@ class CustomerBottomNavigation extends StatelessWidget {
         context.push('/services');
       case CustomerNavigationTab.wallet:
         context.go('/wallet');
+      case CustomerNavigationTab.opportunities:
+        context.go('/opportunities');
       default:
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()

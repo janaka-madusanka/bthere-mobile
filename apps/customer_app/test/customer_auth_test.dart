@@ -313,6 +313,7 @@ class MemoryMarketValues implements SecureKeyValueStore {
 }
 
 class Fixture {
+  Widget Function(Widget)? wrapApp;
   bool autoAvailability = false;
   final storage = MemorySession(), adapter = LocalAdapter();
   final marketValues = MemoryMarketValues();
@@ -351,7 +352,7 @@ class Fixture {
             () async => const GeoPoint(6.9271, 79.8612),
           ),
         ],
-        child: const CustomerApp(),
+        child: wrapApp?.call(const CustomerApp()) ?? const CustomerApp(),
       ),
     );
     await tester.pumpAndSettle();

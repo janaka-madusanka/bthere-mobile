@@ -13,6 +13,8 @@ void main() {
       addTearDown(f.dispose);
       await marketEntry(tester, f);
       await continueMarket(tester);
+      expect(find.text('Booking'), findsOneWidget);
+      expect(find.text('Opportunities'), findsNothing);
       expect(
         tester
             .widget<CustomerBottomNavigation>(
@@ -34,6 +36,14 @@ void main() {
             .selected,
         CustomerNavigationTab.services,
       );
+      await tester.tap(find.byKey(const ValueKey('customer-nav-home')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('customer-nav-opportunities')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Bookings'), findsOneWidget);
+      expect(find.text('No bookings yet.'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('customer-nav-home')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('customer-home-account')));
