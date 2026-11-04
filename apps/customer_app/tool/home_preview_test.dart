@@ -1,5 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
+
+import 'package:bthere_network/bthere_network.dart';
+import 'package:customer_app/features/booking/presentation/customer_bookings_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -47,6 +52,51 @@ void main() {
       final file = File('build/home-previews/customer-home.png');
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes!.buffer.asUint8List());
+      picture.dispose();
+    });
+    f.adapter.extraHandler = (request) async =>
+        request.uri.path.endsWith('/customers/me/bookings')
+        ? ResponseBody.fromString(
+            jsonEncode([
+              {
+                'jobId': 101,
+                'optionId': 12,
+                'paymentMethod': 'WALLET',
+                'currencyCode': 'LKR',
+                'expectedAmount': 3500,
+                'serviceTypeId': 1,
+                'startDatetime': '2026-11-05T09:00:00',
+                'status': 'CONFIRMED',
+                'paymentStatus': 'PAID',
+              },
+              {
+                'jobId': 102,
+                'optionId': 12,
+                'paymentMethod': 'WALLET',
+                'currencyCode': 'LKR',
+                'expectedAmount': 3500,
+                'serviceTypeId': 1,
+                'startDatetime': '2026-11-02T09:00:00',
+                'status': 'COMPLETED',
+                'paymentStatus': 'PAID',
+              },
+            ]),
+            200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          )
+        : null;
+    ProviderScope.containerOf(
+      tester.element(find.byType(CustomerRecentBookings)),
+    ).invalidate(customerBookingHistoryProvider(12));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('customer-booking-101')), findsOneWidget);
+    await tester.runAsync(() async {
+      final picture = await boundary.toImage();
+      final bytes = await picture.toByteData(format: ui.ImageByteFormat.png);
+      await File('build/home-previews/customer-home-recent.png')
+          .writeAsBytes(bytes!.buffer.asUint8List());
       picture.dispose();
     });
     tester.view.physicalSize = const Size(320, 568);
