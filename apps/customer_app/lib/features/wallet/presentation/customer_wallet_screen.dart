@@ -484,6 +484,12 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                 )
               : SvgPicture.asset(
                   'assets/icons/payment/$logo.svg',
+                  colorFilter: logo == 'visa'
+                      ? const ColorFilter.mode(
+                          Color(0xFF1434CB),
+                          BlendMode.srcIn,
+                        )
+                      : null,
                   semanticsLabel: logo,
                 ),
         ),
