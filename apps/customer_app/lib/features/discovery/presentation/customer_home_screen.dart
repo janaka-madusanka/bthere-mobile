@@ -379,7 +379,7 @@ class _CategoryTile extends StatelessWidget {
     final appearance = ServiceAppearance.forService(service, index);
     return Material(
       key: ValueKey('customer-service-${service.id}'),
-      color: appearance.color.withValues(alpha: .055),
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
