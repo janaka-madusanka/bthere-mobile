@@ -367,6 +367,13 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                               }.contains('${card['brand']}'.toLowerCase())
                               ? SvgPicture.asset(
                                   'assets/icons/payment/${'${card['brand']}'.toLowerCase()}.svg',
+                                  colorFilter:
+                                      '${card['brand']}'.toLowerCase() == 'visa'
+                                      ? const ColorFilter.mode(
+                                          Color(0xFF1434CB),
+                                          BlendMode.srcIn,
+                                        )
+                                      : null,
                                   width: 30,
                                   height: 20,
                                 )
