@@ -31,13 +31,28 @@ class BThereButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final callback = enabled && !loading ? onPressed : null;
+    final theme = Theme.of(context);
+    final primaryStyle = theme.filledButtonTheme.style;
+    // Loading blocks repeated taps while retaining the active action's contrast.
+    final loadingForeground =
+        primaryStyle?.foregroundColor?.resolve({}) ??
+        theme.colorScheme.onPrimary;
+    final loadingBackground =
+        primaryStyle?.backgroundColor?.resolve({}) ?? theme.colorScheme.primary;
     final child = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (loading || leadingIcon != null) ...[
           if (loading)
-            const ExcludeSemantics(child: BThereLoadingIndicator(size: 20))
+            ExcludeSemantics(
+              child: BThereLoadingIndicator(
+                size: 20,
+                color: variant == BThereButtonVariant.primary
+                    ? loadingForeground
+                    : theme.colorScheme.primary,
+              ),
+            )
           else
             ExcludeSemantics(child: leadingIcon!),
           const SizedBox(width: BThereSpacing.xs),
@@ -52,6 +67,12 @@ class BThereButton extends StatelessWidget {
     final button = switch (variant) {
       BThereButtonVariant.primary => FilledButton(
         onPressed: callback,
+        style: loading
+            ? ButtonStyle(
+                backgroundColor: WidgetStatePropertyAll(loadingBackground),
+                foregroundColor: WidgetStatePropertyAll(loadingForeground),
+              )
+            : null,
         child: child,
       ),
       BThereButtonVariant.outlined => OutlinedButton(

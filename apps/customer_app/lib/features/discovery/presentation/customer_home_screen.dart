@@ -1,4 +1,5 @@
 import '../../../app/customer_theme.dart';
+import '../../booking/presentation/customer_payment_requests.dart';
 
 import 'package:flutter/material.dart';
 
@@ -75,23 +76,16 @@ class CustomerHomeScreen extends ConsumerWidget {
                                       children: [
                                         Text(
                                           greeting,
-                                          style: const TextStyle(
-                                            color: catalogMuted,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                          style: CustomerTypography.compact
+                                              .copyWith(color: catalogMuted),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
                                           name == null || name.isEmpty
                                               ? 'Welcome!'
                                               : name,
-                                          style: const TextStyle(
-                                            color: catalogInk,
-                                            fontSize: 22,
-                                            height: 1.2,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                          style: CustomerTypography.screen
+                                              .copyWith(color: catalogInk),
                                         ),
                                       ],
                                     ),
@@ -133,6 +127,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                                           context.push('/bookings'),
                                     ),
                                     const SizedBox(height: 8),
+                                    const CustomerPaymentRequests(),
                                     const CustomerRecentBookings(),
                                     const SizedBox(height: 16),
                                     Container(
@@ -154,26 +149,26 @@ class CustomerHomeScreen extends ConsumerWidget {
                                             size: 34,
                                           ),
                                           const SizedBox(width: 12),
-                                          const Expanded(
+                                          Expanded(
                                             child: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   'Need help regularly?',
-                                                  style: TextStyle(
-                                                    color: catalogInk,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                  ),
+                                                  style: CustomerTypography.card
+                                                      .copyWith(
+                                                        color: catalogInk,
+                                                      ),
                                                 ),
-                                                SizedBox(height: 4),
+                                                const SizedBox(height: 4),
                                                 Text(
                                                   'Recurring services are coming soon.',
-                                                  style: TextStyle(
-                                                    color: catalogMuted,
-                                                    fontSize: 12,
-                                                  ),
+                                                  style: CustomerTypography
+                                                      .compact
+                                                      .copyWith(
+                                                        color: catalogMuted,
+                                                      ),
                                                 ),
                                               ],
                                             ),
@@ -246,23 +241,17 @@ class _ServiceHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'GET A SERVICE',
-                        style: TextStyle(
+                        style: CustomerTypography.micro.copyWith(
                           color: catalogMuted,
-                          fontSize: 9,
-                          letterSpacing: 1.4,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Find the right help, right when you need it',
-                        style: TextStyle(
+                        style: CustomerTypography.screen.copyWith(
                           color: catalogInk,
-                          fontSize: 20,
-                          height: 1.15,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -301,29 +290,23 @@ class _SectionHeading extends StatelessWidget {
       Expanded(
         child: Text(
           title,
-          style: const TextStyle(
-            color: catalogInk,
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          style: CustomerTypography.section.copyWith(color: catalogInk),
         ),
       ),
       if (onViewAll != null)
         TextButton(
           onPressed: onViewAll,
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'View all',
-                style: TextStyle(
+                style: CustomerTypography.compactStrong.copyWith(
                   color: catalogTeal,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
                 ),
               ),
-              SizedBox(width: 5),
-              Icon(Icons.arrow_forward, color: catalogTeal, size: 18),
+              const SizedBox(width: 5),
+              const Icon(Icons.arrow_forward, color: catalogTeal, size: 18),
             ],
           ),
         ),
@@ -379,7 +362,7 @@ class _CategoryTile extends StatelessWidget {
     final appearance = ServiceAppearance.forService(service, index);
     return Material(
       key: ValueKey('customer-service-${service.id}'),
-      color: appearance.color.withValues(alpha: .055),
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -400,11 +383,8 @@ class _CategoryTile extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: CustomerTypography.compactStrong.copyWith(
                   color: catalogInk,
-                  fontSize: 11,
-                  height: 1.2,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

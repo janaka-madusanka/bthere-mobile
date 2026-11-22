@@ -113,11 +113,7 @@ class _AddTestCardDialogState extends State<AddTestCardDialog>
     children: [
       Text(
         label,
-        style: const TextStyle(
-          fontSize: 13,
-          color: CustomerColors.text,
-          fontWeight: FontWeight.w600,
-        ),
+        style: CustomerTypography.card.copyWith(color: CustomerColors.text),
       ),
       const SizedBox(height: 6),
       TextFormField(
@@ -228,12 +224,10 @@ class _AddTestCardDialogState extends State<AddTestCardDialog>
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Add New Card',
-                        style: TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.w700,
+                        style: CustomerTypography.screen.copyWith(
                           color: CustomerColors.text,
                         ),
                       ),
@@ -245,12 +239,10 @@ class _AddTestCardDialogState extends State<AddTestCardDialog>
                     ),
                   ],
                 ),
-                const Text(
+                Text(
                   'Test mode',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: CustomerTypography.compact.copyWith(
                     color: CustomerColors.secondaryText,
-                    height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -335,9 +327,8 @@ class _AddTestCardDialogState extends State<AddTestCardDialog>
                     padding: const EdgeInsets.only(top: 10),
                     child: Text(
                       widget.unavailableReason!,
-                      style: const TextStyle(
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.secondaryText,
-                        fontSize: 12,
                       ),
                     ),
                   ),
@@ -346,9 +337,8 @@ class _AddTestCardDialogState extends State<AddTestCardDialog>
                     padding: const EdgeInsets.only(top: 10),
                     child: Text(
                       _error!,
-                      style: const TextStyle(
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.error,
-                        fontSize: 12,
                       ),
                     ),
                   ),

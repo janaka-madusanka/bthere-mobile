@@ -84,8 +84,9 @@ class ServiceDetailScreen extends ConsumerWidget {
                                 ),
                                 manage: (id) async {
                                   if (await openSource(context, ref, id) ||
-                                      !context.mounted)
+                                      !context.mounted) {
                                     return;
+                                  }
                                   final option = result.value.registered
                                       .where((option) => option.optionId == id)
                                       .firstOrNull;
@@ -112,8 +113,9 @@ class ServiceDetailScreen extends ConsumerWidget {
                                 },
                                 startOption: (id) async {
                                   if (await openSource(context, ref, id) ||
-                                      !context.mounted)
+                                      !context.mounted) {
                                     return;
+                                  }
                                   if (!result.value.selected.contains(id)) {
                                     ref.read(provider.notifier).toggle(id);
                                   }

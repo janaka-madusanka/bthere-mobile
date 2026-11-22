@@ -171,11 +171,9 @@ class _BookingEstimatedCostState extends State<BookingEstimatedCost> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Estimated cost',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: CustomerTypography.compactStrong.copyWith(
                       color: CustomerColors.secondaryText,
                     ),
                   ),
@@ -188,17 +186,13 @@ class _BookingEstimatedCostState extends State<BookingEstimatedCost> {
                         : _quote!['currencyCode'] == 'LKR'
                         ? walletMoney(_quote!['expectedAmount'])
                         : '${_quote!['currencyCode']} ${_quote!['expectedAmount']}',
-                    style: TextStyle(
-                      fontSize: _quote == null
-                          ? 12
-                          : widget.compact
-                          ? 16
-                          : 21,
-                      fontWeight: _quote == null
-                          ? FontWeight.w400
-                          : FontWeight.w700,
-                      color: CustomerColors.text,
-                    ),
+                    style:
+                        (_quote == null
+                                ? CustomerTypography.compact
+                                : widget.compact
+                                ? CustomerTypography.section
+                                : CustomerTypography.screen)
+                            .copyWith(color: CustomerColors.text),
                   ),
                 ],
               ),

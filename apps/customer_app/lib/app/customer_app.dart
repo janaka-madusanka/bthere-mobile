@@ -1,4 +1,7 @@
+import '../features/profile/presentation/customer_profile_overview_screen.dart';
 import 'customer_theme.dart';
+import '../features/booking/presentation/customer_request_payment_screen.dart';
+import '../features/booking/presentation/customer_notification_host.dart';
 
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +23,9 @@ import '../features/booking/domain/booking_models.dart';
 import '../features/booking/domain/booking_option_draft.dart';
 import '../features/booking/presentation/customer_booking_screen.dart';
 import '../features/booking/presentation/customer_bookings_screen.dart';
+import '../features/booking/presentation/customer_booking_details_screen.dart';
 import '../features/wallet/presentation/customer_wallet_screen.dart';
+import '../features/messages/presentation/customer_messages_screen.dart';
 
 class CustomerBootstrap extends StatefulWidget {
   const CustomerBootstrap({
@@ -68,9 +73,16 @@ final customerRouterProvider = Provider<GoRouter>(
                                     '/market',
                                     '/services',
                                     '/bookings',
+                                    '/opportunities',
                                     '/wallet',
+                                    '/messages',
                                   ].contains(state.uri.path) ||
-                                  state.uri.path.startsWith('/booking/'))
+                                  state.uri.path.startsWith('/booking/') ||
+                                  state.uri.path.startsWith(
+                                    '/booking-requests/',
+                                  ) ||
+                                  state.uri.path.startsWith('/bookings/') ||
+                                  state.uri.path.startsWith('/messages/'))
                               ? state.uri.path
                               : '/home'
                         : discovery?.marketStage == DiscoveryStage.loading ||
@@ -86,18 +98,38 @@ final customerRouterProvider = Provider<GoRouter>(
         return state.uri.path == destination ? null : destination;
       },
       routes: [
+        GoRoute(
+          path: '/booking-requests/:requestId/payment',
+          builder: (_, state) => CustomerRequestPaymentScreen(
+            requestId: int.parse(state.pathParameters['requestId']!),
+          ),
+        ),
         GoRoute(path: '/', builder: (_, _) => const _StartupScreen()),
         GoRoute(path: '/auth', builder: (_, _) => const CustomerAuthScreen()),
         GoRoute(
           path: '/verification-success',
           builder: (_, _) => const CustomerVerificationSuccessScreen(),
         ),
-        GoRoute(path: '/account', builder: (_, _) => const _AccountScreen()),
+        GoRoute(
+          path: '/account',
+          builder: (_, _) => const CustomerProfileOverviewScreen(),
+        ),
         GoRoute(
           path: '/market',
           builder: (_, _) => const CustomerMarketScreen(),
         ),
         GoRoute(path: '/home', builder: (_, _) => const CustomerHomeScreen()),
+        GoRoute(
+          path: '/messages',
+          builder: (_, _) => const CustomerMessagesScreen(),
+        ),
+        GoRoute(
+          path: '/messages/:jobId',
+          builder: (_, state) => CustomerChatScreen(
+            key: ValueKey(state.pathParameters['jobId']),
+            jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
+          ),
+        ),
         GoRoute(
           path: '/wallet',
           builder: (_, _) => const CustomerWalletScreen(),
@@ -105,6 +137,20 @@ final customerRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: '/bookings',
           builder: (_, _) => const CustomerBookingsScreen(),
+        ),
+        GoRoute(
+          path: '/opportunities',
+          builder: (_, _) =>
+              const CustomerBookingsScreen(asOpportunities: true),
+        ),
+        GoRoute(
+          path: '/bookings/:jobId',
+          builder: (_, state) => CustomerBookingDetailsScreen(
+            jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
+            extras: state.extra is BookingDetailsExtras
+                ? state.extra as BookingDetailsExtras
+                : null,
+          ),
         ),
         GoRoute(
           path: '/booking/:service/:option',
@@ -161,6 +207,9 @@ class CustomerApp extends ConsumerWidget {
     theme: CustomerTheme.light(),
     darkTheme: CustomerTheme.dark(),
     routerConfig: ref.watch(customerRouterProvider),
+    scaffoldMessengerKey: ref.watch(customerMessengerKeyProvider),
+    builder: (_, child) =>
+        CustomerNotificationHost(child: child ?? const SizedBox.shrink()),
   );
 }
 
@@ -213,92 +262,6 @@ class _StartupScreen extends ConsumerWidget {
                 ),
               )
             : const BThereLoadingState(label: 'Starting B there Customer'),
-      ),
-    );
-  }
-}
-
-class _AccountScreen extends ConsumerWidget {
-  const _AccountScreen();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(customerAuthControllerProvider);
-    return ListenableBuilder(
-      listenable: auth,
-      builder: (context, _) => _Page(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Welcome, ${auth.user?.username ?? 'Customer'}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Your Customer profile is ready.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            BThereButton(
-              label: 'Browse services',
-              onPressed: () => context.go('/home'),
-            ),
-            const SizedBox(height: 12),
-            BThereButton(
-              label: 'Edit profile',
-              onPressed: auth.busy ? null : () => context.go('/profile'),
-            ),
-            const SizedBox(height: 12),
-            BThereButton(
-              label: 'My bookings',
-              onPressed: () => context.push('/bookings'),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              key: const ValueKey('customer-account-market'),
-              onPressed: () => context.go('/market'),
-              child: const Text('Change service area'),
-            ),
-            if (auth.error case final error?) BThereInlineError(error),
-            BThereButton(
-              label: 'Sign out',
-              loading: auth.busy,
-              onPressed: auth.busy ? null : auth.logout,
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: auth.busy
-                  ? null
-                  : () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sign out all sessions?'),
-                          content: const Text(
-                            'This revokes your refresh sessions on all devices.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Sign out all'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true && context.mounted) {
-                        await auth.logout(all: true);
-                      }
-                    },
-              child: const Text('Sign out all sessions'),
-            ),
-          ],
-        ),
       ),
     );
   }

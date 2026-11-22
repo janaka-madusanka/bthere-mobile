@@ -161,7 +161,7 @@ void main() {
         await settleImage(tester);
         expect(
           find.text(
-            'The server photo could not be displayed. Retry loading it or choose another photo.',
+            'Your photo is currently unavailable. You can retry or choose another photo.',
           ),
           findsOneWidget,
         );

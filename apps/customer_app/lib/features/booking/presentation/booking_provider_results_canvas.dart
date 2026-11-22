@@ -7,8 +7,10 @@ import '../application/customer_booking_controller.dart';
 import '../domain/booking_models.dart';
 import 'booking_location_picker.dart';
 import 'booking_service_dropdown.dart';
+import 'booking_provider_details_dialog.dart';
+import 'customer_provider_reviews.dart';
 
-class BookingProviderResultsCanvas extends StatefulWidget {
+class BookingProviderResultsCanvas extends StatelessWidget {
   const BookingProviderResultsCanvas({
     super.key,
     required this.controller,
@@ -18,19 +20,96 @@ class BookingProviderResultsCanvas extends StatefulWidget {
   final CustomerBookingController controller;
   final VoidCallback onBack;
   final ValueChanged<CustomerServiceOption> onOptionChanged;
+
   @override
-  State<BookingProviderResultsCanvas> createState() =>
-      _BookingProviderResultsCanvasState();
+  Widget build(BuildContext context) {
+    final c = controller;
+    final icon = c.context!.option['icon'];
+    return BookingProviderResultsView(
+      candidates: c.candidates,
+      selected: c.selected,
+      point: c.point,
+      radius: c.radius,
+      serviceName: c.context!.name,
+      iconUrl: icon is Map ? safeImageUrl(icon['url']) : null,
+      online: c.mode == 'ONLINE',
+      requiredCount: c.context!.providerCount,
+      busy: c.busy,
+      hasNext: c.hasNext,
+      error: c.error,
+      onBack: onBack,
+      onSelect: c.select,
+      onProviderDetails: (candidate) => showBookingProviderDetails(
+        context,
+        candidate,
+        feedback: CustomerProviderReviews(
+          providerId: candidate.id,
+          optionId: c.key.optionId,
+        ),
+      ),
+      onContinue: c.continueWithProviders,
+      onLoadMore: () => c.search(more: true),
+      onChangeFilters: c.details,
+      wrapServiceHeader: (child) => BookingServiceDropdown(
+        controller: c,
+        onChanged: onOptionChanged,
+        child: child,
+      ),
+    );
+  }
 }
 
-class _BookingProviderResultsCanvasState
-    extends State<BookingProviderResultsCanvas> {
+/// Existing provider results presentation, shared with the offline gallery.
+class BookingProviderResultsView extends StatefulWidget {
+  const BookingProviderResultsView({
+    super.key,
+    required this.candidates,
+    required this.selected,
+    required this.point,
+    required this.radius,
+    required this.serviceName,
+    required this.requiredCount,
+    required this.onBack,
+    required this.onSelect,
+    required this.onContinue,
+    required this.onLoadMore,
+    required this.onChangeFilters,
+    required this.wrapServiceHeader,
+    this.online = false,
+    this.busy = false,
+    this.hasNext = false,
+    this.iconUrl,
+    this.error,
+    this.mapBuilder,
+    this.onProviderDetails,
+  });
+  final List<ProviderCandidate> candidates;
+  final Map<int, ProviderCandidate> selected;
+  final GeoPoint? point;
+  final double radius;
+  final String serviceName;
+  final String? iconUrl, error;
+  final int requiredCount;
+  final bool online, busy, hasNext;
+  final VoidCallback onBack, onContinue, onLoadMore, onChangeFilters;
+  final ValueChanged<ProviderCandidate> onSelect;
+  final ValueChanged<ProviderCandidate>? onProviderDetails;
+  final Widget Function(Widget child) wrapServiceHeader;
+  final Widget Function(double height)? mapBuilder;
+
+  @override
+  State<BookingProviderResultsView> createState() =>
+      _BookingProviderResultsViewState();
+}
+
+class _BookingProviderResultsViewState
+    extends State<BookingProviderResultsView> {
   final _sheet = DraggableScrollableController();
   double get _initial => MediaQuery.textScalerOf(context).scale(14) > 21
       ? .72
-      : widget.controller.candidates.length >= 5
+      : widget.candidates.length >= 5
       ? .62
-      : widget.controller.candidates.length > 2
+      : widget.candidates.length > 2
       ? .58
       : .44;
   @override
@@ -41,11 +120,11 @@ class _BookingProviderResultsCanvasState
 
   @override
   Widget build(BuildContext context) {
-    final c = widget.controller;
-    final online = c.mode == 'ONLINE';
-    final count = c.candidates.map((candidate) => candidate.id).toSet().length;
-    final icon = c.context!.option['icon'];
-    final iconUrl = icon is Map ? safeImageUrl(icon['url']) : null;
+    final online = widget.online;
+    final count = widget.candidates
+        .map((candidate) => candidate.id)
+        .toSet()
+        .length;
     return LayoutBuilder(
       builder: (context, bounds) => Stack(
         children: [
@@ -57,20 +136,25 @@ class _BookingProviderResultsCanvasState
               right: 0,
               child: AnimatedBuilder(
                 animation: _sheet,
-                builder: (_, _) => BookingLocationPicker(
-                  point: c.point,
-                  candidates: c.candidates,
-                  radiusKm: c.radius,
-                  enabled: false,
-                  showRecenter: true,
-                  mapOnly: true,
-                  onChanged: (_) {},
-                  onProviderSelected: c.busy ? null : c.select,
-                  preferProviderPhotos: true,
-                  height:
+                builder: (_, _) =>
+                    widget.mapBuilder?.call(
                       bounds.maxHeight *
-                      (1 - (_sheet.isAttached ? _sheet.size : _initial)),
-                ),
+                          (1 - (_sheet.isAttached ? _sheet.size : _initial)),
+                    ) ??
+                    BookingLocationPicker(
+                      point: widget.point,
+                      candidates: widget.candidates,
+                      radiusKm: widget.radius,
+                      enabled: false,
+                      showRecenter: true,
+                      mapOnly: true,
+                      onChanged: (_) {},
+                      onProviderSelected: widget.busy ? null : widget.onSelect,
+                      preferProviderPhotos: true,
+                      height:
+                          bounds.maxHeight *
+                          (1 - (_sheet.isAttached ? _sheet.size : _initial)),
+                    ),
               ),
             ),
           if (online)
@@ -96,7 +180,7 @@ class _BookingProviderResultsCanvasState
                   shape: const CircleBorder(),
                   child: IconButton(
                     tooltip: 'Back',
-                    onPressed: c.busy ? null : widget.onBack,
+                    onPressed: widget.busy ? null : widget.onBack,
                     icon: const Icon(Icons.arrow_back, color: catalogInk),
                   ),
                 ),
@@ -108,10 +192,8 @@ class _BookingProviderResultsCanvasState
                       color: Colors.white,
                       elevation: 3,
                       borderRadius: BorderRadius.circular(24),
-                      child: BookingServiceDropdown(
-                        controller: c,
-                        onChanged: widget.onOptionChanged,
-                        child: Padding(
+                      child: widget.wrapServiceHeader(
+                        Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 10,
@@ -124,19 +206,17 @@ class _BookingProviderResultsCanvasState
                                   catalogTeal,
                                   Icons.medical_services_outlined,
                                 ),
-                                url: iconUrl,
+                                url: widget.iconUrl,
                                 size: 24,
                               ),
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  c.context!.name,
+                                  widget.serviceName,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: CustomerTypography.card.copyWith(
                                     color: catalogInk,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
                                   ),
                                 ),
                               ),
@@ -210,51 +290,46 @@ class _BookingProviderResultsCanvasState
                                           online
                                               ? 'Available providers'
                                               : 'Available providers nearby',
-                                          style: const TextStyle(
-                                            color: catalogInk,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                          style: CustomerTypography.section
+                                              .copyWith(
+                                                color: const Color(0xFF0C1248),
+                                              ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        '$count${c.hasNext ? '+' : ''} ${count == 1 && !c.hasNext ? 'provider' : 'providers'}',
-                                        style: const TextStyle(
-                                          color: catalogMuted,
-                                          fontSize: 11,
-                                          height: 2,
-                                        ),
+                                        '$count${widget.hasNext ? '+' : ''} ${count == 1 && !widget.hasNext ? 'provider' : 'providers'}',
+                                        style: CustomerTypography.compact
+                                            .copyWith(color: catalogMuted),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    c.context!.providerCount == 1
+                                    widget.requiredCount == 1
                                         ? 'Choose your provider'
-                                        : 'Choose ${c.context!.providerCount} providers · ${c.selected.length} selected',
-                                    style: const TextStyle(
+                                        : 'Choose ${widget.requiredCount} providers · ${widget.selected.length} selected',
+                                    style: CustomerTypography.compact.copyWith(
                                       color: catalogMuted,
-                                      fontSize: 12,
                                     ),
                                   ),
-                                  if (c.error != null)
+                                  if (widget.error != null)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
-                                        c.error!,
-                                        style: const TextStyle(
-                                          color: CustomerColors.error,
-                                          fontSize: 12,
-                                        ),
+                                        widget.error!,
+                                        style: CustomerTypography.compact
+                                            .copyWith(
+                                              color: CustomerColors.error,
+                                            ),
                                       ),
                                     ),
-                                  if (c.busy)
+                                  if (widget.busy)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 8),
                                       child: LinearProgressIndicator(),
                                     ),
-                                  if (c.candidates.isEmpty)
+                                  if (widget.candidates.isEmpty)
                                     const Padding(
                                       padding: EdgeInsets.symmetric(
                                         vertical: 16,
@@ -271,17 +346,25 @@ class _BookingProviderResultsCanvasState
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverList.builder(
-                              itemCount: c.candidates.length,
+                              itemCount: widget.candidates.length,
                               itemBuilder: (_, index) {
-                                final candidate = c.candidates[index];
+                                final candidate = widget.candidates[index];
                                 return BookingProviderCard(
                                   candidate: candidate,
-                                  selected:
-                                      c.selected[candidate.id]?.key ==
-                                      candidate.key,
-                                  onTap: c.busy
+                                  serviceName: widget.serviceName,
+                                  onDetails:
+                                      widget.onProviderDetails == null ||
+                                          widget.busy
                                       ? null
-                                      : () => c.select(candidate),
+                                      : () => widget.onProviderDetails!(
+                                          candidate,
+                                        ),
+                                  selected:
+                                      widget.selected[candidate.id]?.key ==
+                                      candidate.key,
+                                  onTap: widget.busy
+                                      ? null
+                                      : () => widget.onSelect(candidate),
                                 );
                               },
                             ),
@@ -289,15 +372,17 @@ class _BookingProviderResultsCanvasState
                           SliverToBoxAdapter(
                             child: Column(
                               children: [
-                                if (c.hasNext)
+                                if (widget.hasNext)
                                   TextButton(
-                                    onPressed: c.busy
+                                    onPressed: widget.busy
                                         ? null
-                                        : () => c.search(more: true),
+                                        : widget.onLoadMore,
                                     child: const Text('Load more providers'),
                                   ),
                                 TextButton(
-                                  onPressed: c.busy ? null : c.details,
+                                  onPressed: widget.busy
+                                      ? null
+                                      : widget.onChangeFilters,
                                   child: const Text(
                                     'Change time, location or details',
                                   ),
@@ -314,10 +399,8 @@ class _BookingProviderResultsCanvasState
                                         ? 'Availability is checked again when you book.'
                                         : 'Pins show public locations or approximate service areas. Availability is checked again when you book.',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: CustomerTypography.micro.copyWith(
                                       color: catalogMuted,
-                                      fontSize: 10,
-                                      height: 1.4,
                                     ),
                                   ),
                                 ),
@@ -334,10 +417,10 @@ class _BookingProviderResultsCanvasState
                         child: FilledButton(
                           key: const ValueKey('booking-results-continue'),
                           onPressed:
-                              c.busy ||
-                                  c.selected.length != c.context!.providerCount
+                              widget.busy ||
+                                  widget.selected.length != widget.requiredCount
                               ? null
-                              : c.continueWithProviders,
+                              : widget.onContinue,
                           style: FilledButton.styleFrom(
                             backgroundColor: catalogTeal,
                             foregroundColor: Colors.white,
@@ -348,10 +431,7 @@ class _BookingProviderResultsCanvasState
                           ),
                           child: const Text(
                             'Continue',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
+                            style: CustomerTypography.section,
                           ),
                         ),
                       ),
@@ -373,16 +453,23 @@ class BookingProviderCard extends StatelessWidget {
     required this.candidate,
     required this.selected,
     required this.onTap,
+    this.onDetails,
+    this.serviceName,
   });
   final ProviderCandidate candidate;
   final bool selected;
   final VoidCallback? onTap;
+  final VoidCallback? onDetails;
+  final String? serviceName;
 
   @override
   Widget build(BuildContext context) {
-    final rating = candidate.data['averageRating'] as num?;
-    final ratings = candidate.data['totalRatings'] as int?;
-    final rated = rating != null && (ratings == null || ratings > 0);
+    final rating = candidate.searchRating;
+    final ratings = candidate.searchRatingCount;
+    final rated = rating != null && (ratings ?? 0) > 0;
+    final scope = candidate.hasOptionRatings
+        ? 'For ${serviceName?.trim().isNotEmpty == true ? serviceName!.trim() : 'this service'}'
+        : 'Overall rating';
     final distance = candidate.data['distanceKm'] as num?;
     final languages = (candidate.data['languages'] as List).cast<String>();
     final details = Column(
@@ -392,14 +479,11 @@ class BookingProviderCard extends StatelessWidget {
           candidate.name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: catalogInk,
-            fontSize: 14,
-            height: 1.15,
-            fontWeight: FontWeight.w700,
+          style: CustomerTypography.card.copyWith(
+            color: const Color(0xFF0C1248),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 4,
@@ -408,31 +492,36 @@ class BookingProviderCard extends StatelessWidget {
             Icon(
               rated ? Icons.star_rounded : Icons.star_outline_rounded,
               color: rated ? const Color(0xFFF5B42A) : catalogMuted,
-              size: 14,
+              size: 16,
             ),
             Text(
-              rated
-                  ? '${rating.toStringAsFixed(1)}${ratings == null ? '' : ' ($ratings)'}'
-                  : 'Not yet rated',
-              style: const TextStyle(
-                fontSize: 11,
-                height: 1.2,
-                color: catalogMuted,
+              rated ? rating.toStringAsFixed(1) : 'Not yet rated',
+              style: CustomerTypography.compact.copyWith(
+                color: rated ? const Color(0xFF0C1248) : catalogMuted,
+                fontWeight: rated ? FontWeight.w700 : FontWeight.w400,
               ),
             ),
+            if (rated && ratings != null)
+              Text(
+                '($ratings)',
+                style: CustomerTypography.compact.copyWith(
+                  color: const Color(0xFF9598B2),
+                ),
+              ),
             if (distance != null)
               Text(
                 '· ${distance.toStringAsFixed(1)} km',
-                style: const TextStyle(
-                  color: catalogMuted,
-                  fontSize: 11,
-                  height: 1.2,
-                ),
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
               ),
           ],
         ),
+        const SizedBox(height: 3),
+        Text(
+          scope,
+          style: CustomerTypography.micro.copyWith(color: catalogMuted),
+        ),
         if (languages.isNotEmpty) ...[
-          const SizedBox(height: 3),
+          const SizedBox(height: 5),
           Wrap(
             spacing: 4,
             runSpacing: 4,
@@ -444,16 +533,15 @@ class BookingProviderCard extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F4FA),
+                    color: const Color(0xFFF1F0FD),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     language.isEmpty
                         ? language
                         : '${language[0]}${language.substring(1).toLowerCase()}',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      color: Color(0xFF69738B),
+                    style: CustomerTypography.micro.copyWith(
+                      color: const Color(0xFF69738B),
                     ),
                   ),
                 ),
@@ -467,16 +555,12 @@ class BookingProviderCard extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: selected ? CustomerColors.primary : catalogTeal,
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-        minimumSize: const Size(68, 40),
+        minimumSize: const Size(74, 42),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
       ),
       child: Text(
         selected ? 'Selected' : 'Select',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: CustomerTypography.compactStrong.copyWith(color: Colors.white),
       ),
     );
     return Padding(
@@ -487,28 +571,28 @@ class BookingProviderCard extends StatelessWidget {
           key: ValueKey('booking-provider-${candidate.key}'),
           color: selected ? CustomerColors.selection : Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: selected ? catalogTeal : const Color(0xFFE7ECF3),
+              color: selected ? catalogTeal : const Color(0xFFE7E8F2),
             ),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: onTap,
+            onTap: onDetails ?? onTap,
             child: Padding(
-              padding: const EdgeInsets.all(9),
+              padding: const EdgeInsets.all(11),
               child: LayoutBuilder(
                 builder: (context, bounds) {
                   final narrow =
                       bounds.maxWidth < 290 ||
                       MediaQuery.textScalerOf(context).scale(14) > 21;
                   return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       ClipOval(
                         child: Container(
-                          width: 46,
-                          height: 46,
+                          width: 54,
+                          height: 54,
                           color: const Color(0xFFE0F2F3),
                           child: candidate.photo == null
                               ? const Icon(

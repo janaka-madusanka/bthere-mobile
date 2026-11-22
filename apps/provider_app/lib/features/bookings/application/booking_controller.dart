@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bthere_network/bthere_network.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,6 +40,7 @@ class BookingController extends AsyncNotifier<BookingState> {
   int? _owner;
   int _epoch = 0;
   bool _working = false;
+  Completer<void>? _refreshFinished;
   BookingRecovery _recovery = const BookingRecovery();
   BookingRepository get _repository => ref.read(bookingRepositoryProvider);
   void _check(int epoch) {
@@ -110,6 +113,8 @@ class BookingController extends AsyncNotifier<BookingState> {
   Future<void> refresh() async {
     if (_working || _owner == null || state.isLoading) return;
     _working = true;
+    final finished = Completer<void>();
+    _refreshFinished = finished;
     final epoch = _epoch;
     final old = state.asData?.value ?? const BookingState();
     try {
@@ -124,6 +129,8 @@ class BookingController extends AsyncNotifier<BookingState> {
         );
       }
     } finally {
+      finished.complete();
+      if (identical(_refreshFinished, finished)) _refreshFinished = null;
       if (epoch == _epoch) _working = false;
     }
   }
@@ -167,7 +174,15 @@ class BookingController extends AsyncNotifier<BookingState> {
 
   Future<bool> start(AssignedBooking booking, String code) async {
     if (!booking.canStart) return false;
+    final epoch = _epoch;
     return _mutate(() async {
+      final current = await _repository.booking(booking.id);
+      _check(epoch);
+      if (!current.canStart) {
+        throw const FormatException(
+          'This booking is no longer ready to start. Refresh its status.',
+        );
+      }
       final result = await _repository.start(booking.id, code);
       if (!result.successful) {
         throw FormatException(
@@ -198,6 +213,18 @@ class BookingController extends AsyncNotifier<BookingState> {
   }
 
   Future<bool> _mutate(Future<void> Function() action) async {
+    final waitingEpoch = _epoch;
+    // Foreground polling must not silently discard an explicit START action.
+    // Wait only for a read, never queue behind another mutation or replay one.
+    final reading = _refreshFinished;
+    if (reading != null && _owner != null) {
+      final old = state.asData?.value ?? const BookingState();
+      state = AsyncData(
+        BookingState(bookings: old.bookings, offers: old.offers, busy: true),
+      );
+      await reading.future;
+    }
+    if (!ref.mounted || waitingEpoch != _epoch) return false;
     if (_working || _owner == null) return false;
     _working = true;
     final epoch = _epoch;

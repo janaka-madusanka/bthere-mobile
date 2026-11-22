@@ -49,13 +49,14 @@ class _ProfileState extends ConsumerState<SubServiceProfileScreen> {
       final source = v.registrationSources[widget.optionId];
       if (source != null &&
           source.registrationServiceTypeId != widget.serviceTypeId) {
-        if (mounted)
+        if (mounted) {
           context.go(
             sharedOptionRoute(
               source,
               incomplete: v.incompleteRegistrationIds.contains(widget.optionId),
             ),
           );
+        }
         return;
       }
       final registered = v.registered

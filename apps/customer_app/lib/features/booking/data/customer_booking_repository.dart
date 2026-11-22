@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+
 import 'package:bthere_network/bthere_network.dart';
 import 'package:http_parser/http_parser.dart';
 
@@ -7,10 +9,295 @@ import '../../auth/data/customer_auth_service.dart';
 import '../../discovery/domain/customer_discovery.dart';
 import '../../profile/data/customer_photo_upload.dart';
 import '../domain/booking_models.dart';
+import '../domain/booking_card_checkout.dart';
+import '../domain/provider_reviews.dart';
+import '../domain/booking_tracking.dart';
+import '../domain/booking_cancellation.dart';
 
 class CustomerBookingRepository {
   CustomerBookingRepository(this.auth);
   final CustomerAuthService auth;
+  Future<BookingCancellation> cancellationPreview(int jobId) async =>
+      BookingCancellation.parse(
+        await request(
+          'GET',
+          '/customers/me/bookings/$jobId/cancellation-preview',
+        ),
+        jobId,
+      );
+  Future<BookingCancellation> cancelPaidBooking(
+    int jobId,
+    BookingCancellation preview,
+    String reason,
+    String note,
+  ) async {
+    if (reason.trim().isEmpty ||
+        reason.trim().length > 100 ||
+        note.length > 1000 ||
+        preview.data['jobId'] != jobId) {
+      throw const FormatException('Invalid cancellation input');
+    }
+    return BookingCancellation.parse(
+      await request(
+        'POST',
+        '/customers/me/bookings/$jobId/cancel',
+        data: {
+          'reason': reason.trim(),
+          'note': note.trim().isEmpty ? null : note.trim(),
+          'expectedRefundAmount': preview.refund,
+        },
+      ),
+      jobId,
+      receipt: true,
+    );
+  }
+
+  Future<BookingCancellation> cancellation(int jobId) async =>
+      BookingCancellation.parse(
+        await request('GET', '/customers/me/bookings/$jobId/cancellation'),
+        jobId,
+        receipt: true,
+      );
+  Future<int> registerBookingDevice(String token, String platform) async {
+    final value = object(
+      await request(
+        'POST',
+        '/me/booking-devices',
+        data: {
+          'token': token,
+          'platform': platform,
+          'deviceName': 'BThere Customer',
+        },
+      ),
+    );
+    return positiveId(value['deviceId']);
+  }
+
+  Future<void> removeBookingDevice(int id) async {
+    final response = await auth.bookingRequest(
+      'DELETE',
+      '/me/booking-devices/$id',
+    );
+    if (![200, 204, 404].contains(response.statusCode)) {
+      throw const FormatException('Device could not be removed');
+    }
+  }
+
+  Future<BookingTrackingStatus> trackingStatus(int jobId) async =>
+      BookingTrackingStatus.parse(
+        await request('GET', '/customers/me/bookings/$jobId/tracking'),
+        jobId,
+      );
+  Future<List<ProviderRatingSummary>> providerRatings(int providerId) async {
+    final result = object(
+      await request('GET', '/customers/me/providers/$providerId/ratings'),
+    );
+    if (result['providerId'] != providerId || result['options'] is! List) {
+      throw const FormatException('Invalid provider ratings');
+    }
+    final summaries = [
+      ProviderRatingSummary.parse(result['overall']),
+      for (final value in result['options'] as List)
+        ProviderRatingSummary.parse(value, option: true),
+    ];
+    if (summaries.map((s) => s.optionId).toSet().length != summaries.length) {
+      throw const FormatException('Duplicate rating scope');
+    }
+    return summaries;
+  }
+
+  Future<ProviderReviewPage> providerReviews(
+    int providerId, {
+    int? optionId,
+    int page = 0,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'page': '$page',
+        'size': '10',
+        if (optionId != null) 'optionId': '$optionId',
+      },
+    ).query;
+    final result = object(
+      await request(
+        'GET',
+        '/customers/me/providers/$providerId/reviews?$query',
+      ),
+    );
+    if (result['content'] is! List ||
+        result['number'] != page ||
+        result['totalPages'] is! int ||
+        (result['totalPages'] as int) < 0) {
+      throw const FormatException('Invalid reviews page');
+    }
+    final rows = (result['content'] as List).map(ProviderReview.parse).toList();
+    if (optionId != null && rows.any((r) => r.optionId != optionId)) {
+      throw const FormatException('Review scope mismatch');
+    }
+    return ProviderReviewPage(rows, page, result['totalPages'] as int);
+  }
+
+  Future<List<Map<String, dynamic>>> bookingProviders(int jobId) async {
+    final value = object(
+      await request('GET', '/customers/me/bookings/$jobId/providers'),
+    );
+    if (value['jobId'] != jobId || value['providers'] is! List) {
+      throw const FormatException('Invalid booking providers');
+    }
+    final ids = <int>{};
+    return (value['providers'] as List).map((raw) {
+      final provider = object(raw);
+      if (provider['providerId'] is! int ||
+          !ids.add(provider['providerId'] as int) ||
+          provider['displayName'] is! String ||
+          provider['contact'] is! Map) {
+        throw const FormatException('Invalid booking provider');
+      }
+      return provider;
+    }).toList();
+  }
+
+  Future<Map<String, dynamic>> bookingRatings(int jobId) async {
+    final value = object(
+      await request('GET', '/customers/me/bookings/$jobId/ratings'),
+    );
+    if (value['jobId'] != jobId ||
+        value['canRate'] is! bool ||
+        value['providers'] is! List) {
+      throw const FormatException('Invalid booking ratings');
+    }
+    final ids = <int>{};
+    for (final raw in value['providers'] as List) {
+      final provider = object(raw);
+      if (provider['providerId'] is! int ||
+          !ids.add(provider['providerId'] as int) ||
+          provider['rated'] is! bool ||
+          provider['displayName'] != null &&
+              provider['displayName'] is! String ||
+          provider['rated'] == true &&
+              (provider['rating'] is! Map ||
+                  provider['rating']['rating'] is! int ||
+                  (provider['rating']['rating'] as int) < 1 ||
+                  (provider['rating']['rating'] as int) > 5)) {
+        throw const FormatException('Invalid rating provider');
+      }
+    }
+    return value;
+  }
+
+  Future<void> rateProvider(
+    int jobId,
+    int providerId,
+    int rating,
+    String comment,
+  ) async {
+    if (rating < 1 || rating > 5 || comment.length > 1000) {
+      throw const FormatException('Invalid rating');
+    }
+    final value = object(
+      await request(
+        'POST',
+        '/customers/me/bookings/$jobId/ratings',
+        data: {
+          'providerId': providerId,
+          'rating': rating,
+          if (comment.trim().isNotEmpty) 'comment': comment.trim(),
+        },
+      ),
+    );
+    if (value['jobId'] != jobId ||
+        value['providerId'] != providerId ||
+        value['rating'] != rating) {
+      throw const FormatException('Rating result not confirmed');
+    }
+  }
+
+  Future<void> confirmCompletion(int jobId) async {
+    final result = object(
+      await request('POST', '/customers/me/bookings/$jobId/confirm-completion'),
+    );
+    if (result['successful'] != true || result['status'] != 'COMPLETED') {
+      throw const FormatException('Completion result is not confirmed');
+    }
+  }
+
+  Future<Map<String, dynamic>> startCode(int jobId) async {
+    final result = object(
+      await request('GET', '/customers/me/bookings/$jobId/verification-codes'),
+    );
+    final code = result['code'];
+    final expiry = DateTime.tryParse('${result['expiresAt']}');
+    if (result['purpose'] != 'START' ||
+        code is! String ||
+        !RegExp(r'^\d{4}$').hasMatch(code) ||
+        expiry == null ||
+        !expiry.isUtc) {
+      throw const FormatException('Invalid start code response');
+    }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> changePaymentMethod(
+    int id,
+    String method,
+  ) async {
+    final view = requestView(
+      await request(
+        'POST',
+        '/customers/me/booking-requests/$id/payment-method',
+        data: {'paymentMethod': method},
+      ),
+    );
+    if (view['requestId'] != id ||
+        view['paymentMethod'] != null && view['paymentMethod'] != method) {
+      throw const FormatException('Payment method change not confirmed');
+    }
+    return view;
+  }
+
+  Future<Map<String, dynamic>> paymentWindow(int id) async {
+    final value = object(
+      await request('GET', '/customers/me/booking-requests/$id/payment-window'),
+    );
+    if (value['requestId'] != id ||
+        value['canPay'] is! bool ||
+        value['canCancel'] is! bool ||
+        value['confirmationExpiresAt'] != null &&
+            DateTime.tryParse('${value['confirmationExpiresAt']}') == null ||
+        value['paymentRetryStartedAt'] != null &&
+            DateTime.tryParse('${value['paymentRetryStartedAt']}') == null) {
+      throw const FormatException('Invalid payment window');
+    }
+    return value;
+  }
+
+  Future<List<Map<String, dynamic>>> events(int after) async {
+    final value = await request(
+      'GET',
+      '/customers/me/booking-events?after=$after',
+    );
+    if (value is! List) throw const FormatException('Invalid booking events');
+    return value.map(object).toList();
+  }
+
+  Future<Map<String, dynamic>> confirmMockCard(int id, int methodId) async =>
+      requestView(
+        await request(
+          'POST',
+          '/customers/me/booking-requests/$id/confirm-mock-card',
+          data: {'methodId': methodId},
+        ),
+      );
+  Future<BookingCardCheckout> confirmRequestCard(
+    int id,
+    Map<String, String> billing,
+  ) async => BookingCardCheckout.parse(
+    await request(
+      'POST',
+      '/customers/me/booking-requests/$id/confirm',
+      data: billing,
+    ),
+  );
   Future<Map<String, dynamic>> cancelRequest(int id) async {
     final view = requestView(
       await request('POST', '/customers/me/booking-requests/$id/cancel'),
@@ -49,6 +336,38 @@ class CustomerBookingRepository {
       headers: headers,
       safeRead: safeRead || method == 'GET',
     );
+    if (kDebugMode &&
+        method == 'GET' &&
+        RegExp(r'^/customers/me/bookings/\d+/(providers|ratings)$')
+            .hasMatch(path)) {
+      // Status only: no personal data, photos, tokens or response bodies.
+      debugPrint(
+        'Booking details read: path=$path http=${response.statusCode}',
+      );
+
+    }
+    if (kDebugMode &&
+        (RegExp(
+              r'^/customers/me/booking-requests/\d+(/(payment-window|payment-method|confirm-mock-card|confirm-wallet|confirm))?$',
+            ).hasMatch(path) ||
+            path == '/me/payment-settings')) {
+      final body = response.data;
+      final state = body is Map ? body : const {};
+      String label(String key) {
+        final value = state[key];
+        return value is String && RegExp(r'^[A-Z_]{1,48}$').hasMatch(value)
+            ? value
+            : '-';
+      }
+
+      // Debug-only lifecycle diagnostics. Never log bodies, auth, gateway
+      // signatures, contact details, card identifiers or verification codes.
+      debugPrint(
+        'Booking payment: method=$method path=$path http=${response.statusCode} '
+        'state=${label('status')} payment=${label('paymentStatus')} '
+        'methodType=${label('paymentMethod')} gateway=${label('provider')}',
+      );
+    }
     if (response.statusCode != status) {
       final body = response.data;
       final map = body is Map ? body : const {};

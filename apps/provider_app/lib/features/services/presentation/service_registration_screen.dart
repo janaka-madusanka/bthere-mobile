@@ -90,8 +90,9 @@ class _RegistrationState extends ConsumerState<ServiceRegistrationScreen> {
     });
     try {
       if (widget.optionId != null &&
-          await openExistingSource([widget.optionId!]))
+          await openExistingSource([widget.optionId!])) {
         return;
+      }
       final local = await ref
           .read(registrationDraftStoreProvider)
           .read(selected!);

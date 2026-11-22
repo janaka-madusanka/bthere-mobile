@@ -313,10 +313,8 @@ class _CustomerOtpInputState extends State<CustomerOtpInput> {
                                 i < widget.controller.text.length
                                     ? widget.controller.text[i]
                                     : '',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0B3037),
+                                style: CustomerTypography.screen.copyWith(
+                                  color: const Color(0xFF0B3037),
                                 ),
                               ),
                             ),

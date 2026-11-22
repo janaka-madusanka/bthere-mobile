@@ -45,7 +45,9 @@ class _CustomerProfilePhotoState extends State<CustomerProfilePhoto> {
         );
       }
       setState(() {
-        _error = 'The server photo could not be displayed. Retry loading it or choose another photo.';
+        _error = error is NetworkImageLoadException && error.statusCode == 403
+            ? 'Your photo is currently unavailable. You can retry or choose another photo.'
+            : 'The server photo could not be displayed. Retry loading it or choose another photo.';
       });
     });
   }

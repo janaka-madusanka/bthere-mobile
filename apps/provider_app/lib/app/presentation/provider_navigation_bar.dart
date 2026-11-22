@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'provider_tabs.dart';
+import '../../features/messages/presentation/provider_chat_unread.dart';
 
 /// Shared navigation from Figma's Bottom navigation component (364:3400).
 /// Branch indices stay aligned with the router; visual order follows Figma.
@@ -86,7 +87,7 @@ class ProviderNavigationBar extends StatelessWidget {
                   color: selected ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: Center(child: icon),
+                child: Center(child: tab == ProviderTab.messages ? ProviderChatUnread(child: icon) : icon),
               ),
               const SizedBox(height: 3),
               Text(

@@ -154,21 +154,24 @@ final class ServiceDetailController
       for (final option in schema.value.options) {
         final lookup = await registrations.sharedRegistration(option.optionId);
         if (!ref.mounted) return _failure();
-        if (lookup is Failure<SharedOptionRegistration?>)
+        if (lookup is Failure<SharedOptionRegistration?>) {
           return Failure(lookup.failure);
+        }
         final source = (lookup as Success<SharedOptionRegistration?>).value;
         if (source == null) continue;
         if (source.assignmentId == assignment?.assignmentId &&
             registeredById[option.optionId]?.providerOptionId ==
-                source.providerOptionId)
+                source.providerOptionId) {
           continue;
+        }
         if (!sourceSelections.containsKey(source.assignmentId)) {
           final selections = await ref
               .read(providerOptionsRepositoryProvider)
               .loadSelections(source.assignmentId);
           if (!ref.mounted) return _failure();
-          if (selections is Failure<List<ProviderSelectedOption>>)
+          if (selections is Failure<List<ProviderSelectedOption>>) {
             return Failure(selections.failure);
+          }
           sourceSelections[source.assignmentId] =
               (selections as Success<List<ProviderSelectedOption>>).value;
         }

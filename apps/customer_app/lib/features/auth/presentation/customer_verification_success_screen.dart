@@ -121,11 +121,8 @@ class CustomerVerificationSuccessPage extends StatelessWidget {
                             child: Text(
                               phone ? 'Phone verified!' : 'Email verified!',
                               textAlign: TextAlign.center,
-                              style: theme.textTheme.headlineLarge?.copyWith(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
+                              style: CustomerTypography.screen.copyWith(
                                 color: navy,
-                                height: 1.2,
                               ),
                             ),
                           ),
@@ -135,10 +132,8 @@ class CustomerVerificationSuccessPage extends StatelessWidget {
                                 ? 'Your phone number has been successfully verified.'
                                 : 'Your email has been successfully verified.',
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyLarge?.copyWith(
+                            style: CustomerTypography.body.copyWith(
                               color: muted,
-                              fontSize: 18,
-                              height: 1.4,
                             ),
                           ),
                           const SizedBox(height: 20),

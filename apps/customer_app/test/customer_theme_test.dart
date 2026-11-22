@@ -1,23 +1,79 @@
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:customer_app/app/customer_theme.dart';
+import 'package:customer_app/features/booking/presentation/booking_payment_visuals.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Customer theme follows designer roles without changing shared Provider theme', () {
-    final theme = CustomerTheme.light();
-    expect(theme.textTheme.headlineLarge!.fontFamily, 'Public Sans');
-    expect(theme.textTheme.headlineLarge!.fontSize, 24);
-    expect(theme.textTheme.headlineLarge!.height, 32 / 24);
-    expect(theme.textTheme.titleLarge!.fontSize, 18);
-    expect(theme.textTheme.bodyMedium!.fontSize, 14);
-    expect(theme.textTheme.labelMedium!.fontSize, 12);
-    expect(theme.textTheme.labelSmall!.fontSize, 10);
-    expect(theme.colorScheme.primary, const Color(0xFF008F95));
-    expect(theme.colorScheme.onSurface, const Color(0xFF0B3037));
-    expect(theme.scaffoldBackgroundColor, const Color(0xFFF8FAFB));
-    expect(BThereTheme.light().textTheme.bodyMedium!.fontFamily, 'Nunito');
-  });
+  testWidgets(
+    'payment text uses Customer roles at narrow and large text sizes',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      for (final scale in [1.0, 2.0]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: CustomerTheme.light(),
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(320, 800),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: const Scaffold(
+                body: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      PaymentArtHeading(
+                        title: 'Your booking is confirmed!',
+                        requestId: 45,
+                      ),
+                      PaymentAmountArtwork(amount: 'Rs. 42,000.00'),
+                      PaymentSelectedMethod(method: 'WALLET', showRadio: false),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (final label in ['Your booking is confirmed!', 'Rs. 42,000.00']) {
+          final style = tester.widget<Text>(find.text(label)).style!;
+          expect(style.fontFamily, CustomerTypography.family);
+          expect(style.fontSize, 24);
+          expect(style.fontWeight, FontWeight.w700);
+          expect(style.height, 32 / 24);
+        }
+        expect(
+          tester.widget<Text>(find.text('BThere Wallet')).style!.fontWeight,
+          FontWeight.w600,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+  test(
+    'Customer theme retains designer roles alongside shared Provider theme',
+    () {
+      final theme = CustomerTheme.light();
+      expect(theme.textTheme.headlineLarge!.fontFamily, 'Public Sans');
+      expect(theme.textTheme.headlineLarge!.fontSize, 24);
+      expect(theme.textTheme.headlineLarge!.height, 32 / 24);
+      expect(theme.textTheme.titleLarge!.fontSize, 18);
+      expect(theme.textTheme.bodyMedium!.fontSize, 14);
+      expect(theme.textTheme.labelMedium!.fontSize, 12);
+      expect(theme.textTheme.labelSmall!.fontSize, 10);
+      expect(theme.colorScheme.primary, const Color(0xFF008F95));
+      expect(theme.colorScheme.onSurface, const Color(0xFF0B3037));
+      expect(theme.scaffoldBackgroundColor, const Color(0xFFF8FAFB));
+      expect(
+        BThereTheme.light().textTheme.bodyMedium!.fontFamily,
+        'PublicSans',
+      );
+    },
+  );
   testWidgets('shared controls inherit Customer font and button sizing', (
     tester,
   ) async {
