@@ -211,10 +211,11 @@ class ApiDocumentsRepository implements DocumentsRepository {
   final ApiClient client;
   final void Function(String)? diagnosticLogger;
   void _diagnostic(String message) {
-    if (diagnosticLogger != null)
+    if (diagnosticLogger != null) {
       diagnosticLogger!(message);
-    else if (kDebugMode)
+    } else if (kDebugMode) {
       debugPrint(message);
+    }
   }
 
   Future<Result<T>> request<T>(

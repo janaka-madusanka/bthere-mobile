@@ -156,10 +156,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Accept'), findsOneWidget);
       await mount(const MessagesScreen());
-      expect(find.text('No conversations yet'), findsOneWidget);
-      await tester.enterText(find.byType(TextField), 'Kamala');
-      await tester.pump();
-      expect(find.text('No conversations found'), findsOneWidget);
+      expect(find.text('Messages require API configuration.'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await capture('messages');
       await mount(

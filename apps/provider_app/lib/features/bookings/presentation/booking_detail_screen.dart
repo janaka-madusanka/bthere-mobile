@@ -15,6 +15,7 @@ import '../application/booking_alert.dart';
 import '../domain/booking_models.dart';
 import 'booking_scaffold.dart';
 import 'booking_payment_window.dart';
+import '../../messages/presentation/messages_screen.dart';
 
 Future<void> showBookingOffer(BuildContext context, BookingOffer offer) =>
     showDialog<void>(
@@ -491,6 +492,30 @@ class BookingDetailScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        if ({
+                          'CONFIRMED',
+                          'BOOKING_CONFIRMED',
+                          'IN_PROGRESS',
+                          'AWAITING_COMPLETION_CONFIRMATION',
+                          'NO_SHOW_REVIEW',
+                          'COMPLETED',
+                          'CANCELLED',
+                        }.contains(booking.status))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: OutlinedButton.icon(
+                              key: const ValueKey('provider-booking-chat'),
+                              onPressed: () => openProviderBookingChat(
+                                context,
+                                ref,
+                                booking.id,
+                              ),
+                              icon: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                              ),
+                              label: const Text('Booking chat'),
+                            ),
+                          ),
                         const SizedBox(height: 20),
                         Text(
                           booking.status == 'CANCELLED' ||
@@ -628,9 +653,24 @@ class BookingDetailScreen extends ConsumerWidget {
                             : () async {
                                 final code = await _code(context);
                                 if (code != null) {
-                                  await ref
+                                  final started = await ref
                                       .read(bookingControllerProvider.notifier)
                                       .start(booking, code);
+                                  if (!context.mounted) return;
+                                  final error = ref
+                                      .read(bookingControllerProvider)
+                                      .asData
+                                      ?.value
+                                      .error;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        started
+                                            ? 'Service started successfully.'
+                                            : error ?? 'Service could not be started. Refresh the booking and check its status.',
+                                      ),
+                                    ),
+                                  );
                                 }
                               },
                         label: const Text('Enter customer start code'),

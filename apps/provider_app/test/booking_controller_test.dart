@@ -28,8 +28,25 @@ class FakeBookings extends BookingRepository {
   int decisions = 0;
   Completer<BookingDecision>? response;
   bool failOffers = false;
+  Completer<void>? pendingOffers;
+  int starts = 0;
+  String? submittedCode;
+  @override
+  Future<BookingTransition> start(int jobId, String code) async {
+    starts++;
+    submittedCode = code;
+    assigned = AssignedBooking.fromJson(
+      bookingJson(status: 'IN_PROGRESS', payment: 'PAID'),
+    );
+    return BookingTransition.fromJson({
+      'successful': true,
+      'status': 'IN_PROGRESS',
+    });
+  }
+
   @override
   Future<List<BookingOffer>> offers() async {
+    await pendingOffers?.future;
     if (failOffers) throw StateError('offline');
     return pending;
   }
@@ -81,6 +98,58 @@ void main() {
     container.dispose();
     repository.client.close(force: true);
   });
+  test('START waits for background polling then sends once and preserves leading zero', () async {
+    await journal.write(12, const BookingRecovery(jobs: {70}));
+    repository.assigned = AssignedBooking.fromJson(
+      bookingJson(status: 'CONFIRMED', payment: 'PAID'),
+    );
+    final state = await container.read(bookingControllerProvider.future);
+    final controller = container.read(bookingControllerProvider.notifier);
+    repository.pendingOffers = Completer<void>();
+    final polling = controller.refresh();
+    final first = controller.start(state.bookings.single, '0472');
+    final duplicate = controller.start(state.bookings.single, '0472');
+    expect(repository.starts, 0);
+    repository.pendingOffers!.complete();
+    await polling;
+    expect(await first, isTrue);
+    expect(await duplicate, isFalse);
+    expect(repository.starts, 1);
+    expect(repository.submittedCode, '0472');
+    expect(
+      container
+          .read(bookingControllerProvider)
+          .requireValue
+          .bookings
+          .single
+          .status,
+      'IN_PROGRESS',
+    );
+  });
+  test(
+    'START rechecks booking eligibility after a read before writing',
+    () async {
+      await journal.write(12, const BookingRecovery(jobs: {70}));
+      repository.assigned = AssignedBooking.fromJson(
+        bookingJson(status: 'CONFIRMED', payment: 'PAID'),
+      );
+      final state = await container.read(bookingControllerProvider.future);
+      repository.assigned = AssignedBooking.fromJson(
+        bookingJson(status: 'CANCELLED', payment: 'REFUNDED'),
+      );
+      expect(
+        await container
+            .read(bookingControllerProvider.notifier)
+            .start(state.bookings.single, '0472'),
+        isFalse,
+      );
+      expect(repository.starts, 0);
+      expect(
+        container.read(bookingControllerProvider).requireValue.error,
+        contains('no longer ready'),
+      );
+    },
+  );
   test('accept persists job reference, restores after restart, and never implies paid service', () async {
     final state = await container.read(bookingControllerProvider.future);
     expect(
