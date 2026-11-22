@@ -12,6 +12,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import warnings
+import os
+import subprocess
 
 
 class HelperError(Exception):
@@ -19,6 +21,10 @@ class HelperError(Exception):
 
 
 class TemporaryReadError(HelperError):
+    pass
+
+
+class ExpiredReadSession(HelperError):
     pass
 
 
@@ -37,17 +43,27 @@ class ProviderClient:
             raise HelperError('Use an HTTPS API URL (HTTP is allowed only on localhost).')
         self.base_url = base_url.rstrip('/')
         self.token = None
+        self.refresh_token = None
         self.opener = urllib.request.build_opener(NoRedirect())
 
     def request(self, method, path, data=None):
         attempts = 3 if method == 'GET' else 1
-        for attempt in range(attempts):
+        renewed = False
+        attempt = 0
+        while attempt < attempts:
             try:
                 return self._request_once(method, path, data)
+            except ExpiredReadSession:
+                if renewed or not self.refresh_token:
+                    raise HelperError(f'Provider session was rejected during {method} {path}. Run the helper again to sign in. No automatic acceptance retry was sent.') from None
+                renewed = True
+                self.refresh_session()
+                # Re-read with the renewed session; never replay an accept POST.
             except TemporaryReadError as error:
-                if attempt + 1 == attempts:
+                attempt += 1
+                if attempt == attempts:
                     raise HelperError(str(error)) from None
-                print(f'{error} Retrying read ({attempt + 2}/{attempts})...')
+                print(f'{error} Retrying read ({attempt + 1}/{attempts})...')
                 time.sleep(1)
 
     def _request_once(self, method, path, data=None):
@@ -63,11 +79,13 @@ class ProviderClient:
             with self.opener.open(request, timeout=20) as response:
                 return json.load(response)
         except urllib.error.HTTPError as error:
+            if error.code == 401 and method == 'GET' and self.token:
+                raise ExpiredReadSession(f'Provider session rejected during {method} {path}.') from None
             if method == 'POST' and path.endswith('/accept') and error.code >= 500:
                 raise HelperError('Acceptance result is uncertain. Check app status before retrying. No automatic retry was sent.') from None
             if method == 'GET' and error.code in {500, 502, 503, 504}:
                 raise TemporaryReadError(f'Provider API temporarily unavailable (HTTP {error.code}).') from None
-            messages = {401: 'Sign-in expired or credentials are incorrect.', 403: 'This provider account is not permitted to perform this action.', 409: 'The offer is no longer available or the request state changed.'}
+            messages = {401: f'Authentication rejected during {method} {path}. Sign in again; no automatic acceptance retry was sent.', 403: 'This provider account is not permitted to perform this action.', 409: 'The offer is no longer available or the request state changed.'}
             raise HelperError(messages.get(error.code, f'API returned HTTP {error.code}.')) from None
         except (OSError, urllib.error.URLError, ValueError) as error:
             if method == 'POST' and path.endswith('/accept'):
@@ -96,6 +114,9 @@ class ProviderClient:
 
     def login(self, identifier, password):
         result = self.request('POST', '/auth/login', {'identifier': identifier, 'password': password})
+        self._apply_session(result)
+
+    def _apply_session(self, result):
         user = result.get('user') if isinstance(result, dict) else None
         if not isinstance(user, dict) or not isinstance(user.get('roles'), list) or 'SERVICE_PROVIDER' not in user['roles']:
             raise HelperError('Sign in with a SERVICE_PROVIDER account.')
@@ -103,6 +124,15 @@ class ProviderClient:
         if not isinstance(token, str) or not token.strip():
             raise HelperError('Invalid sign-in response.')
         self.token = token
+        refresh = result.get('refreshToken')
+        self.refresh_token = refresh if isinstance(refresh, str) and refresh.strip() else None
+
+    def refresh_session(self):
+        refresh = self.refresh_token
+        self.token = None
+        self.refresh_token = None
+        result = self.request('POST', '/auth/refresh', {'refreshToken': refresh})
+        self._apply_session(result)
 
     def offers(self):
         result = self.request('GET', '/providers/me/booking-offers')
@@ -144,12 +174,89 @@ def accept_selected(client, request_id, offer_id):
     return client.accept(current)
 
 
+def wait_for_offer(client, request_id, wait_seconds):
+    started = time.monotonic()
+    next_report = started
+    while True:
+        rows = client.offers()
+        match = pending_offer(rows, request_id)
+        if match:
+            return match
+        now = time.monotonic()
+        if now >= next_report:
+            target = [r for r in rows if isinstance(r, dict) and r.get('requestId') == request_id]
+            live = [r for r in rows if isinstance(r, dict) and r.get('status') == 'PENDING']
+            if target:
+                states = sorted({str(r.get('status', 'UNKNOWN')) for r in target})
+                print(f'Request #{request_id}: provider feed contains {", ".join(states)}, but no live unexpired offer. Waiting {int(now - started)}/{wait_seconds}s.')
+            else:
+                print(f'Request #{request_id}: no offer in this provider feed ({len(live)} pending offers). Waiting {int(now - started)}/{wait_seconds}s.')
+            next_report = now + 15
+        if now - started >= wait_seconds:
+            raise HelperError(f'No live offer for Request #{request_id} reached this provider during this wait. The helper cannot accept an offer the backend has not assigned. Check the Customer request state, provider capacity/approval, booking time/coverage and offer expiry. No acceptance was sent.')
+        time.sleep(min(3, max(0, started + wait_seconds - now)))
+
+
+def credential_store(mode, api_scope, credentials=None):
+    if os.name != 'nt':
+        if mode == 'Read':
+            return None
+        raise HelperError('Saved credentials require Windows. Interactive login is still available.')
+    executable = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    command = [str(executable), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+               '-File', str(Path(__file__).with_name('provider-helper-credentials.ps1')),
+               '-Mode', mode, '-ApiScope', api_scope]
+    try:
+        result = subprocess.run(command, input=json.dumps(credentials) if credentials else '',
+                                capture_output=True, text=True, encoding='utf-8', timeout=30)
+        if result.returncode:
+            raise ValueError()
+        if mode != 'Read':
+            return None
+        record = json.loads(result.stdout.lstrip('\ufeff'))
+        if record is None:
+            return None
+        if not isinstance(record, dict) or not isinstance(record.get('identifier'), str) or not record['identifier'].strip() or not isinstance(record.get('password'), str) or not record['password']:
+            raise ValueError()
+        return record
+    except (OSError, ValueError, subprocess.SubprocessError):
+        raise HelperError('Saved provider credentials could not be read or updated. Run with --save-credentials to replace them, or --forget-credentials to remove them.') from None
+
+
+def login_provider(client, save=False):
+    record = None if save else credential_store('Read', client.base_url)
+    if record:
+        print('Using encrypted saved provider credentials for this API.')
+        identifier, password = record['identifier'], record['password']
+        record = None
+    else:
+        identifier = input('Provider email / username: ').strip()
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', getpass.GetPassWarning)
+            try:
+                password = getpass.getpass('Provider password (hidden): ')
+            except getpass.GetPassWarning:
+                raise HelperError('Hidden password input is unavailable. Use a normal PowerShell terminal.') from None
+    if not identifier or not password:
+        raise HelperError('Enter both provider identifier and password.')
+    try:
+        client.login(identifier, password)
+        if save:
+            credential_store('Save', client.base_url, {'identifier': identifier, 'password': password})
+            print('Provider credentials saved encrypted for this Windows account and API.')
+    finally:
+        password = None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=Path(__file__).resolve().parents[1] / 'config/customer.local.json')
     parser.add_argument('--request-id', type=int)
     parser.add_argument('--wait-seconds', type=int, default=300)
     parser.add_argument('--accept-on-arrival', action='store_true', help='Accept the specified request immediately when its live offer arrives; no second confirmation prompt.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--save-credentials', action='store_true', help='Prompt afresh and save encrypted credentials after successful provider login (Windows).')
+    group.add_argument('--forget-credentials', action='store_true', help='Delete saved credentials for this API and exit without accepting anything.')
     args = parser.parse_args(argv)
     if not sys.stdin.isatty():
         raise HelperError('Run this helper in your own interactive terminal.')
@@ -161,37 +268,24 @@ def main(argv=None):
     if not 0 <= args.wait_seconds <= 900:
         raise HelperError('Wait time must be between 0 and 900 seconds.')
     print(f'API: {client.base_url}')
-    print('This accepts a real offer for this provider account. Credentials are not saved.')
+    if args.forget_credentials:
+        credential_store('Forget', client.base_url)
+        print('Saved provider credentials removed for this API. No acceptance was sent.')
+        return
+    print('This accepts a real offer for this provider account. Saved credentials use Windows encryption.')
     if args.accept_on_arrival:
         print('Accept-on-arrival enabled: ONLY the Request ID you enter will be accepted automatically.')
-    identifier = input('Provider email / username: ').strip()
-    with warnings.catch_warnings():
-        warnings.simplefilter('error', getpass.GetPassWarning)
-        try:
-            password = getpass.getpass('Provider password (hidden): ')
-        except getpass.GetPassWarning:
-            raise HelperError('Hidden password input is unavailable. Use a normal PowerShell terminal.') from None
-    if not identifier or not password:
-        raise HelperError('Enter both provider identifier and password.')
-    try:
-        client.login(identifier, password)
-    finally:
-        password = None
     try:
         request_id = args.request_id or int(input('Customer Request ID (number only): ').strip())
         if request_id <= 0:
             raise ValueError()
     except ValueError:
         raise HelperError('Enter a positive Customer Request ID.') from None
+    # Do not consume the short-lived access token while the operator finds/types
+    # the request ID. Polling can also renew its session if the wait is longer.
+    login_provider(client, save=args.save_credentials)
     print(f'Waiting for Request #{request_id} to ring this provider. Ctrl+C stops.')
-    deadline = time.monotonic() + args.wait_seconds
-    while True:
-        offer = pending_offer(client.offers(), request_id)
-        if offer:
-            break
-        if time.monotonic() >= deadline:
-            raise HelperError('No live offer for this request reached this provider. Check service approval, availability, coverage and request expiry. No acceptance was sent.')
-        time.sleep(min(3, max(0, deadline - time.monotonic())))
+    offer = wait_for_offer(client, request_id, args.wait_seconds)
     print(f"Request #{request_id} | Offer #{offer['offerId']} | Service {offer.get('serviceTypeId', '?')} / Option {offer.get('optionId', '?')}")
     print(f"Offer expires: {offer['expiresAt']}")
     if not args.accept_on_arrival:
@@ -205,6 +299,7 @@ def main(argv=None):
     print(f"Request #{request_id}: acceptance response received. Status: {result.get('status', 'not supplied')}")
     print('Return to the Customer app. It should show provider acceptance; continue to customer payment confirmation.')
     client.token = None
+    client.refresh_token = None
 
 
 if __name__ == '__main__':

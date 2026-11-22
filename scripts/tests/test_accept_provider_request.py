@@ -8,6 +8,10 @@ from unittest.mock import patch
 import urllib.error
 import tempfile
 import ssl
+import os
+import json
+import subprocess
+import uuid
 
 spec = importlib.util.spec_from_file_location('provider_helper', Path(__file__).parents[1] / 'accept-provider-request.py')
 helper = importlib.util.module_from_spec(spec)
@@ -20,6 +24,140 @@ def offer(request=22, identity=50, status='PENDING', expired=False):
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_wait_reports_missing_offer_and_never_accepts_another_request(self):
+        client = Mock()
+        client.offers.return_value = [offer(request=62)]
+        with patch.object(helper.time, 'monotonic', side_effect=[0, 0]), patch('builtins.print') as output:
+            with self.assertRaises(helper.HelperError):
+                helper.wait_for_offer(client, 61, 0)
+        self.assertIn('no offer in this provider feed', output.call_args.args[0])
+        client.accept.assert_not_called()
+
+    def test_wait_polls_until_exact_request_arrives(self):
+        client = Mock()
+        desired = offer(request=61)
+        client.offers.side_effect = [[], [desired]]
+        with patch.object(helper.time, 'monotonic', side_effect=[0, 0]), patch.object(helper.time, 'sleep'), patch('builtins.print'):
+            self.assertIs(helper.wait_for_offer(client, 61, 30), desired)
+        client.accept.assert_not_called()
+
+    def test_wait_distinguishes_expired_offer_from_missing_offer(self):
+        client = Mock()
+        client.offers.return_value = [offer(request=61, expired=True)]
+        with patch.object(helper.time, 'monotonic', side_effect=[0, 0]), patch('builtins.print') as output:
+            with self.assertRaises(helper.HelperError):
+                helper.wait_for_offer(client, 61, 0)
+        self.assertIn('no live unexpired offer', output.call_args.args[0])
+        client.accept.assert_not_called()
+
+    def test_401_offer_read_renews_once_then_rereads_without_accepting(self):
+        client = helper.ProviderClient('https://example.invalid/api/v1')
+        client.token, client.refresh_token = 'old-access', 'old-refresh'
+        session = {'user': {'roles': ['SERVICE_PROVIDER']}, 'accessToken': 'new-access', 'refreshToken': 'new-refresh'}
+        client._request_once = Mock(side_effect=[helper.ExpiredReadSession(), session, []])
+        self.assertEqual(client.offers(), [])
+        self.assertEqual(client.token, 'new-access')
+        self.assertEqual(client.refresh_token, 'new-refresh')
+        self.assertEqual([(call.args[0], call.args[1]) for call in client._request_once.call_args_list], [
+            ('GET', '/providers/me/booking-offers'), ('POST', '/auth/refresh'), ('GET', '/providers/me/booking-offers')])
+
+    def test_repeated_401_read_stops_after_one_refresh(self):
+        client = helper.ProviderClient('https://example.invalid/api/v1')
+        client.token, client.refresh_token = 'old-access', 'old-refresh'
+        session = {'user': {'roles': ['SERVICE_PROVIDER']}, 'accessToken': 'new-access', 'refreshToken': 'new-refresh'}
+        client._request_once = Mock(side_effect=[helper.ExpiredReadSession(), session, helper.ExpiredReadSession()])
+        with self.assertRaises(helper.HelperError):
+            client.offers()
+        self.assertEqual(client._request_once.call_count, 3)
+
+    def test_accept_401_is_not_refreshed_or_retried(self):
+        client = helper.ProviderClient('https://example.invalid/api/v1')
+        client.token, client.refresh_token = 'old-access', 'old-refresh'
+        client.opener = Mock()
+        client.opener.open.side_effect = urllib.error.HTTPError('https://example.invalid', 401, 'Unauthorized', {}, None)
+        with self.assertRaises(helper.HelperError):
+            client.accept(offer())
+        self.assertEqual(client.opener.open.call_count, 1)
+        self.assertEqual(client.refresh_token, 'old-refresh')
+
+    def test_refresh_cannot_change_to_customer_role(self):
+        client = helper.ProviderClient('https://example.invalid/api/v1')
+        client.token, client.refresh_token = 'old-access', 'old-refresh'
+        client._request_once = Mock(return_value={'user': {'roles': ['CUSTOMER']}, 'accessToken': 'wrong-role'})
+        with self.assertRaises(helper.HelperError):
+            client.refresh_session()
+        self.assertIsNone(client.token)
+
+    def test_saved_login_reuses_credentials_without_prompting(self):
+        client = Mock(base_url='https://example.invalid/api/v1')
+        with patch.object(helper, 'credential_store', return_value={'identifier': 'sample', 'password': 'synthetic-secret'}) as store, patch('builtins.input') as prompt, patch('builtins.print'):
+            helper.login_provider(client)
+        prompt.assert_not_called()
+        client.login.assert_called_once_with('sample', 'synthetic-secret')
+        store.assert_called_once_with('Read', client.base_url)
+
+    def test_credentials_saved_only_after_successful_provider_login(self):
+        client = Mock(base_url='https://example.invalid/api/v1')
+        for accepted in [True, False]:
+            client.login.side_effect = None if accepted else helper.HelperError('Incorrect credentials')
+            with patch.object(helper, 'credential_store') as store, patch('builtins.input', return_value='sample'), patch.object(helper.getpass, 'getpass', return_value='synthetic-secret'), patch('builtins.print'):
+                if accepted:
+                    helper.login_provider(client, save=True)
+                    store.assert_called_once_with('Save', client.base_url, {'identifier': 'sample', 'password': 'synthetic-secret'})
+                else:
+                    with self.assertRaises(helper.HelperError):
+                        helper.login_provider(client, save=True)
+                    store.assert_not_called()
+
+    def test_no_saved_credential_keeps_interactive_hidden_login(self):
+        client = Mock(base_url='https://example.invalid/api/v1')
+        with patch.object(helper, 'credential_store', return_value=None), patch('builtins.input', return_value='sample'), patch.object(helper.getpass, 'getpass', return_value='synthetic-secret'):
+            helper.login_provider(client)
+        client.login.assert_called_once_with('sample', 'synthetic-secret')
+
+    def test_credential_secret_uses_private_stdin_not_process_arguments(self):
+        with patch.object(helper.os, 'name', 'nt'), patch.object(helper.subprocess, 'run', return_value=Mock(returncode=0, stdout='')) as run:
+            helper.credential_store('Save', 'https://example.invalid/api/v1', {'identifier': 'sample', 'password': 'synthetic-secret'})
+        args, kwargs = run.call_args
+        self.assertNotIn('synthetic-secret', str(args))
+        self.assertEqual(json.loads(kwargs['input'])['password'], 'synthetic-secret')
+        self.assertNotIn('env', kwargs)
+
+    def test_credential_errors_do_not_expose_child_output(self):
+        with patch.object(helper.os, 'name', 'nt'), patch.object(helper.subprocess, 'run', return_value=Mock(returncode=1, stdout='synthetic-secret', stderr='synthetic-secret')):
+            with self.assertRaises(helper.HelperError) as error:
+                helper.credential_store('Read', 'https://example.invalid/api/v1')
+        self.assertNotIn('synthetic-secret', str(error.exception))
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows DPAPI integration')
+    def test_windows_store_roundtrip_is_encrypted_and_api_scoped(self):
+        root = Path(__file__).resolve().parents[2] / 'build'
+        root.mkdir(exist_ok=True)
+        directory = root / ('credential-test-' + uuid.uuid4().hex)
+        self.assertEqual(directory.resolve().parent, root.resolve())
+        script = Path(__file__).parents[1] / 'provider-helper-credentials.ps1'
+        executable = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        def operation(mode, scope='https://example.invalid/api/v1', data=None):
+            result = subprocess.run([str(executable), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-Mode', mode, '-ApiScope', scope, '-StoreDirectory', str(directory)], input=json.dumps(data) if data else '', capture_output=True, text=True, encoding='utf-8', timeout=30)
+            self.assertEqual(result.returncode, 0, 'Encrypted credential operation failed')
+            return json.loads(result.stdout) if mode == 'Read' else None
+        credential = {'identifier': 'synthetic@example.invalid', 'password': 'synthetic-secret-සිංහල'}
+        try:
+            operation('Save', data=credential)
+            self.assertEqual(operation('Read'), credential)
+            self.assertIsNone(operation('Read', scope='https://other.invalid/api/v1'))
+            content = next(directory.glob('*.xml')).read_text(encoding='utf-8-sig')
+            self.assertNotIn(credential['password'], content)
+            self.assertNotIn('synthetic-secret', content)
+            operation('Forget')
+            self.assertIsNone(operation('Read'))
+        finally:
+            if directory.exists():
+                for file in directory.iterdir():
+                    self.assertEqual(file.resolve().parent, directory.resolve())
+                    file.unlink()
+                directory.rmdir()
+
     def test_tls_eof_during_offer_read_retries_with_verification_unchanged(self):
         client = helper.ProviderClient('https://example.invalid/api/v1')
         client.opener = Mock()
