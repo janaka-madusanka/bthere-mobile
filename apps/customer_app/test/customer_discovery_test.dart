@@ -364,6 +364,7 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const ValueKey('customer-account-market')),
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('customer-account-market')));
       await tester.tap(find.byKey(const ValueKey('customer-account-market')));
       await tester.pumpAndSettle();
       expect(find.text('Where do you need care?'), findsOneWidget);

@@ -3,12 +3,20 @@ import 'booking_choice_tiles.dart';
 
 import 'package:flutter/material.dart';
 
+import '../../../app/customer_theme.dart';
+import '../domain/booking_models.dart';
+
 import '../application/customer_booking_controller.dart';
 import '../../discovery/presentation/customer_discovery_style.dart';
 
 class BookingProviderFilters extends StatelessWidget {
-  const BookingProviderFilters({super.key, required this.controller});
+  const BookingProviderFilters({
+    super.key,
+    required this.controller,
+    this.rideStyle = false,
+  });
   final CustomerBookingController controller;
+  final bool rideStyle;
   @override
   Widget build(BuildContext context) {
     final c = controller;
@@ -22,124 +30,225 @@ class BookingProviderFilters extends StatelessWidget {
             child: BookingValidationGroup(
               key: ValueKey('provider-filter-validation-${field.id}'),
               error: c.fieldErrors[field.label],
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!field.label.toLowerCase().contains('language') &&
-                      (!field.options.every(
-                            (o) => {'MALE', 'FEMALE'}.contains(o['value']),
-                          ) ||
-                          field.options.isEmpty))
-                    Row(
+              child:
+                  rideStyle &&
+                      c.context!.pricingFieldIds.contains(field.id) &&
+                      field.options.isNotEmpty
+                  ? _rideChoices(c, field)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: Text(
-                            field.label,
-                            style: const TextStyle(
-                              color: catalogInk,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed:
-                              c.busy || !c.providerFilters.containsKey(field.id)
-                              ? null
-                              : () => c.edit(
-                                  () => c.providerFilters.remove(field.id),
-                                ),
-                          child: const Text('Clear'),
-                        ),
-                      ],
-                    ),
-                  if (field.type == 'NUMBER')
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final bound in ['minimum', 'maximum'])
-                          SizedBox(
-                            width: 130,
-                            child: _FilterNumberInput(
-                              key: ValueKey(
-                                'provider-filter-${field.id}-$bound',
-                              ),
-                              initialValue: c.providerFilters[field.id] is Map
-                                  ? '${(c.providerFilters[field.id] as Map)[bound] ?? ''}'
-                                  : '',
-                              enabled: !c.busy,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
+                        if (!field.label.toLowerCase().contains('language') &&
+                            (!field.options.every(
+                                  (o) =>
+                                      {'MALE', 'FEMALE'}.contains(o['value']),
+                                ) ||
+                                field.options.isEmpty))
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  field.label,
+                                  style: const TextStyle(
+                                    color: catalogInk,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                              decoration: InputDecoration(
-                                labelText: bound == 'minimum'
-                                    ? 'Minimum'
-                                    : 'Maximum',
+                                ),
                               ),
-                              onChanged: (v) => c.edit(
-                                () => c.providerFilters[field.id] = {
-                                  ...?(c.providerFilters[field.id] as Map?),
-                                  bound: v,
-                                },
+                              TextButton(
+                                onPressed:
+                                    c.busy ||
+                                        !c.providerFilters.containsKey(field.id)
+                                    ? null
+                                    : () => c.edit(
+                                        () =>
+                                            c.providerFilters.remove(field.id),
+                                      ),
+                                child: const Text('Clear'),
                               ),
+                            ],
+                          ),
+                        if (field.type == 'NUMBER')
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final bound in ['minimum', 'maximum'])
+                                SizedBox(
+                                  width: 130,
+                                  child: _FilterNumberInput(
+                                    key: ValueKey(
+                                      'provider-filter-${field.id}-$bound',
+                                    ),
+                                    initialValue:
+                                        c.providerFilters[field.id] is Map
+                                        ? '${(c.providerFilters[field.id] as Map)[bound] ?? ''}'
+                                        : '',
+                                    enabled: !c.busy,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                          signed: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      labelText: bound == 'minimum'
+                                          ? 'Minimum'
+                                          : 'Maximum',
+                                    ),
+                                    onChanged: (v) => c.edit(
+                                      () => c.providerFilters[field.id] = {
+                                        ...?(c.providerFilters[field.id]
+                                            as Map?),
+                                        bound: v,
+                                      },
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        else if (field.type == 'BOOLEAN')
+                          BookingChoiceTiles(
+                            filterStyle: true,
+                            choices: const [
+                              {'value': 'true', 'label': 'Yes'},
+                              {'value': 'false', 'label': 'No'},
+                            ],
+                            selected: {
+                              if (c.providerFilters[field.id] != null)
+                                '${c.providerFilters[field.id]}',
+                            },
+                            enabled: !c.busy,
+                            onChanged: (value, on) => c.edit(() {
+                              if (on) {
+                                c.providerFilters[field.id] = value == 'true';
+                              } else {
+                                c.providerFilters.remove(field.id);
+                              }
+                            }),
+                          )
+                        else
+                          BookingChoiceTiles(
+                            filterStyle: true,
+                            choices: field.options,
+                            selected: Set<String>.from(
+                              c.providerFilters[field.id] as List? ?? const [],
                             ),
+                            enabled: !c.busy,
+                            onChanged: (value, on) => c.edit(() {
+                              final values = List<String>.from(
+                                c.providerFilters[field.id] as List? ??
+                                    const [],
+                              );
+                              final gender = field.options.every(
+                                (o) => {'MALE', 'FEMALE'}.contains(o['value']),
+                              );
+                              final language = field.label
+                                  .toLowerCase()
+                                  .contains('language');
+                              if (gender || language) values.clear();
+                              if (on) {
+                                values.add(value);
+                              } else {
+                                values.remove(value);
+                              }
+                              if (values.isEmpty) {
+                                c.providerFilters.remove(field.id);
+                              } else {
+                                c.providerFilters[field.id] = values;
+                              }
+                            }),
                           ),
                       ],
-                    )
-                  else if (field.type == 'BOOLEAN')
-                    BookingChoiceTiles(
-                      filterStyle: true,
-                      choices: const [
-                        {'value': 'true', 'label': 'Yes'},
-                        {'value': 'false', 'label': 'No'},
-                      ],
-                      selected: {
-                        if (c.providerFilters[field.id] != null)
-                          '${c.providerFilters[field.id]}',
-                      },
-                      enabled: !c.busy,
-                      onChanged: (value, on) => c.edit(() {
-                        if (on) {
-                          c.providerFilters[field.id] = value == 'true';
-                        } else {
-                          c.providerFilters.remove(field.id);
-                        }
-                      }),
-                    )
-                  else
-                    BookingChoiceTiles(
-                      filterStyle: true,
-                      choices: field.options,
-                      selected: Set<String>.from(
-                        c.providerFilters[field.id] as List? ?? const [],
-                      ),
-                      enabled: !c.busy,
-                      onChanged: (value, on) => c.edit(() {
-                        final values = List<String>.from(
-                          c.providerFilters[field.id] as List? ?? const [],
-                        );
-                        final gender = field.options.every(
-                          (o) => {'MALE', 'FEMALE'}.contains(o['value']),
-                        );
-                        if (gender) values.clear();
-                        if (on) {
-                          values.add(value);
-                        } else {
-                          values.remove(value);
-                        }
-                        if (values.isEmpty) {
-                          c.providerFilters.remove(field.id);
-                        } else {
-                          c.providerFilters[field.id] = values;
-                        }
-                      }),
                     ),
-                ],
-              ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _rideChoices(
+    CustomerBookingController c,
+    BookingProviderFilter field,
+  ) {
+    final selected = c.providerFilters[field.id] is List
+        ? (c.providerFilters[field.id] as List).whereType<String>().toSet()
+        : <String>{};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(field.label, style: CustomerTypography.card),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final choice in field.options)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: 106,
+                    child: OutlinedButton(
+                      key: ValueKey(
+                        'ride-vehicle-${field.id}-${choice['value']}',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: selected.contains(choice['value'])
+                            ? CustomerColors.selection
+                            : CustomerColors.background,
+                        foregroundColor: CustomerColors.text,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
+                        side: BorderSide(
+                          color: selected.contains(choice['value'])
+                              ? CustomerColors.action
+                              : CustomerColors.border,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: c.busy
+                          ? null
+                          : () => c.edit(() {
+                              final value = choice['value']!;
+                              if (field.type == 'SELECT') {
+                                c.providerFilters[field.id] = [value];
+                              } else {
+                                final next = {...selected};
+                                if (!next.add(value)) next.remove(value);
+                                if (next.isEmpty) {
+                                  c.providerFilters.remove(field.id);
+                                } else {
+                                  c.providerFilters[field.id] = next.toList();
+                                }
+                              }
+                            }),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            selected.contains(choice['value'])
+                                ? Icons.check_circle_outline
+                                : Icons.local_taxi_outlined,
+                            color: CustomerColors.action,
+                            size: 28,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            choice['label']!,
+                            textAlign: TextAlign.center,
+                            style: CustomerTypography.compactStrong,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }

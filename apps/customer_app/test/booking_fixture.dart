@@ -181,6 +181,15 @@ class BookingFixture extends DiscoveryFixture {
   bool cardLinking = false;
   Map<String, dynamic>? requestCreateBody;
   int walletConfirmationStatus = 200;
+  int startCodeStatus = 200;
+  int completionStatus = 200;
+  Map<String, dynamic> startCodeBody = {
+    'purpose': 'START',
+    'code': '0472',
+    'expiresAt': clock.add(const Duration(minutes: 5)).toIso8601String(),
+  };
+  int methodChangeStatus = 200;
+  bool mockPaymentSettings = false;
   int cardConfirmationStatus = 200;
   final cardConfirmationReached = Completer<void>();
   Completer<void>? pendingCardConfirmation;
@@ -207,11 +216,15 @@ class BookingFixture extends DiscoveryFixture {
     'expectedAmount': 1000,
     'currencyCode': 'LKR',
   };
+  int windowStatus = 200;
+  Map<String, dynamic>? paymentWindowBody;
+  List<Map<String, dynamic>> requestEvents = [];
   final Map<int, Map<String, dynamic>> optionContexts = {};
   List<Object?> requirementBody = [];
   Map<String, dynamic> eligibility = {'eligible': true, 'reasons': []};
   List<Map<String, dynamic>> candidateRows = [candidateJson()];
   List<Map<String, dynamic>> bookings = [];
+  Completer<void>? pendingHistory;
   int searchStatus = 200,
       createStatus = 201,
       requirementStatus = 200,
@@ -245,6 +258,84 @@ class BookingFixture extends DiscoveryFixture {
       Object? body;
       var status = 200;
       switch (path) {
+        case '/customers/me/bookings/70/confirm-completion':
+          status = completionStatus;
+          if (status == 200) {
+            bookings = [
+              for (final booking in bookings)
+                if (booking['jobId'] == 70)
+                  {
+                    ...booking,
+                    'status': 'COMPLETED',
+                    'paymentStatus': 'SETTLED',
+                  }
+                else
+                  booking,
+            ];
+            requestViewBody = {
+              ...requestViewBody,
+              'status': 'COMPLETED',
+              'paymentStatus': requestViewBody['paymentMethod'] == 'CARD'
+                  ? 'PAID'
+                  : 'SETTLED',
+            };
+            body = {'successful': true, 'status': 'COMPLETED'};
+          } else {
+            body = {'detail': 'Completion settlement could not be posted'};
+          }
+        case '/customers/me/bookings/70/verification-codes':
+          status = startCodeStatus;
+          body = startCodeStatus == 200
+              ? startCodeBody
+              : {
+                  'detail':
+                      'No verification code is available in this booking state',
+                };
+        case '/customers/me/booking-events':
+          body = requestEvents;
+        case '/customers/me/booking-requests/501/payment-window':
+          status = windowStatus;
+          body =
+              paymentWindowBody ??
+              {
+                'requestId': 501,
+                'status': requestViewBody['status'],
+                'paymentStatus': requestViewBody['paymentStatus'],
+                'confirmationExpiresAt':
+                    requestViewBody['confirmationExpiresAt'],
+                'paymentRetryStartedAt':
+                    requestViewBody['paymentRetryStartedAt'],
+                'canPay':
+                    requestViewBody['status'] ==
+                    'AWAITING_CUSTOMER_CONFIRMATION',
+                'canCancel':
+                    requestViewBody['status'] ==
+                    'AWAITING_CUSTOMER_CONFIRMATION',
+                'canExtend': false,
+              };
+        case '/customers/me/booking-requests/501/payment-method':
+          status = methodChangeStatus;
+          if (status == 200) {
+            requestViewBody = {
+              ...requestViewBody,
+              'paymentMethod': (request.data as Map)['paymentMethod'],
+            };
+            body = {...requestViewBody, 'selectionMode': 'OPEN_REQUEST'};
+          } else {
+            body = {'detail': 'Payment method is not enabled for this service'};
+          }
+        case '/customers/me/booking-requests/501/confirm-mock-card':
+          requestViewBody = {
+            ...requestViewBody,
+            'status': 'CONFIRMED',
+            'paymentStatus': 'PAID',
+            'jobId': 70,
+          };
+          body = {
+            ...requestViewBody,
+            'selectionMode':
+                contextBody['selection']['option']['providerSelectionMode'],
+          };
         case '/users/me':
           if (cardPhone == null) return null;
           body = {...account(), 'phoneNumber': cardPhone};
@@ -349,6 +440,8 @@ class BookingFixture extends DiscoveryFixture {
         case '/me/payment-settings':
           status = capStatus;
           body = {
+            'provider': mockPaymentSettings ? 'MOCK' : 'PAYHERE',
+            'testMode': mockPaymentSettings,
             'capabilities': {
               'cardCheckout': true,
               'bookingReservations': true,
@@ -394,6 +487,7 @@ class BookingFixture extends DiscoveryFixture {
           body = snapshot;
         case '/customers/me/bookings':
           if (request.method == 'GET') {
+            await pendingHistory?.future;
             body = bookings;
           } else {
             await pendingBook?.future;

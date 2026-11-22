@@ -7,6 +7,46 @@ import 'package:flutter_test/flutter_test.dart';
 import 'booking_fixture.dart';
 
 void main() {
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'compact booking cards fit narrow screens at text scale $scale',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 850);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var opened = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(320, 850),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  child: BookingSummaryTile(
+                    booking: {
+                      ...bookingJson(id: 37),
+                      'status': 'COMPLETED',
+                      'expectedAmount': 2100000,
+                    },
+                    name: 'Hospital and home caregiver support',
+                    onTap: () => opened = true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('Rs. 2,100,000.00'), findsOneWidget);
+        expect(find.text('Completed'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('customer-booking-37')));
+        expect(opened, isTrue);
+      },
+    );
+  }
   testWidgets('verified success opens details once after three seconds', (
     tester,
   ) async {
@@ -109,7 +149,14 @@ void main() {
               child: CustomerBookingDetailsView(
                 booking: {
                   ...bookingJson(id: 70, method: 'WALLET', payment: 'RESERVED'),
-                  'answers': {'PERSON_NAME': 'Janaka', 'WARD_NUMBER': '10A'},
+                  'status': 'CONFIRMED',
+                  'answers': {
+                    'PERSON_NAME': 'Janaka',
+                    'WARD_NUMBER': '10A',
+                    'CG_BED_NUMBER': '12',
+                    'CG_ADDITIONAL_INFORMATION':
+                        'Mobility assistance requested.',
+                  },
                 },
                 onBookings: () {},
               ),
@@ -118,8 +165,16 @@ void main() {
         ),
       );
       expect(find.text('Booking #70'), findsOneWidget);
+      expect(find.text('Janaka'), findsNothing);
+      await tester.ensureVisible(find.text('Patient details'));
+      await tester.tap(find.text('Patient details'));
+      await tester.pumpAndSettle();
       expect(find.text('Janaka'), findsOneWidget);
       expect(find.text('10A'), findsOneWidget);
+      expect(find.text('12'), findsOneWidget);
+      expect(find.text('Mobility assistance requested.'), findsOneWidget);
+      expect(find.text('Patient details'), findsOneWidget);
+      expect(find.text('Partially paid'), findsNothing);
       expect(find.text('Assigned provider'), findsOneWidget);
       expect(
         find.text('Profile details are not available yet.'),

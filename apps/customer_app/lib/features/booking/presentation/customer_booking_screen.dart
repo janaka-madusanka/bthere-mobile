@@ -1,4 +1,8 @@
+import '../../profile/presentation/service_documents_screen.dart';
+import '../../profile/presentation/profile_document_sheet.dart';
 import 'booking_checkout_contents.dart';
+import 'booking_ride_details.dart';
+import 'customer_request_payment_screen.dart';
 import 'booking_request_receipt.dart';
 import 'booking_payment_visuals.dart';
 import 'customer_booking_details_screen.dart';
@@ -35,6 +39,7 @@ import 'booking_dynamic_field.dart';
 import 'booking_ui_format.dart';
 import 'booking_details_canvas.dart';
 import 'booking_location_dialog.dart';
+import 'booking_location_picker.dart' show customerDeviceLocationProvider;
 import 'booking_schedule_picker.dart';
 import 'booking_service_details.dart';
 import 'booking_provider_filters.dart';
@@ -57,7 +62,9 @@ class CustomerBookingScreen extends ConsumerStatefulWidget {
 class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     with WidgetsBindingObserver {
   final _scroll = ScrollController();
+  int _rideLocationStep = 0;
   CustomerBookingController? _journey;
+  Future<GeoPoint>? _initialLocation;
   BookingStage? _lastStage;
   String? _lastError;
   bool _openingCard = false,
@@ -209,6 +216,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         draft.userId != null &&
         draft.userId == c.userId;
     if (restore) {
+      c.bookNow = draft.bookNow;
       c.start = draft.start;
       c.end = draft.end;
       c.point = draft.point;
@@ -218,13 +226,33 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       c.radius = draft.radius;
       c.mode = draft.mode;
     }
-    await c.load();
+    await c.load(
+      onContextReady: (details) {
+        if (!mounted ||
+            !c.alive ||
+            c.point != null ||
+            _initialLocation != null) {
+          return;
+        }
+        final mode = details.modes.contains(c.mode)
+            ? c.mode
+            : details.modes.contains('PROVIDER_TO_CUSTOMER')
+            ? 'PROVIDER_TO_CUSTOMER'
+            : details.modes.first;
+        if (mode == 'ONLINE') return;
+        // Start the same fresh GPS read while remaining service APIs load, then
+        // hand it to the picker. Do not override a manually chosen/draft pin.
+        _initialLocation = ref.read(customerDeviceLocationProvider)();
+        _initialLocation!.ignore();
+      },
+    );
     if (!mounted || !restore || !c.alive || c.context == null) return;
+    if (draft.bookNow && !c.context!.instantBooking) c.chooseBookNow(false);
     c.edit(() {
       if (!c.context!.providerFilters.any(
         (field) => field.label.toLowerCase().contains('language'),
       )) {
-        c.languages.addAll(draft.languages);
+        c.languages.addAll(draft.languages.take(1));
       }
       c.skills.addAll(
         draft.skills.where(
@@ -232,7 +260,11 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         ),
       );
       for (final field in c.context!.providerFilters) {
-        final value = draft.filters[field.id];
+        final saved = draft.filters[field.id];
+        final value =
+            field.label.toLowerCase().contains('language') && saved is List
+            ? saved.take(1).toList()
+            : saved;
         try {
           if (field.serialize(value) != null) {
             c.providerFilters[field.id] = value;
@@ -260,6 +292,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     context.replace(
       '/booking/${option.serviceId}/${option.id}',
       extra: BookingOptionDraft(
+        bookNow: c.bookNow,
         marketId: c.key.marketId,
         userId: c.userId,
         start: c.start,
@@ -303,6 +336,12 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
 
   void _back(CustomerBookingController c) {
     if (c.busy) return;
+    if (c.context?.route == true &&
+        c.stage == BookingStage.details &&
+        _rideLocationStep > 0) {
+      setState(() => _rideLocationStep = 0);
+      return;
+    }
     if (c.stage == BookingStage.review && _paymentConfirmation) {
       setState(() => _paymentConfirmation = false);
       return;
@@ -320,6 +359,35 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     }
   }
 
+  Future<void> _refreshServiceDocuments(CustomerBookingController c) async {
+    await c.refreshRequirements();
+    if (mounted && c.alive && c.allowed && c.context == null) {
+      await _loadBooking(c);
+    }
+  }
+
+  Future<void> _openServiceDocument(
+    CustomerBookingController c,
+    CustomerRequirement r,
+  ) async {
+    if (!c.alive || c.busy) return;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (_) => ProfileDocumentSheet(
+        owner: c.userId!,
+        document: scopedDocument(r, c.key),
+      ),
+    );
+    if (mounted && c.alive) {
+      if (saved == true) c.dirtyRequirements.remove(r.field.id);
+      await _refreshServiceDocuments(c);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(customerBookingProvider(widget.bookingKey));
@@ -327,12 +395,71 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       data: CustomerTheme.authentication(),
       child: ListenableBuilder(
         listenable: c,
-        builder: (context, _) =>
-            (c.stage == BookingStage.created && c.paymentOutcome != null) ||
-                (_replacementMethod != null &&
-                    c.created == null &&
-                    c.stage == BookingStage.review &&
-                    !c.uncertain)
+        builder: (context, _) => c.needsServiceDocuments
+            ? Scaffold(
+                appBar: AppBar(
+                  backgroundColor: CustomerColors.action,
+                  foregroundColor: Colors.white,
+                  title: Text(
+                    'Service documents',
+                    style: CustomerTypography.section.copyWith(
+                      color: Colors.white,
+                    ),
+                  ),
+                  leading: IconButton(
+                    tooltip: 'Back to services',
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: c.busy
+                        ? null
+                        : () => context.canPop()
+                              ? context.pop()
+                              : context.go('/services'),
+                  ),
+                ),
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: ServiceDocumentRequirements(
+                    requirements: c.requirements,
+                    bookingKey: c.key,
+                    busy: c.busy,
+                    eligible: c.allowed,
+                    error: c.error,
+                    onRefresh: () => _refreshServiceDocuments(c),
+                    onOpen: (r) => _openServiceDocument(c, r),
+                  ),
+                ),
+              )
+            : c.resendingRequest
+            ? BookingRequestProgressView(
+                matching: true,
+                serviceName: c.context?.name ?? 'your service',
+                busy: true,
+                onCancel: null,
+                onDetails: () {},
+              )
+            : c.stage == BookingStage.created &&
+                  c.created?['requestId'] is int &&
+                  {
+                    'AWAITING_CUSTOMER_CONFIRMATION',
+                    'PAYMENT_PENDING',
+                    'PAYMENT_RECONCILIATION',
+                  }.contains(c.created?['status'])
+            ? CustomerRequestPaymentScreen(
+                serviceName: c.context?.name,
+                provider: [
+                  ...c.candidates,
+                  ...c.availableCandidates,
+                  ...c.selected.values,
+                ].where((p) => p.id == c.created?['providerId']).firstOrNull,
+                key: ValueKey('request-payment-${c.created!['requestId']}'),
+                requestId: c.created!['requestId'] as int,
+                initialRequest: c.created,
+              )
+            : (c.stage == BookingStage.created && c.paymentOutcome != null) ||
+                  (_replacementMethod != null &&
+                      c.created == null &&
+                      c.stage == BookingStage.review &&
+                      !c.uncertain)
             ? PopScope(
                 canPop: !c.busy,
                 child: BookingPaymentResultScreen(
@@ -439,6 +566,9 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
             : PopScope(
                 canPop:
                     !c.busy &&
+                    !(c.context?.route == true &&
+                        c.stage == BookingStage.details &&
+                        _rideLocationStep > 0) &&
                     (c.uncertain ||
                         !{
                           BookingStage.review,
@@ -488,6 +618,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                             }.contains(c.stage) &&
                             !c.uncertain
                       ? BookingDetailsCanvas(
+                          initialLocation: _initialLocation,
                           keyboardOpen:
                               MediaQuery.viewInsetsOf(context).bottom > 0,
                           controller: c,
@@ -496,6 +627,13 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                               _changeService(c, option),
                           panelTitle: c.stage == BookingStage.review
                               ? 'Review your booking'
+                              : c.context!.route &&
+                                    c.stage == BookingStage.serviceDetails
+                              ? 'Passenger details'
+                              : c.context!.route
+                              ? (_rideLocationStep == 0
+                                    ? 'Choose your route'
+                                    : 'Vehicle and pickup time')
                               : c.stage == BookingStage.serviceDetails
                               ? 'Service details'
                               : 'Location and time',
@@ -545,13 +683,10 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                                             ),
                                           ),
                                         if (c.uncertain) ...[
-                                          const Text(
+                                          Text(
                                             'Check your booking history',
-                                            style: TextStyle(
-                                              color: catalogInk,
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w700,
-                                            ),
+                                            style: CustomerTypography.screen
+                                                .copyWith(color: catalogInk),
                                           ),
                                           const SizedBox(height: 14),
                                           BThereButton(
@@ -589,11 +724,8 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                                         ] else ...[
                                           Text(
                                             c.context!.name,
-                                            style: const TextStyle(
-                                              color: catalogInk,
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w700,
-                                            ),
+                                            style: CustomerTypography.screen
+                                                .copyWith(color: catalogInk),
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
@@ -610,10 +742,8 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                                                     : 'Booking recorded',
                                               _ => 'Tell us what you need',
                                             },
-                                            style: const TextStyle(
-                                              color: catalogMuted,
-                                              fontSize: 14,
-                                            ),
+                                            style: CustomerTypography.body
+                                                .copyWith(color: catalogMuted),
                                           ),
                                           const SizedBox(height: 18),
                                           if (c.busy)
@@ -721,7 +851,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
           ],
         ),
       if (!c.allowed) ...[
-        for (final reason in (c.access?['reasons'] as List? ?? const []))
+        for (final reason in (c.access?['reasons'] as List? ?? []))
           _Notice('${(reason as Map)['message']}'),
         if (c.requirements.isEmpty)
           TextButton(
@@ -730,7 +860,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
           ),
       ],
       if (!requirementsOnly) ...[
-        if (c.mode == 'PROVIDER_TO_CUSTOMER')
+        if (!ctx.route && c.mode == 'PROVIDER_TO_CUSTOMER')
           BookingValidationGroup(
             error: c.fieldErrors['Service address'],
             child: ServiceDetailCard(
@@ -750,29 +880,58 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
               ),
             ),
           ),
-        if (ctx.route)
-          BookingValidationGroup(
-            error: c.fieldErrors['Destination address'],
-            child: ServiceDetailCard(
-              label: 'Destination',
-              icon: Icons.flag_outlined,
-              onEdit: c.busy
-                  ? null
-                  : () => _chooseLocation(c, destination: true),
-              child: _TextEntry(
-                label: 'Destination address',
-                value: c.destinationAddress,
-                enabled: !c.busy,
-                onChanged: (v) => c.edit(() => c.destinationAddress = v),
-              ),
+        if (ctx.route) ...[
+          _rideStepHeader(2),
+          ExpansionTile(
+            key: const ValueKey('ride-route-recap'),
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              '${bookingShortAddress(c.address)} → ${bookingShortAddress(c.destinationAddress)}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: CustomerTypography.card,
             ),
+            subtitle: const Text(
+              'Trip locations',
+              style: CustomerTypography.micro,
+            ),
+            children: [
+              BookingRideDetails(
+                controller: c,
+                showPricing: false,
+                onPickup: () => _chooseLocation(c),
+                onDestination: () => _chooseLocation(c, destination: true),
+              ),
+            ],
           ),
+          if (ctx.pricingFieldIds.any((id) => c.pricingSelections[id] == null))
+            BookingRideDetails(
+              controller: c,
+              showTrip: false,
+              onPickup: () => _chooseLocation(c),
+              onDestination: () => _chooseLocation(c, destination: true),
+            ),
+          for (final name in ['Service address', 'Destination address'])
+            if (c.fieldErrors[name] case final String error)
+              Text(
+                error,
+                style: CustomerTypography.compact.copyWith(
+                  color: CustomerColors.error,
+                ),
+              ),
+        ],
         BookingServiceFields(controller: c),
         BookingServiceSchedule(
           controller: c,
-          onEdit: c.busy ? null : c.details,
+          onEdit: c.busy
+              ? null
+              : () {
+                  if (ctx.route) _rideLocationStep = 1;
+                  c.details();
+                },
         ),
-        if (!requirementsOnly) BookingPricingChoices(controller: c),
+        if (!requirementsOnly && !ctx.route)
+          BookingPricingChoices(controller: c),
       ],
       Row(
         key: const ValueKey('booking-details-footer'),
@@ -843,7 +1002,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         ),
       ),
     if (c.quote?['pricingSnapshot'] case final Map snapshot)
-      for (final entry in const {
+      for (final entry in {
         'baseFare': 'Base fare',
         'pricePerKm': 'Per km',
         'minimumFare': 'Minimum fare',
@@ -865,15 +1024,11 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       ),
     if (c.paymentError != null) _Notice(c.paymentError!),
     if (c.availableMethods.isNotEmpty)
-      const Padding(
-        padding: EdgeInsets.only(top: 4, bottom: 6),
+      Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 6),
         child: Text(
           'Choose a payment method',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: catalogInk,
-          ),
+          style: CustomerTypography.card.copyWith(color: catalogInk),
         ),
       ),
     for (final payment in c.availableMethods)
@@ -935,15 +1090,12 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                     color: catalogTeal,
                     size: 20,
                   ),
-            title: Text(
-              switch (payment) {
-                'CARD' => 'Credit / Debit Card',
-                'WALLET' => 'BThere Wallet',
-                'CASH' => 'Cash on Hand',
-                _ => payment,
-              },
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
+            title: Text(switch (payment) {
+              'CARD' => 'Credit / Debit Card',
+              'WALLET' => 'BThere Wallet',
+              'CASH' => 'Cash on Hand',
+              _ => payment,
+            }, style: CustomerTypography.compactStrong),
             subtitle: Text(switch (payment) {
               'CARD' =>
                 c.usesRequestPolicy
@@ -952,7 +1104,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
               'WALLET' => 'Use your available wallet balance',
               'CASH' => 'Pay the provider after the service',
               _ => '',
-            }, style: const TextStyle(fontSize: 10)),
+            }, style: CustomerTypography.micro),
             value: payment,
             enabled: !c.busy,
           ),
@@ -981,9 +1133,11 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Estimated total',
-                        style: TextStyle(fontSize: 12, color: catalogMuted),
+                        style: CustomerTypography.compact.copyWith(
+                          color: catalogMuted,
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -992,11 +1146,11 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                             : c.quote!['currencyCode'] == 'LKR'
                             ? walletMoney(c.quote!['expectedAmount'])
                             : '${c.quote!['currencyCode']} ${c.quote!['expectedAmount']}',
-                        style: TextStyle(
-                          fontSize: c.quote == null ? 11 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: catalogInk,
-                        ),
+                        style:
+                            (c.quote == null
+                                    ? CustomerTypography.compact
+                                    : CustomerTypography.section)
+                                .copyWith(color: catalogInk),
                       ),
                     ],
                   ),
@@ -1013,10 +1167,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                   horizontal: 10,
                   vertical: 8,
                 ),
-                textStyle: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                textStyle: CustomerTypography.compactStrong,
               ),
             ),
             child: BThereButton(
@@ -1049,18 +1200,14 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Choose a payment method',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: catalogInk,
-                ),
+                style: CustomerTypography.screen.copyWith(color: catalogInk),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Choose another method, then tap Try Again to send a new provider request. Your booking details are kept.',
-                style: TextStyle(color: catalogMuted, fontSize: 12),
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
               ),
               const SizedBox(height: 16),
               for (final method in c.availableMethods)
@@ -1178,7 +1325,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                 padding: EdgeInsets.all(16),
                 child: Text(
                   'Choose your card type',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  style: CustomerTypography.screen,
                 ),
               ),
               for (final entry in {
@@ -1371,11 +1518,11 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
             ),
         ],
       ),
-      const Padding(
-        padding: EdgeInsets.all(8),
+      Padding(
+        padding: const EdgeInsets.all(8),
         child: Text(
           'Providers must meet every selected language and skill.',
-          style: TextStyle(color: catalogMuted, fontSize: 12),
+          style: CustomerTypography.compact.copyWith(color: catalogMuted),
         ),
       ),
     ],
@@ -1417,21 +1564,15 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 11,
+                    style: CustomerTypography.compact.copyWith(
                       color: catalogMuted,
-                      height: 1.3,
                     ),
                   ),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: catalogInk,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: CustomerTypography.card.copyWith(color: catalogInk),
                   ),
                 ],
               ),
@@ -1456,78 +1597,149 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     },
   );
 
-  List<Widget> _mapDetails(CustomerBookingController c) => [
-    if (c.context!.providerFilters.isNotEmpty)
-      BookingProviderFilters(controller: c),
-    if (c.mode != 'ONLINE') ...[
-      BookingValidationGroup(
-        key: const ValueKey('booking-location-validation'),
-        error: c.fieldErrors['Location'],
-        child: _locationRadius(c),
-      ),
-      if (c.context!.route)
-        BookingValidationGroup(
-          error: c.fieldErrors['Destination'],
-          child: OutlinedButton.icon(
-            onPressed: c.busy
-                ? null
-                : () => _chooseLocation(c, destination: true),
-            icon: const Icon(Icons.flag_outlined),
-            label: Text(
-              c.destinationAddress.isEmpty
-                  ? 'Choose destination on map'
-                  : bookingShortAddress(c.destinationAddress),
-            ),
+  Widget _rideStepHeader(int step) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (var index = 0; index < 3; index++)
+              Expanded(
+                child: Container(
+                  height: 3,
+                  margin: const EdgeInsets.only(right: 4, bottom: 10),
+                  decoration: BoxDecoration(
+                    color: index <= step
+                        ? CustomerColors.action
+                        : CustomerColors.border,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        Text(
+          [
+            'Where are you going?',
+            'Vehicle and pickup time',
+            'Passenger details',
+          ][step],
+          style: CustomerTypography.section,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Step ${step + 1} of 3',
+          style: CustomerTypography.micro.copyWith(
+            color: CustomerColors.secondaryText,
           ),
         ),
-      const SizedBox(height: 8),
-    ],
-    BookingValidationGroup(
-      key: const ValueKey('booking-schedule-validation'),
-      error: c.fieldErrors['Duration'] ?? c.fieldErrors['Schedule'],
-      child: BookingSchedulePicker(controller: c),
+      ],
     ),
-    if (!c.context!.providerFilters.any(
-      (field) => field.label.toLowerCase().contains('language'),
-    )) ...[
-      const SizedBox(height: 10),
-      BookingValidationGroup(
-        key: const ValueKey('booking-language-validation'),
-        error: c.fieldErrors['Language'],
-        child: BookingChoiceTiles(
-          filterStyle: true,
-          choices: const [
-            {'value': 'SINHALA', 'label': 'Sinhala'},
-            {'value': 'ENGLISH', 'label': 'English'},
-            {'value': 'TAMIL', 'label': 'Tamil'},
+  );
+
+  void _continueRideLocations(CustomerBookingController c) {
+    if (c.busy) return;
+    setState(() {
+      c.error = null;
+      c.fieldErrors = {};
+      if (c.point?.valid != true || c.address.trim().isEmpty) {
+        c.fieldErrors['Location'] = 'Choose your pickup location.';
+      }
+      if (c.destination?.valid != true || c.destinationAddress.trim().isEmpty) {
+        c.fieldErrors['Destination'] = 'Choose your destination.';
+      }
+      if (c.fieldErrors.isEmpty) _rideLocationStep = 1;
+    });
+  }
+
+  List<Widget> _mapDetails(CustomerBookingController c) =>
+      c.context!.route && _rideLocationStep == 0
+      ? [
+          _rideStepHeader(0),
+          BookingRideDetails(
+            controller: c,
+            showPricing: false,
+            onPickup: () => _chooseLocation(c),
+            onDestination: () => _chooseLocation(c, destination: true),
+          ),
+          for (final name in ['Location', 'Destination'])
+            if (c.fieldErrors[name] case final String error)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  error,
+                  style: CustomerTypography.compact.copyWith(
+                    color: CustomerColors.error,
+                  ),
+                ),
+              ),
+          BThereButton(
+            key: const ValueKey('ride-locations-continue'),
+            label: 'Choose vehicle and time',
+            onPressed: c.busy ? null : () => _continueRideLocations(c),
+          ),
+        ]
+      : [
+          if (c.context!.route) _rideStepHeader(1),
+          if (c.context!.providerFilters.isNotEmpty)
+            BookingProviderFilters(controller: c, rideStyle: c.context!.route),
+          if (c.mode != 'ONLINE' && !c.context!.route) ...[
+            BookingValidationGroup(
+              key: const ValueKey('booking-location-validation'),
+              error: c.fieldErrors['Location'],
+              child: _locationRadius(c),
+            ),
+            const SizedBox(height: 8),
           ],
-          selected: c.languages,
-          enabled: !c.busy,
-          onChanged: (value, on) => c.edit(() {
-            if (on) {
-              c.languages.add(value);
-            } else {
-              c.languages.remove(value);
-            }
-          }),
-        ),
-      ),
-    ],
-    if (c.context!.skills.isNotEmpty) ...[
-      const SizedBox(height: 10),
-      BookingValidationGroup(
-        key: const ValueKey('booking-skills-validation'),
-        error: c.fieldErrors['Skills'],
-        child: _matchingPreferences(c),
-      ),
-    ],
-    BThereButton(
-      key: const ValueKey('booking-location-continue'),
-      label: 'Continue',
-      loading: c.busy,
-      onPressed: c.busy ? null : c.nextServiceDetails,
-    ),
-  ];
+          BookingValidationGroup(
+            key: const ValueKey('booking-schedule-validation'),
+            error: c.fieldErrors['Duration'] ?? c.fieldErrors['Schedule'],
+            child: BookingSchedulePicker(controller: c),
+          ),
+          if (!c.context!.providerFilters.any(
+            (field) => field.label.toLowerCase().contains('language'),
+          )) ...[
+            const SizedBox(height: 10),
+            BookingValidationGroup(
+              key: const ValueKey('booking-language-validation'),
+              error: c.fieldErrors['Language'],
+              child: BookingChoiceTiles(
+                filterStyle: true,
+                choices: const [
+                  {'value': 'SINHALA', 'label': 'Sinhala'},
+                  {'value': 'ENGLISH', 'label': 'English'},
+                  {'value': 'TAMIL', 'label': 'Tamil'},
+                ],
+                selected: c.languages,
+                enabled: !c.busy,
+                onChanged: (value, on) => c.edit(() {
+                  if (on) {
+                    c.languages
+                      ..clear()
+                      ..add(value);
+                  } else {
+                    c.languages.remove(value);
+                  }
+                }),
+              ),
+            ),
+          ],
+          if (c.context!.skills.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            BookingValidationGroup(
+              key: const ValueKey('booking-skills-validation'),
+              error: c.fieldErrors['Skills'],
+              child: _matchingPreferences(c),
+            ),
+          ],
+          BThereButton(
+            key: const ValueKey('booking-location-continue'),
+            label: 'Continue',
+            loading: c.busy,
+            onPressed: c.busy ? null : c.nextServiceDetails,
+          ),
+        ];
 
   List<Widget> _created(CustomerBookingController c) {
     final b = c.created!;
@@ -1567,11 +1779,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       const SizedBox(height: 16),
       Text(
         'Booking #${b['jobId']}',
-        style: const TextStyle(
-          color: catalogInk,
-          fontSize: 24,
-          fontWeight: FontWeight.w700,
-        ),
+        style: CustomerTypography.screen.copyWith(color: catalogInk),
       ),
       _Notice(
         'Total: ${b['currencyCode']} ${b['expectedAmount']}\nBooking: ${b['status']}\nPayment: ${b['paymentStatus']}',
@@ -1675,7 +1883,7 @@ class _Notice extends StatelessWidget {
     ),
     child: Text(
       message,
-      style: const TextStyle(color: catalogInk, fontSize: 14),
+      style: CustomerTypography.body.copyWith(color: catalogInk),
     ),
   );
 }

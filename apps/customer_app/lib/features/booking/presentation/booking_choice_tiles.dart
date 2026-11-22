@@ -60,10 +60,7 @@ class BookingChoiceTiles extends StatelessWidget {
                           : CustomerColors.border,
                     ),
                     textStyle: filterStyle
-                        ? TextStyle(
-                            fontFamily: CustomerTypography.family,
-                            fontSize: 13,
-                            height: 1.2,
+                        ? CustomerTypography.body.copyWith(
                             fontWeight: selected.contains(choice['value'])
                                 ? FontWeight.w600
                                 : FontWeight.w500,

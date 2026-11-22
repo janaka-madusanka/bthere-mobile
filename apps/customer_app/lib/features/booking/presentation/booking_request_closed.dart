@@ -60,13 +60,9 @@ class BookingRequestClosed extends StatelessWidget {
             ),
             const SizedBox(height: 22),
           ],
-          const Text(
+          Text(
             'Payment method',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: paymentInk,
-            ),
+            style: CustomerTypography.card.copyWith(color: paymentInk),
           ),
           const SizedBox(height: 10),
           PaymentSelectedMethod(method: method, showRadio: false),
@@ -93,11 +89,9 @@ class BookingRequestClosed extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: cancelled
-                      ? const Text(
+                      ? Text(
                           'This request has been cancelled. You can edit your booking details or return home.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
+                          style: CustomerTypography.body.copyWith(
                             color: CustomerColors.text,
                           ),
                         )
@@ -108,10 +102,7 @@ class BookingRequestClosed extends StatelessWidget {
                               unmatched
                                   ? 'No provider accepted this request.'
                                   : 'The confirmation window has expired.',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                height: 1.3,
-                                fontWeight: FontWeight.w700,
+                              style: CustomerTypography.card.copyWith(
                                 color: CustomerColors.text,
                               ),
                             ),
@@ -120,9 +111,7 @@ class BookingRequestClosed extends StatelessWidget {
                               unmatched
                                   ? 'Send it again or change your filters. Your booking details are kept.'
                                   : 'Return to your booking form to review your details.',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                height: 1.45,
+                              style: CustomerTypography.compact.copyWith(
                                 color: CustomerColors.secondaryText,
                               ),
                             ),
@@ -185,10 +174,7 @@ class BookingRequestClosed extends StatelessWidget {
           const SizedBox(height: 16),
           TextButton(
             onPressed: busy ? null : onHome,
-            child: const Text(
-              'Back to Home',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Back to Home', style: CustomerTypography.card),
           ),
         ],
       ),

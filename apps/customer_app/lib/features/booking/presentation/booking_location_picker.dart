@@ -17,6 +17,7 @@ import '../../../app/widgets/search_range_ripple.dart';
 import 'customer_map_marker_icons.dart';
 import 'provider_map_pins.dart';
 import '../data/customer_location_address.dart';
+import '../data/customer_ride_route.dart';
 
 final customerDeviceLocationProvider = Provider<Future<GeoPoint> Function()>(
   (ref) => () async {
@@ -51,12 +52,15 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
     required this.point,
     required this.onChanged,
     this.radiusKm = 10,
+    this.destination,
+    this.topPadding = 0,
     this.candidates = const [],
     this.enabled = true,
     this.label = 'Service location',
     this.mapOnly = false,
     this.height = 250,
     this.autoLocate = false,
+    this.initialLocation,
     this.onAddressChanged,
     this.showRecenter = false,
     this.onProviderSelected,
@@ -66,6 +70,8 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
     this.showControls = true,
   });
   final GeoPoint? point;
+  final GeoPoint? destination;
+  final double topPadding;
   final ValueChanged<GeoPoint> onChanged;
   final double radiusKm;
   final List<ProviderCandidate> candidates;
@@ -74,6 +80,7 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
   final bool mapOnly;
   final double height;
   final bool autoLocate;
+  final Future<GeoPoint>? initialLocation;
   final ValueChanged<String>? onAddressChanged;
   final bool showRecenter;
   final ValueChanged<ProviderCandidate>? onProviderSelected;
@@ -96,6 +103,32 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
   bool _draggingLocation = false;
   int _projectionRevision = 0;
   Timer? _cameraTimer;
+  Timer? _routeFitTimer;
+
+  // Wait until a sheet drag/viewport resize settles; fitting every drag frame
+  // fights the gesture and sends unnecessary native camera animations.
+  void _scheduleRouteFit() {
+    _routeFitTimer?.cancel();
+    if (widget.destination == null || widget.point == null) return;
+    _routeFitTimer = Timer(const Duration(milliseconds: 180), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _map != null &&
+            widget.point != null &&
+            widget.height >= 150) {
+          _moveCamera(widget.point!);
+        }
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleRouteFit();
+  }
+
   bool _locating = false;
   final _icons = <String, BitmapDescriptor>{};
   final _loadingIcons = <String>{};
@@ -204,6 +237,12 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
     super.didUpdateWidget(old);
     final locationChanged = !_samePoint(old.point, widget.point);
     final filterChanged = old.filterPulseKey != widget.filterPulseKey;
+    if (!_samePoint(old.destination, widget.destination) &&
+        widget.point != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _moveCamera(widget.point!);
+      });
+    }
     if (locationChanged) {
       _projectionRevision++;
       _rippleCenter = null;
@@ -236,6 +275,9 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
         if (mounted) _projectRipple();
       });
     }
+    if (old.height != widget.height || old.topPadding != widget.topPadding) {
+      _scheduleRouteFit();
+    }
   }
 
   @override
@@ -243,6 +285,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
     _projectionRevision++;
     _projectionTimer?.cancel();
     _cameraTimer?.cancel();
+    _routeFitTimer?.cancel();
     _map?.dispose();
     super.dispose();
   }
@@ -278,7 +321,9 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
       _error = null;
     });
     try {
-      final p = await ref.read(customerDeviceLocationProvider)();
+      final p = await (initial && widget.initialLocation != null
+          ? widget.initialLocation!
+          : ref.read(customerDeviceLocationProvider)());
       if (!mounted ||
           !widget.enabled ||
           initial && (widget.point != null || selection != _selection)) {
@@ -300,6 +345,48 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
   Future<void> _moveCamera(GeoPoint point) async {
     _cameraMoving = true;
     try {
+      final destination = widget.destination;
+      if (destination != null && !_samePoint(point, destination)) {
+        final geometry =
+            ref
+                .read(
+                  customerRideRouteProvider((
+                    point.latitude,
+                    point.longitude,
+                    destination.latitude,
+                    destination.longitude,
+                  )),
+                )
+                .asData
+                ?.value ??
+            <GeoPoint>[];
+        final latitudes = [
+          point.latitude,
+          destination.latitude,
+          ...geometry.map((p) => p.latitude),
+        ];
+        final longitudes = [
+          point.longitude,
+          destination.longitude,
+          ...geometry.map((p) => p.longitude),
+        ];
+        await _map?.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(
+              southwest: LatLng(
+                latitudes.reduce(math.min),
+                longitudes.reduce(math.min),
+              ),
+              northeast: LatLng(
+                latitudes.reduce(math.max),
+                longitudes.reduce(math.max),
+              ),
+            ),
+            32,
+          ),
+        );
+        return;
+      }
       final pins = providerMapPins(
         widget.candidates,
         searchPoint: point,
@@ -380,6 +467,23 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
   @override
   Widget build(BuildContext context) {
     final p = widget.point;
+    final destination = widget.destination;
+    final endpoints = p != null && destination != null
+        ? (p.latitude, p.longitude, destination.latitude, destination.longitude)
+        : null;
+    final route = endpoints == null
+        ? null
+        : ref.watch(customerRideRouteProvider(endpoints));
+    final routePoints = route?.asData?.value ?? <GeoPoint>[];
+    if (endpoints != null) {
+      ref.listen(customerRideRouteProvider(endpoints), (previous, next) {
+        if (next.hasValue && !next.hasError && previous?.hasValue != true) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.point != null) _moveCamera(widget.point!);
+          });
+        }
+      });
+    }
     final pins = providerMapPins(
       widget.candidates,
       searchPoint: p,
@@ -413,6 +517,12 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                 ref.watch(customerMapBuilderProvider)(
                   CustomerMapState(
                     camera: camera,
+                    topPadding: destination == null
+                        ? 0
+                        : widget.topPadding.clamp(
+                            0,
+                            math.max(0, widget.height - 140),
+                          ),
                     onCreated: (controller) {
                       if (!mounted) {
                         controller.dispose();
@@ -447,6 +557,30 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                         ),
                     },
                     polylines: {
+                      if (routePoints.length > 1) ...[
+                        Polyline(
+                          polylineId: const PolylineId('ride-route-outline'),
+                          points: [
+                            for (final point in routePoints)
+                              LatLng(point.latitude, point.longitude),
+                          ],
+                          color: Colors.white,
+                          width: 8,
+                          zIndex: 1,
+                        ),
+                        Polyline(
+                          polylineId: const PolylineId('ride-route'),
+                          points: [
+                            for (final point in routePoints)
+                              LatLng(point.latitude, point.longitude),
+                          ],
+                          color: catalogTeal,
+                          width: 5,
+                          zIndex: 2,
+                          startCap: Cap.roundCap,
+                          endCap: Cap.roundCap,
+                        ),
+                      ],
                       for (final pin in pins.where((pin) => pin.separated))
                         Polyline(
                           polylineId: PolylineId(
@@ -458,6 +592,18 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                         ),
                     },
                     markers: {
+                      if (destination != null)
+                        Marker(
+                          markerId: const MarkerId('ride-destination'),
+                          position: LatLng(
+                            destination.latitude,
+                            destination.longitude,
+                          ),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueOrange,
+                          ),
+                          infoWindow: const InfoWindow(title: 'Destination'),
+                        ),
                       if (p != null)
                         Marker(
                           markerId: const MarkerId('service-location'),
@@ -529,6 +675,35 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                     paused: _cameraMoving || _draggingLocation,
                   ),
                 ),
+                if (route != null && widget.height > 150)
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    right: 64,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            route.isLoading
+                                ? 'Finding driving route…'
+                                : route.hasError
+                                ? 'Route preview unavailable'
+                                : 'Driving route',
+                            style: CustomerTypography.compact.copyWith(
+                              color: catalogTeal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (widget.mapOnly && _error != null)
                   Positioned(
                     top: MediaQuery.paddingOf(context).top + 100,
@@ -541,8 +716,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                         padding: const EdgeInsets.all(10),
                         child: Text(
                           _error!,
-                          style: const TextStyle(
-                            fontSize: 12,
+                          style: CustomerTypography.compact.copyWith(
                             color: catalogInk,
                           ),
                         ),
@@ -588,21 +762,21 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
           ),
         ),
         if (!widget.mapOnly && p == null)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
               'Tap the map to choose a location, or use your current location.',
-              style: TextStyle(fontSize: 12, color: catalogMuted),
+              style: CustomerTypography.compact.copyWith(color: catalogMuted),
             ),
           ),
         if (!widget.mapOnly && _error != null)
           Text(_error!, style: const TextStyle(color: CustomerColors.error)),
         if (widget.candidates.isNotEmpty && !widget.mapOnly)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
               'Markers show public provider locations or approximate service areas—not live positions.',
-              style: TextStyle(color: catalogMuted, fontSize: 12),
+              style: CustomerTypography.compact.copyWith(color: catalogMuted),
             ),
           ),
       ],

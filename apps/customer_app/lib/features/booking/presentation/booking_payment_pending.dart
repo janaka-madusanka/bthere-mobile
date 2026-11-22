@@ -45,13 +45,9 @@ class BookingPaymentPending extends StatefulWidget {
             ),
             const SizedBox(height: 20),
           ],
-          const Text(
+          Text(
             'Payment method',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: paymentInk,
-            ),
+            style: CustomerTypography.card.copyWith(color: paymentInk),
           ),
           const SizedBox(height: 10),
           PaymentSelectedMethod(method: method, showRadio: false),
@@ -62,10 +58,12 @@ class BookingPaymentPending extends StatefulWidget {
             pending: true,
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'You do not need to make another payment.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: CustomerColors.secondaryText),
+            style: CustomerTypography.compact.copyWith(
+              color: CustomerColors.secondaryText,
+            ),
           ),
         ],
       ),

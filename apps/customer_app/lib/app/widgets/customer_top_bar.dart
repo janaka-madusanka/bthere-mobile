@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/booking/presentation/customer_notification_host.dart';
+
 class CustomerTopBar extends StatelessWidget {
   const CustomerTopBar({super.key, this.photo});
   final String? photo;
@@ -34,13 +36,7 @@ class CustomerTopBar extends StatelessWidget {
                   IconButton(
                     key: const ValueKey('customer-home-notifications'),
                     tooltip: 'Notifications',
-                    onPressed: () => ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(
-                          content: Text('Notifications coming soon.'),
-                        ),
-                      ),
+                    onPressed: () => showCustomerNotificationSettings(context),
                     icon: Container(
                       width: 34,
                       height: 34,

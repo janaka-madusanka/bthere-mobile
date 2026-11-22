@@ -1,8 +1,11 @@
+import '../../../app/customer_theme.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum CustomerNavigationTab {
   home('Home'),
@@ -11,19 +14,27 @@ enum CustomerNavigationTab {
   messages('Messages'),
   wallet('Wallet');
 
-  const CustomerNavigationTab(this.label);
+  CustomerNavigationTab(this.label);
   final String label;
   String asset(bool selected) =>
       'assets/icons/navigation/${this == opportunities ? 'booking' : name}${selected ? '_selected' : ''}.svg';
 }
 
 /// Main Customer destinations, with the system gesture area kept clear.
-class CustomerBottomNavigation extends StatelessWidget {
-  const CustomerBottomNavigation({super.key, required this.selected});
-  final CustomerNavigationTab selected;
+class CustomerBottomNavigation extends ConsumerWidget {
+  const CustomerBottomNavigation({
+    super.key,
+    required this.selected,
+    this.onSelectedTap,
+  });
+  final CustomerNavigationTab? selected;
+  final VoidCallback? onSelectedTap;
 
   void _select(BuildContext context, CustomerNavigationTab tab) {
-    if (tab == selected) return;
+    if (tab == selected) {
+      onSelectedTap?.call();
+      return;
+    }
     switch (tab) {
       case CustomerNavigationTab.home:
         context.go('/home');
@@ -33,15 +44,22 @@ class CustomerBottomNavigation extends StatelessWidget {
         context.go('/wallet');
       case CustomerNavigationTab.opportunities:
         context.go('/opportunities');
-      default:
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text('${tab.label} coming soon.')));
+      case CustomerNavigationTab.messages:
+        context.go('/messages');
     }
   }
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
+  Widget build(BuildContext context, WidgetRef ref) => _build(context);
+
+  static const destinations = [
+    CustomerNavigationTab.home,
+    CustomerNavigationTab.opportunities,
+    CustomerNavigationTab.services,
+    CustomerNavigationTab.wallet,
+  ];
+
+  Widget _build(BuildContext context) => DecoratedBox(
     key: const ValueKey('customer-bottom-navigation'),
     decoration: const BoxDecoration(
       gradient: LinearGradient(
@@ -56,14 +74,14 @@ class CustomerBottomNavigation extends StatelessWidget {
           final scale = MediaQuery.textScalerOf(context).scale(11) / 11;
           // Large labels remain readable and scroll instead of being clipped.
           final width = math.max(
-            bounds.maxWidth / 5,
+            bounds.maxWidth / destinations.length,
             scale > 1.3 ? 78 * scale : 0.0,
           );
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final tab in CustomerNavigationTab.values)
+                for (final tab in destinations)
                   SizedBox(
                     width: width,
                     child: Semantics(
@@ -105,15 +123,11 @@ class CustomerBottomNavigation extends StatelessWidget {
                                   Text(
                                     tab.label,
                                     maxLines: 1,
-                                    style: TextStyle(
+                                    style: CustomerTypography.compact.copyWith(
                                       color: Colors.white,
-                                      fontSize: bounds.maxWidth < 360
-                                          ? 9.5
-                                          : 11,
-                                      height: 1.3,
                                       fontWeight: tab == selected
-                                          ? FontWeight.w700
-                                          : FontWeight.w400,
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
                                     ),
                                   ),
                                 ],

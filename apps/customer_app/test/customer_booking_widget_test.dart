@@ -9,11 +9,12 @@ import 'package:customer_app/features/booking/application/customer_booking_contr
 import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:customer_app/features/booking/presentation/booking_location_picker.dart';
 import 'package:customer_app/features/booking/presentation/customer_booking_screen.dart';
-import 'package:customer_app/features/booking/presentation/booking_card_checkout_page.dart';
+import 'package:customer_app/features/booking/presentation/customer_request_payment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'booking_fixture.dart';
 import 'customer_auth_test.dart' show optionJson, tokens, account;
@@ -85,236 +86,112 @@ Future<void> advanceToServiceDetails(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('failed wallet is disabled in the replacement chooser', (
-    tester,
-  ) async {
-    final f = BookingFixture();
-    f.contextBody = contextJson(methods: ['WALLET', 'CARD']);
-    addTearDown(f.f.dispose);
-    await openBooking(tester, f);
-    final c = activeJourney(tester);
-    f.requestViewBody.addAll({
-      'status': 'AWAITING_CUSTOMER_CONFIRMATION',
-      'confirmationExpiresAt': c
-          .now()
-          .add(const Duration(minutes: 2))
-          .toUtc()
-          .toIso8601String(),
-    });
-    f.walletConfirmationStatus = 409;
-    c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
-    c.stage = BookingStage.created;
-    await tester.runAsync(c.confirmRequestWallet);
-    await tester.pumpAndSettle();
-    final action = find.text('Use Different Payment Method');
-    await tester.ensureVisible(action);
-    await tester.tap(action);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('replacement-payment-WALLET')));
-    await tester.pumpAndSettle();
-    expect(c.created?['requestId'], 501);
-    expect(
-      tester
-          .widget<ListTile>(
-            find.byKey(const ValueKey('replacement-payment-WALLET')),
-          )
-          .onTap,
-      isNull,
-    );
-    expect(find.text('Choose a payment method'), findsOneWidget);
-    expect(
-      f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-      isEmpty,
-    );
-    expect(
-      f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
-      hasLength(1),
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
   testWidgets(
-    'failed payment chooses saved card before cancelling the request',
+    'unmatched resend never flashes payment selection during submission',
     (tester) async {
       final f = BookingFixture();
-      f.contextBody = contextJson(methods: ['WALLET', 'CARD']);
-      f.hasSavedCard = false;
-      f.cardLinking = true;
+      addTearDown(f.f.dispose);
+      f.contextBody = contextJson(
+        methods: ['WALLET'],
+        selectionMode: 'OPEN_REQUEST',
+      );
       f.policyBody = {
         'enabled': true,
         'minimumNoticeMinutes': 0,
         'maximumRadiusKm': 50,
       };
-      addTearDown(f.f.dispose);
       await openBooking(tester, f);
       await advanceToServiceDetails(tester);
       final c = activeJourney(tester);
-      f.requestViewBody['status'] = 'AWAITING_CUSTOMER_CONFIRMATION';
-      f.walletConfirmationStatus = 409;
-      c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
-      c.stage = BookingStage.created;
-      c.answers['PERSON_NAME'] = 'Keep my details';
-      await tester.runAsync(c.confirmRequestWallet);
+      c.method = 'WALLET';
+      c.answers['PERSON_NAME'] = 'Patient name';
+      c.continueServiceDetails();
+      final initialSubmit = c.submit();
+      await tester.pump(const Duration(milliseconds: 200));
+      await initialSubmit;
+      c.created!['status'] = 'UNMATCHED';
+      f.requestViewBody['status'] = 'UNMATCHED';
+      final initialRefresh = c.refreshCreatedRequest();
+      await tester.pump(const Duration(milliseconds: 200));
+      await initialRefresh;
       await tester.pumpAndSettle();
-      Future<void> openChooser() async {
-        final action = find.text('Use Different Payment Method');
-        await tester.ensureVisible(action);
-        await tester.tap(action);
-        await tester.pumpAndSettle();
-        expect(find.text('Change payment method?'), findsNothing);
-        expect(find.text('Choose a payment method'), findsOneWidget);
-      }
-
-      await openChooser();
-      Navigator.of(tester.element(find.text('Choose a payment method'))).pop();
-      await tester.pumpAndSettle();
-      expect(c.created?['requestId'], 501);
-      expect(
-        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-        isEmpty,
-      );
-      await openChooser();
-      await tester.tap(find.byKey(const ValueKey('replacement-payment-CARD')));
-      await tester.pumpAndSettle();
-      expect(find.text('Use Selected Card'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('booking-add-new-card')));
-      await tester.pumpAndSettle();
-      expect(find.byTooltip('Close add card'), findsOneWidget);
-      expect(c.created?['requestId'], 501);
-      expect(c.stage, BookingStage.created);
-      await tester.enterText(
-        find.byKey(const ValueKey('cardholder-name')),
-        'Test Customer',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('card-number')),
-        '4242424242424242',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('card-expiry')),
-        '12${(c.now().year + 1).toString().substring(2)}',
-      );
-      await tester.enterText(find.byKey(const ValueKey('card-cvv')), '123');
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('submit-test-card')),
-      );
-      await tester.tap(find.byKey(const ValueKey('submit-test-card')));
-      await tester.pumpAndSettle();
-      expect(find.byTooltip('Close add card'), findsNothing);
-      expect(c.stage, BookingStage.created);
-      expect(c.created?['requestId'], 501);
-      Navigator.of(tester.element(find.text('Use Selected Card'))).pop();
-      await tester.pumpAndSettle();
-      expect(c.created?['requestId'], 501);
-      await openChooser();
-      await tester.tap(find.byKey(const ValueKey('replacement-payment-CARD')));
-      await tester.pumpAndSettle();
-      expect(
-        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-        isEmpty,
-      );
-      await tester.tap(find.text('Use Selected Card'));
-      await tester.pumpAndSettle();
-      expect(
-        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-        isEmpty,
-      );
-      expect(c.created?['requestId'], 501);
-      expect(c.answers['PERSON_NAME'], 'Keep my details');
-      expect(
-        find.byKey(const ValueKey('booking-payment-confirmation')),
-        findsNothing,
-      );
-      expect(find.text('Credit / Debit Card'), findsOneWidget);
-      expect(find.text('•••• 4242 · Test card'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('booking-payment-failed')),
-        findsOneWidget,
-      );
-      final reload = tester.binding.reassembleApplication();
-      await tester.pump();
-      await reload;
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('booking-payment-failed')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('payment-replacement-selection')),
-        findsOneWidget,
-      );
-      final retry = find.byKey(const ValueKey('payment-result-retry'));
-      f.requestCreateBody = {
-        ...f.requestViewBody,
-        'status': 'MATCHING',
-        'paymentMethod': 'CARD',
+      final held = Completer<void>();
+      final previous = f.f.adapter.extraHandler!;
+      f.f.adapter.extraHandler = (request) async {
+        if (request.path == '/customers/me/booking-requests' &&
+            request.method == 'POST') {
+          await held.future;
+          f.requestViewBody['status'] = 'MATCHING';
+        }
+        return previous(request);
       };
-      await tester.ensureVisible(retry);
-      await tester.tap(retry);
+      final send = find.byKey(const ValueKey('booking-unmatched-send-again'));
+      await tester.ensureVisible(send);
+      await tester.pumpAndSettle();
+      await tester.tap(send);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(c.resendingRequest, isTrue);
       expect(
-        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-        hasLength(1),
+        find.byKey(const ValueKey('booking-finding-provider')),
+        findsOneWidget,
       );
-      expect(c.method, 'CARD');
+      expect(find.text('Choose a payment method'), findsNothing);
+      held.complete();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(c.resendingRequest, isFalse);
       expect(c.created?['status'], 'MATCHING');
-      expect(find.text('Provider for you'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
+      expect(c.method, 'WALLET');
+      expect(
+        find.byKey(const ValueKey('booking-finding-provider')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
     },
   );
-
-  testWidgets('failed card payment selects wallet on the failure screen', (
-    tester,
-  ) async {
-    final f = BookingFixture();
-    f.contextBody = contextJson(methods: ['WALLET', 'CARD']);
-    addTearDown(f.f.dispose);
-    await openBooking(tester, f);
-    final c = activeJourney(tester);
-    c.created = {
-      ...f.requestViewBody,
-      'status': 'AWAITING_CUSTOMER_CONFIRMATION',
-      'paymentMethod': 'CARD',
-    };
-    c.stage = BookingStage.created;
-    c.paymentFailureReason = 'Card payment failed';
-    c.review();
-    c.stage = BookingStage.created;
-    await tester.pumpAndSettle();
-    final action = find.text('Use Different Payment Method');
-    await tester.ensureVisible(action);
-    await tester.tap(action);
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<ListTile>(
-            find.byKey(const ValueKey('replacement-payment-CARD')),
-          )
-          .onTap,
-      isNull,
+  // Accepted payment failures now retain the provider/request. The former
+  // replacement-method/cancel-and-rematch tests are superseded by same-ID tests.
+  for (final method in ['WALLET', 'CARD']) {
+    testWidgets(
+      'failed accepted $method retains provider and offers same-request retry',
+      (tester) async {
+        final f = BookingFixture();
+        f.contextBody = contextJson(methods: ['WALLET', 'CARD']);
+        addTearDown(f.f.dispose);
+        await openBooking(tester, f);
+        final c = activeJourney(tester);
+        f.requestViewBody.addAll({
+          'status': 'AWAITING_CUSTOMER_CONFIRMATION',
+          'paymentStatus': 'FAILED',
+          'paymentMethod': method,
+          'providerId': 15,
+          'jobId': 70,
+          'confirmationExpiresAt': c
+              .now()
+              .add(const Duration(minutes: 15))
+              .toIso8601String(),
+        });
+        c.created = {...f.requestViewBody};
+        c.stage = BookingStage.created;
+        await tester.runAsync(c.refreshCreatedRequest);
+        await tester.pumpAndSettle();
+        expect(find.text('Retry payment'), findsOneWidget);
+        expect(find.text('Use Different Payment Method'), findsOneWidget);
+        expect(find.text('15:00'), findsOneWidget);
+        expect(
+          f.f.adapter.requests.where(
+            (r) =>
+                r.path.endsWith('/cancel') ||
+                r.path.endsWith('/confirm-wallet') ||
+                r.path.endsWith('/confirm'),
+          ),
+          isEmpty,
+        );
+        await tester.pumpWidget(const SizedBox());
+      },
     );
-    await tester.tap(find.byKey(const ValueKey('replacement-payment-WALLET')));
-    await tester.pumpAndSettle();
-    expect(c.created?['requestId'], 501);
-    expect(
-      find.byKey(const ValueKey('payment-replacement-selection')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('booking-payment-confirmation')),
-      findsNothing,
-    );
-    expect(
-      f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
-      isEmpty,
-    );
-    expect(
-      f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
-      isEmpty,
-    );
-  });
-
+  }
   for (final scenario in [
     'card',
     'contact-card',
@@ -339,7 +216,7 @@ void main() {
       };
       f.f.wrapApp = (child) => ProviderScope(
         overrides: [
-          bookingCardCheckoutPresenterProvider.overrideWithValue((
+          recoveredCardCheckoutPresenterProvider.overrideWithValue((
             context,
             checkout,
             controller,
@@ -349,7 +226,7 @@ void main() {
               checkout.action.toString(),
               'https://sandbox.payhere.lk/pay/checkout',
             );
-            expect(controller.created?['status'], 'PAYMENT_PENDING');
+            expect(controller.request?['status'], 'PAYMENT_PENDING');
           }),
         ],
         child: child,
@@ -396,15 +273,15 @@ void main() {
         if (rejected) {
           expect(checkoutOpened, 0);
           expect(
-            find.byKey(const ValueKey('booking-accepted-payment-error')),
+            find.byKey(const ValueKey('booking-payment-failed')),
             findsOneWidget,
           );
-          expect(c.error, 'Card payment declined');
+          expect(find.text('Card payment declined'), findsOneWidget);
           await tester.pump(const Duration(seconds: 6));
           await tester.pump();
-          expect(c.error, 'Card payment declined');
+          expect(find.text('Card payment declined'), findsOneWidget);
           expect(
-            find.byKey(const ValueKey('booking-accepted-payment-error')),
+            find.byKey(const ValueKey('booking-payment-failed')),
             findsOneWidget,
           );
         } else {
@@ -737,7 +614,7 @@ void main() {
       await tester.tap(find.text('Confirm and Pay'));
       pollingGate.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Payment Successful!'), findsOneWidget);
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
       expect(find.text('Confirm your payment'), findsNothing);
       expect(
         f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
@@ -753,52 +630,52 @@ void main() {
       await openBooking(tester, f);
       final c = activeJourney(tester);
       f.requestViewBody['status'] = 'AWAITING_CUSTOMER_CONFIRMATION';
+      f.requestViewBody['confirmationExpiresAt'] = c
+          .now()
+          .add(const Duration(minutes: 15))
+          .toIso8601String();
       f.walletConfirmationStatus = 409;
       c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
       c.stage = BookingStage.created;
-      await tester.runAsync(c.confirmRequestWallet);
+      await tester.runAsync(c.refreshCreatedRequest);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('booking-payment-failed')),
-        findsOneWidget,
-      );
+      final confirm = find.byKey(const ValueKey('booking-accepted-continue'));
+      await tester.ensureVisible(confirm);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomerRequestPaymentScreen), findsOneWidget);
       expect(find.text('Payment Failed!'), findsOneWidget);
       expect(
         find.text('Insufficient available wallet balance'),
         findsOneWidget,
       );
-      expect(find.text('Payment Successful!'), findsNothing);
+      // A retryable Wallet rejection retains the accepted request.
+      f.requestViewBody['paymentMethod'] = 'WALLET';
+      f.requestViewBody['confirmationExpiresAt'] = c
+          .now()
+          .add(const Duration(minutes: 15))
+          .toIso8601String();
       f.walletConfirmationStatus = 200;
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
       final retry = find.byKey(const ValueKey('payment-result-retry'));
       await tester.ensureVisible(retry);
       await tester.tap(retry);
       await tester.pumpAndSettle();
-      expect(find.text('Payment Successful!'), findsOneWidget);
-      expect(
-        find.text(
-          'Your booking is confirmed. Wallet funds have been reserved.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
       f.bookings.add({
         ...bookingJson(id: 70, method: 'WALLET', payment: 'RESERVED'),
         'status': 'CONFIRMED',
       });
       await tester.pump(const Duration(seconds: 10));
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('booking-payment-success')),
-        findsOneWidget,
-      );
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
       expect(find.text('Booking #70'), findsNothing);
-      final details = find.byKey(const ValueKey('payment-result-booking'));
+      final details = find.text('View booking details');
       await tester.ensureVisible(details);
       await tester.tap(details);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('booking-payment-success')),
-        findsNothing,
-      );
+      expect(find.text('Your booking is confirmed!'), findsNothing);
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Booking #70'), findsOneWidget);
       tester.view.physicalSize = const Size(320, 568);
@@ -809,9 +686,13 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      final allBookings = find.text('View all bookings');
-      await tester.ensureVisible(allBookings);
-      await tester.tap(allBookings);
+      expect(find.text('View all bookings'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('customer-bottom-navigation')),
+        findsNothing,
+      );
+      GoRouter.of(tester.element(find.text('Booking #70')))
+          .go('/opportunities');
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Bookings'), findsOneWidget);
@@ -825,7 +706,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Booking #70'), findsOneWidget);
-      expect(find.text('Booking information'), findsOneWidget);
+      expect(find.text('Service schedule'), findsOneWidget);
     },
   );
   testWidgets(
@@ -1673,6 +1554,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('English'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Sinhala'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).languages, {'SINHALA'});
       expect(
         tester
             .widget<BookingValidationGroup>(
@@ -1719,6 +1603,15 @@ void main() {
       expect(find.text('Spoken languages'), findsNothing);
       final english = find.text('ENGLISH');
       await tester.ensureVisible(english);
+      await tester.tap(english);
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['ENGLISH']);
+      await tester.tap(find.text('TAMIL'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['TAMIL']);
+      await tester.tap(find.text('SINHALA'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['SINHALA']);
       await tester.tap(english);
       await tester.pumpAndSettle();
       expect(activeJourney(tester).providerFilters[48], ['ENGLISH']);
@@ -1950,6 +1843,18 @@ void main() {
       await openBooking(tester, f);
       expect(find.byKey(const ValueKey('booking-start-time')), findsNothing);
       expect(find.text('Duration'), findsNothing);
+      final ride = activeJourney(tester);
+      ride.edit(() {
+        ride.point = const GeoPoint(6.9, 79.8);
+        ride.address = 'Colombo';
+        ride.destination = const GeoPoint(7.4, 80.3);
+        ride.destinationAddress = 'Kurunegala';
+      });
+      await tester.pumpAndSettle();
+      final locations = find.byKey(const ValueKey('ride-locations-continue'));
+      await tester.ensureVisible(locations);
+      await tester.tap(locations);
+      await tester.pumpAndSettle();
       final slider = tester.widget<Slider>(
         find.byKey(const ValueKey('booking-pickup-time')),
       );

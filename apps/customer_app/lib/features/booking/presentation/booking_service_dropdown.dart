@@ -50,11 +50,9 @@ class _BookingServiceDropdownState extends State<BookingServiceDropdown> {
           final label = TextPainter(
             text: TextSpan(
               text: option.name,
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 13,
+              style: CustomerTypography.body.copyWith(
                 fontWeight: option.id == c.key.optionId
-                    ? FontWeight.w700
+                    ? FontWeight.w600
                     : FontWeight.w500,
               ),
             ),
@@ -121,12 +119,9 @@ class _BookingServiceDropdownState extends State<BookingServiceDropdown> {
                           Expanded(
                             child: Text(
                               option.name,
-                              style: TextStyle(
-                                fontFamily: CustomerTypography.family,
-                                fontSize: 13,
-                                height: 1.3,
+                              style: CustomerTypography.body.copyWith(
                                 fontWeight: option.id == c.key.optionId
-                                    ? FontWeight.w700
+                                    ? FontWeight.w600
                                     : FontWeight.w500,
                                 color: CustomerColors.text,
                               ),

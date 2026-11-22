@@ -1,5 +1,4 @@
 import 'package:customer_app/features/booking/presentation/booking_payment_pending.dart';
-import 'package:customer_app/features/booking/presentation/booking_payment_result_screen.dart';
 import 'package:customer_app/features/booking/application/customer_booking_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,19 +26,17 @@ void main() {
         final initialRead = c.refreshCreatedRequest();
         await tester.pumpAndSettle();
         await initialRead;
-        expect(find.byType(BookingPaymentPending), findsOneWidget);
-        f.requestViewBody['status'] = success ? 'CONFIRMED' : 'PAYMENT_PENDING';
+        expect(find.text('Checking your payment'), findsOneWidget);
+        f.requestViewBody['status'] = success
+            ? 'CONFIRMED'
+            : 'AWAITING_CUSTOMER_CONFIRMATION';
         f.requestViewBody['paymentStatus'] = success ? 'RESERVED' : 'FAILED';
         await tester.pump(const Duration(seconds: 5));
         await tester.pumpAndSettle();
         expect(find.byType(BookingPaymentPending), findsNothing);
         expect(
-          tester
-              .widget<BookingPaymentResultScreen>(
-                find.byType(BookingPaymentResultScreen),
-              )
-              .success,
-          success,
+          find.text(success ? 'Your booking is confirmed!' : 'Payment Failed!'),
+          findsOneWidget,
         );
         await tester.pumpWidget(const SizedBox.shrink());
       },

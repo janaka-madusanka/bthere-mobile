@@ -45,13 +45,9 @@ class BookingConfirmedView extends StatelessWidget {
             ),
             const SizedBox(height: 22),
           ],
-          const Text(
+          Text(
             'Payment method',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: paymentInk,
-            ),
+            style: CustomerTypography.card.copyWith(color: paymentInk),
           ),
           const SizedBox(height: 10),
           PaymentSelectedMethod(method: method, showRadio: false),
@@ -78,9 +74,7 @@ class BookingConfirmedView extends StatelessWidget {
                               ? 'Your wallet funds are reserved for this booking.'
                               : 'Funds are reserved for this booking.'
                         : 'Your payment has been confirmed.',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
+                    style: CustomerTypography.body.copyWith(
                       color: CustomerColors.secondaryText,
                     ),
                   ),
@@ -107,16 +101,13 @@ class BookingConfirmedView extends StatelessWidget {
               label: const Text(
                 'View booking details',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                style: CustomerTypography.card,
               ),
             ),
           const SizedBox(height: 16),
           TextButton(
             onPressed: busy ? null : onHome,
-            child: const Text(
-              'Back to Home',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Back to Home', style: CustomerTypography.card),
           ),
         ],
       ),

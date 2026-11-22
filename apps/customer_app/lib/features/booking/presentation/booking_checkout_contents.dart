@@ -17,30 +17,21 @@ List<Widget> bookingCheckoutContents({
 }) {
   final c = controller;
   return [
-    const Text(
+    Text(
       'Payment',
-      key: ValueKey('booking-payment-confirmation'),
-      style: TextStyle(
-        fontSize: 21,
-        fontWeight: FontWeight.w700,
-        color: catalogInk,
-      ),
+      key: const ValueKey('booking-payment-confirmation'),
+      style: CustomerTypography.screen.copyWith(color: catalogInk),
     ),
     const SizedBox(height: 10),
     BookingEstimatedCost(
       controller: c,
       showPricingChoices: false,
       compact: true,
-      amountFontSize: 20,
     ),
     const SizedBox(height: 10),
-    const Text(
+    Text(
       'Choose a payment method',
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        color: catalogInk,
-      ),
+      style: CustomerTypography.card.copyWith(color: catalogInk),
     ),
     const SizedBox(height: 8),
     RadioGroup<String>(
@@ -70,24 +61,18 @@ List<Widget> bookingCheckoutContents({
                         : CustomerColors.border,
                   ),
                 ),
-                title: Text(
-                  switch (method) {
-                    'CARD' => 'Credit / Debit Card',
-                    'WALLET' => 'BThere Wallet',
-                    _ => 'Cash on Hand',
-                  },
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                title: Text(switch (method) {
+                  'CARD' => 'Credit / Debit Card',
+                  'WALLET' => 'BThere Wallet',
+                  _ => 'Cash on Hand',
+                }, style: CustomerTypography.compactStrong),
                 subtitle: Text(
                   method == 'CARD'
                       ? (cardLabel ?? 'Select a saved card')
                       : method == 'WALLET'
                       ? 'Use your available wallet balance'
                       : 'Pay after service',
-                  style: const TextStyle(fontSize: 10),
+                  style: CustomerTypography.micro,
                 ),
                 secondary: method == 'CARD'
                     ? Row(
@@ -124,11 +109,11 @@ List<Widget> bookingCheckoutContents({
       ),
     ),
     if (c.usesRequestPolicy)
-      const Padding(
-        padding: EdgeInsets.symmetric(vertical: 10),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Text(
           'You won’t be charged until a provider accepts. You’ll confirm payment after acceptance.',
-          style: TextStyle(fontSize: 12, color: catalogMuted),
+          style: CustomerTypography.compact.copyWith(color: catalogMuted),
         ),
       ),
     FilledButtonTheme(
@@ -141,13 +126,7 @@ List<Widget> bookingCheckoutContents({
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          textStyle: const WidgetStatePropertyAll(
-            TextStyle(
-              fontFamily: CustomerTypography.family,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          textStyle: const WidgetStatePropertyAll(CustomerTypography.card),
         ),
       ),
       child: BThereButton(

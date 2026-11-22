@@ -82,7 +82,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
       final key = await widget.controller.chooseUpload(widget.field, () async {
         final file = await FilePicker.pickFile(
           type: FileType.custom,
-          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
         );
         if (file == null || !mounted) return null;
         final limit = widget.field.maxMb.clamp(1, 100) * 1024 * 1024;
@@ -149,7 +149,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
     Widget input;
     if (f.upload) {
       final raw = widget.value is Map ? (widget.value as Map)['files'] : null;
-      final files = raw is List ? raw : const [];
+      final files = raw is List ? raw : [];
       input = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -190,7 +190,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
           ),
           Text(
             '${f.minFiles} minimum${f.maxFiles == null ? '' : ' · ${f.maxFiles} maximum'} · up to ${f.maxMb.clamp(1, 100)} MB each${f.fileTypes.isEmpty ? '' : ' · ${f.fileTypes.join(', ')}'}',
-            style: const TextStyle(color: catalogMuted, fontSize: 12),
+            style: CustomerTypography.compact.copyWith(color: catalogMuted),
           ),
         ],
       );
@@ -203,7 +203,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
       const equality = DeepCollectionEquality();
       input = BookingChoiceTiles(
         choices: boolean
-            ? const [
+            ? [
                 {'value': 'true', 'label': 'Yes'},
                 {'value': 'false', 'label': 'No'},
               ]
@@ -328,7 +328,7 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
           'booking-input-${widget.reusable ? 'requirement' : 'field'}-${f.id}',
         ),
         controller: _text,
-        style: widget.compact ? const TextStyle(fontSize: 14) : null,
+        style: widget.compact ? CustomerTypography.body : null,
         enabled: enabled,
         maxLines: f.type == 'TEXTAREA' ? 3 : 1,
         keyboardType: switch (f.type) {
@@ -366,18 +366,20 @@ class _BookingDynamicFieldState extends State<BookingDynamicField> {
         children: [
           Text(
             f.label,
-            style: TextStyle(
-              color: widget.compact ? catalogMuted : catalogInk,
-              fontWeight: FontWeight.w600,
-              fontSize: widget.compact ? 12 : 15,
-            ),
+            style:
+                (widget.compact
+                        ? CustomerTypography.compactStrong
+                        : CustomerTypography.card)
+                    .copyWith(
+                      color: widget.compact ? catalogMuted : catalogInk,
+                    ),
           ),
           if (widget.showDescription && f.description != null)
             Padding(
               padding: const EdgeInsets.only(top: 3),
               child: Text(
                 f.description!,
-                style: const TextStyle(color: catalogMuted, fontSize: 12),
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
               ),
             ),
           SizedBox(height: widget.compact ? 4 : 7),

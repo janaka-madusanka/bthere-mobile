@@ -1,9 +1,52 @@
 import 'package:customer_app/app/customer_theme.dart';
 import 'package:customer_app/features/booking/presentation/booking_request_receipt.dart';
+import 'package:customer_app/features/booking/presentation/booking_provider_accepted.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'accepted countdown warns at 30 seconds and retains expired style',
+    (tester) async {
+      for (final (deadline, expired, color) in [
+        ('00:31', false, CustomerColors.selection),
+        ('00:30', false, const Color(0xFFFFF4DE)),
+        ('00:01', false, const Color(0xFFFFF4DE)),
+        ('00:00', true, const Color(0xFFFFF2F2)),
+        ('01:00', false, CustomerColors.selection),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: CustomerTheme.light(),
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: BookingProviderAccepted(
+                  serviceName: 'Hospital Care',
+                  provider: null,
+                  deadline: deadline,
+                  expired: expired,
+                  busy: false,
+                  availableHeight: 800,
+                  onContinue: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+        final card = tester.widget<Container>(
+          find.byKey(const ValueKey('accepted-payment-countdown')),
+        );
+        expect((card.decoration! as BoxDecoration).color, color);
+        expect(
+          find.text('Time is running out'),
+          expired || deadline == '00:31' || deadline == '01:00'
+              ? findsNothing
+              : findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
   for (final status in [
     'CANCELLED',
     'EXPIRED',

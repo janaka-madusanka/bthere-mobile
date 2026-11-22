@@ -37,27 +37,20 @@ class BookingCancelRequestDialog extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Cancel this request?',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: CustomerTypography.family,
-                    fontSize: 20,
-                    height: 1.25,
-                    fontWeight: FontWeight.w700,
+                  style: CustomerTypography.screen.copyWith(
                     color: CustomerColors.text,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'This will cancel your current provider request.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 13,
-                height: 1.5,
+              style: CustomerTypography.body.copyWith(
                 color: CustomerColors.secondaryText,
               ),
             ),
@@ -68,10 +61,10 @@ class BookingCancelRequestDialog extends StatelessWidget {
                 color: const Color(0xFFF2FAFA),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
+                  const Padding(
                     padding: EdgeInsets.only(top: 1),
                     child: Icon(
                       Icons.check_circle_outline_rounded,
@@ -79,28 +72,21 @@ class BookingCancelRequestDialog extends StatelessWidget {
                       size: 20,
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Your booking details stay with you',
-                          style: TextStyle(
-                            fontFamily: CustomerTypography.family,
-                            fontSize: 12,
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
+                          style: CustomerTypography.compactStrong.copyWith(
                             color: CustomerColors.text,
                           ),
                         ),
-                        SizedBox(height: 3),
+                        const SizedBox(height: 3),
                         Text(
                           'You can send a new request without filling them in again.',
-                          style: TextStyle(
-                            fontFamily: CustomerTypography.family,
-                            fontSize: 11,
-                            height: 1.5,
+                          style: CustomerTypography.compact.copyWith(
                             color: CustomerColors.secondaryText,
                           ),
                         ),
@@ -126,11 +112,7 @@ class BookingCancelRequestDialog extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: const TextStyle(
-                      fontFamily: CustomerTypography.family,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    textStyle: CustomerTypography.card,
                   ),
                   onPressed: () => Navigator.pop(context, false),
                   child: const Text('Keep request'),
@@ -147,11 +129,7 @@ class BookingCancelRequestDialog extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: const TextStyle(
-                      fontFamily: CustomerTypography.family,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    textStyle: CustomerTypography.card,
                   ),
                   onPressed: () => Navigator.pop(context, true),
                   child: const Text('Cancel request'),

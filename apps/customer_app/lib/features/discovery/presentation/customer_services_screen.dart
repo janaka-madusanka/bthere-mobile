@@ -57,21 +57,13 @@ class _CustomerServicesScreenState
           children: [
             Text(
               option.name,
-              style: const TextStyle(
-                color: catalogInk,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-              ),
+              style: CustomerTypography.screen.copyWith(color: catalogInk),
             ),
             const SizedBox(height: 12),
             if (option.description case final description?)
               Text(
                 description,
-                style: const TextStyle(
-                  color: catalogMuted,
-                  fontSize: 14,
-                  height: 1.6,
-                ),
+                style: CustomerTypography.body.copyWith(color: catalogMuted),
               ),
             const SizedBox(height: 12),
             CatalogAccess(service: option.access),
@@ -114,25 +106,25 @@ class _CustomerServicesScreenState
                   padding: const EdgeInsets.fromLTRB(8, 10, 48, 12),
                   child: Row(
                     children: [
-                      IconButton(
-                        key: const ValueKey('customer-services-back'),
-                        tooltip: 'Back to home',
-                        onPressed: () => context.canPop()
-                            ? context.pop()
-                            : context.go('/home'),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
+                      Semantics(
+                        label: 'Back to home',
+                        child: IconButton(
+                          key: const ValueKey('customer-services-back'),
+                          onPressed: () => context.canPop()
+                              ? context.pop()
+                              : context.go('/home'),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Get a Service',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: CustomerTypography.section.copyWith(
                             color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -211,21 +203,17 @@ class _CustomerServicesScreenState
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Choose a service category',
-                                      style: TextStyle(
+                                      style: CustomerTypography.screen.copyWith(
                                         color: catalogInk,
-                                        fontSize: 24,
-                                        height: 1.2,
-                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    const Text(
+                                    Text(
                                       'Choose a category to explore available services.',
-                                      style: TextStyle(
+                                      style: CustomerTypography.body.copyWith(
                                         color: catalogMuted,
-                                        fontSize: 14,
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -424,10 +412,8 @@ class _ServiceAccordion extends StatelessWidget {
                         children: [
                           Text(
                             service.name,
-                            style: const TextStyle(
+                            style: CustomerTypography.section.copyWith(
                               color: catalogInk,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           if (service.description?.trim().isNotEmpty ??
@@ -441,10 +427,8 @@ class _ServiceAccordion extends StatelessWidget {
                                   ? null
                                   : 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: CustomerTypography.compact.copyWith(
                                 color: catalogMuted,
-                                fontSize: 12,
-                                height: 1.4,
                               ),
                             ),
                           ],
@@ -498,9 +482,8 @@ class _ServiceAccordion extends StatelessWidget {
                             padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
                             child: Text(
                               reason,
-                              style: const TextStyle(
+                              style: CustomerTypography.compact.copyWith(
                                 color: catalogMuted,
-                                fontSize: 12,
                               ),
                             ),
                           ),
@@ -572,12 +555,11 @@ class _ServiceAccordion extends StatelessWidget {
                                                   children: [
                                                     Text(
                                                       state.options[index].name,
-                                                      style: const TextStyle(
-                                                        color: catalogInk,
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
+                                                      style: CustomerTypography
+                                                          .card
+                                                          .copyWith(
+                                                            color: catalogInk,
+                                                          ),
                                                     ),
                                                     if (state
                                                             .options[index]
@@ -599,11 +581,12 @@ class _ServiceAccordion extends StatelessWidget {
                                                             : 2,
                                                         overflow: TextOverflow
                                                             .ellipsis,
-                                                        style: const TextStyle(
-                                                          color: catalogMuted,
-                                                          fontSize: 12,
-                                                          height: 1.35,
-                                                        ),
+                                                        style: CustomerTypography
+                                                            .compact
+                                                            .copyWith(
+                                                              color:
+                                                                  catalogMuted,
+                                                            ),
                                                       ),
                                                     ],
                                                     if (state

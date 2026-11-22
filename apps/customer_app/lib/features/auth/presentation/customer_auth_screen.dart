@@ -286,8 +286,7 @@ class _CustomerAuthScreenState extends ConsumerState<CustomerAuthScreen> {
                               style: TextButton.styleFrom(
                                 textStyle: Theme.of(context)
                                     .textTheme
-                                    .labelLarge
-                                    ?.copyWith(fontSize: 14, height: 1.2),
+                                    .labelLarge,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 8,
@@ -308,8 +307,7 @@ class _CustomerAuthScreenState extends ConsumerState<CustomerAuthScreen> {
                                         CustomerColors.action,
                                     textStyle: Theme.of(context)
                                         .textTheme
-                                        .labelLarge
-                                        ?.copyWith(fontSize: 14, height: 1.2),
+                                        .labelLarge,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
                                       vertical: 8,

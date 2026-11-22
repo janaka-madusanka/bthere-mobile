@@ -16,6 +16,9 @@ class BookingSchedulePicker extends StatelessWidget {
     MarketTime.location(controller.context!.zone),
   );
   DateTime get _suggested {
+    if (controller.context!.minimumNoticeMinutes != null) {
+      return controller.earliestScheduledStart;
+    }
     final now = _now;
     // Work in market-local wall time; existing controller validates DST/future time.
     return DateTime.utc(
@@ -47,8 +50,16 @@ class BookingSchedulePicker extends StatelessWidget {
   }
 
   void _set(DateTime start, DateTime end) => controller.edit(() {
-    controller.start = MarketTime.local(start);
-    if (!controller.context!.route) controller.end = MarketTime.local(end);
+    final chosen =
+        !controller.bookNow &&
+            controller.context!.minimumNoticeMinutes != null &&
+            start.isBefore(controller.earliestScheduledStart)
+        ? controller.earliestScheduledStart
+        : start;
+    controller.start = MarketTime.local(chosen);
+    if (!controller.context!.route) {
+      controller.end = MarketTime.local(chosen.add(end.difference(start)));
+    }
   });
   void _day(DateTime day) {
     final start = _start;
@@ -64,7 +75,10 @@ class BookingSchedulePicker extends StatelessWidget {
 
   Future<void> showCalendar(BuildContext context) async {
     final now = _now, start = _start;
-    final first = DateTime(now.year, now.month, now.day);
+    final earliest = controller.context!.minimumNoticeMinutes != null
+        ? controller.earliestScheduledStart
+        : now;
+    final first = DateTime(earliest.year, earliest.month, earliest.day);
     final last = DateTime(now.year + 2, now.month, now.day);
     final day = await showDialog<DateTime>(
       context: context,
@@ -90,27 +104,12 @@ class BookingSchedulePicker extends StatelessWidget {
               ),
               headerBackgroundColor: CustomerColors.selection,
               headerForegroundColor: CustomerColors.text,
-              headerHeadlineStyle: const TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 26,
-                height: 1.2,
-                fontWeight: FontWeight.w700,
-              ),
-              headerHelpStyle: const TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-              weekdayStyle: const TextStyle(
+              headerHeadlineStyle: CustomerTypography.screen,
+              headerHelpStyle: CustomerTypography.card,
+              weekdayStyle: CustomerTypography.compactStrong.copyWith(
                 color: CustomerColors.secondaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
               ),
-              dayStyle: const TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              dayStyle: CustomerTypography.body,
               dayForegroundColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.disabled)
                     ? CustomerColors.muted.withValues(alpha: .5)
@@ -130,11 +129,7 @@ class BookingSchedulePicker extends StatelessWidget {
                     : CustomerColors.action,
               ),
               todayBorder: const BorderSide(color: CustomerColors.action),
-              yearStyle: const TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              yearStyle: CustomerTypography.body,
               subHeaderForegroundColor: CustomerColors.text,
               dividerColor: CustomerColors.border,
               cancelButtonStyle: TextButton.styleFrom(
@@ -148,11 +143,7 @@ class BookingSchedulePicker extends StatelessWidget {
                   horizontal: 18,
                   vertical: 12,
                 ),
-                textStyle: const TextStyle(
-                  fontFamily: CustomerTypography.family,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                textStyle: CustomerTypography.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -165,11 +156,7 @@ class BookingSchedulePicker extends StatelessWidget {
                   horizontal: 18,
                   vertical: 12,
                 ),
-                textStyle: const TextStyle(
-                  fontFamily: CustomerTypography.family,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
+                textStyle: CustomerTypography.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -204,21 +191,19 @@ class BookingSchedulePicker extends StatelessWidget {
         contentPadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         scrollable: true,
-        title: const Row(
+        title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.schedule_rounded,
               size: 23,
               color: CustomerColors.action,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Custom duration',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0C1248),
+                style: CustomerTypography.screen.copyWith(
+                  color: const Color(0xFF0C1248),
                 ),
               ),
             ),
@@ -230,12 +215,10 @@ class BookingSchedulePicker extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Hours',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0C1248),
+                style: CustomerTypography.compactStrong.copyWith(
+                  color: const Color(0xFF0C1248),
                 ),
               ),
               const SizedBox(height: 8),
@@ -246,27 +229,26 @@ class BookingSchedulePicker extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   filled: true,
-                  fillColor: Color(0xFFF5F9FA),
+                  fillColor: const Color(0xFFF5F9FA),
                   suffixText: 'hrs',
-                  suffixStyle: TextStyle(
-                    fontSize: 12,
+                  suffixStyle: CustomerTypography.compact.copyWith(
                     color: CustomerColors.secondaryText,
                   ),
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 13,
                   ),
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(13)),
                     borderSide: BorderSide(color: Color(0xFFDFE9EC)),
                   ),
-                  enabledBorder: OutlineInputBorder(
+                  enabledBorder: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(13)),
                     borderSide: BorderSide(color: Color(0xFFDFE9EC)),
                   ),
-                  focusedBorder: OutlineInputBorder(
+                  focusedBorder: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(13)),
                     borderSide: BorderSide(
                       color: CustomerColors.action,
@@ -275,7 +257,9 @@ class BookingSchedulePicker extends StatelessWidget {
                   ),
                   errorMaxLines: 2,
                 ),
-                style: const TextStyle(fontSize: 14, color: Color(0xFF0C1248)),
+                style: CustomerTypography.body.copyWith(
+                  color: const Color(0xFF0C1248),
+                ),
                 onChanged: (v) => hours = v,
                 validator: (v) {
                   final h = double.tryParse(v ?? '');
@@ -285,11 +269,9 @@ class BookingSchedulePicker extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Example: 1.5 hours = 1 hour 30 minutes',
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.4,
+                style: CustomerTypography.compact.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
               ),
@@ -308,10 +290,7 @@ class BookingSchedulePicker extends StatelessWidget {
                     ),
                   ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
+                  child: const Text('Cancel', style: CustomerTypography.card),
                 ),
               ),
               const SizedBox(width: 10),
@@ -331,10 +310,7 @@ class BookingSchedulePicker extends StatelessWidget {
                       );
                     }
                   },
-                  child: const Text(
-                    'Apply',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
+                  child: const Text('Apply', style: CustomerTypography.card),
                 ),
               ),
             ],
@@ -353,6 +329,14 @@ class BookingSchedulePicker extends StatelessWidget {
     final day = DateTime.utc(start.year, start.month, start.day);
     final minutes = start.hour * 60 + start.minute;
     final duration = end.difference(start);
+    final modern = c.context!.minimumNoticeMinutes != null;
+    final earliest = modern ? c.earliestScheduledStart : now;
+    final firstDay = DateTime.utc(earliest.year, earliest.month, earliest.day);
+    final step = modern ? 5 : 15;
+    final lastMinute = modern ? 1435 : 1425;
+    final minMinute = modern && day == firstDay
+        ? earliest.hour * 60 + earliest.minute
+        : 0;
     final localizations = MaterialLocalizations.of(context);
     String at(double value) => localizations.formatTimeOfDay(
       TimeOfDay.fromDateTime(day.add(Duration(minutes: value.round()))),
@@ -373,17 +357,22 @@ class BookingSchedulePicker extends StatelessWidget {
         key: ValueKey(
           c.context!.route ? 'booking-pickup-time' : 'booking-start-time',
         ),
-        value: minutes.toDouble().clamp(0, 1425),
-        min: 0,
-        max: 1425,
-        divisions: 95,
+        value: minutes.toDouble().clamp(
+          minMinute.toDouble(),
+          lastMinute.toDouble(),
+        ),
+        min: minMinute.toDouble(),
+        max: lastMinute.toDouble(),
+        divisions: lastMinute == minMinute
+            ? null
+            : (lastMinute - minMinute) ~/ step,
         label: at(minutes.toDouble()),
         semanticFormatterCallback: at,
         onChanged: c.busy
             ? null
             : (value) {
                 final next = day.add(
-                  Duration(minutes: (value / 15).round() * 15),
+                  Duration(minutes: (value / step).round() * step),
                 );
                 _set(next, next.add(duration));
               },
@@ -393,12 +382,7 @@ class BookingSchedulePicker extends StatelessWidget {
       backgroundColor: Colors.white,
       selectedColor: CustomerColors.selection,
       checkmarkColor: catalogTeal,
-      labelStyle: const TextStyle(
-        fontFamily: CustomerTypography.family,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: catalogInk,
-      ),
+      labelStyle: CustomerTypography.compact.copyWith(color: catalogInk),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       side: WidgetStateBorderSide.resolveWith(
         (states) => BorderSide(
@@ -413,149 +397,177 @@ class BookingSchedulePicker extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < 4; i++)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ChoiceChip(
-                            visualDensity: VisualDensity.compact,
-                            showCheckmark: false,
-                            label: Text(
-                              localizations.formatMediumDate(
-                                DateTime(now.year, now.month, now.day + i),
-                              ),
-                            ),
-                            labelStyle: const TextStyle(
-                              fontFamily: CustomerTypography.family,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            labelPadding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                            ),
-                            selected:
-                                c.start.isNotEmpty &&
-                                DateUtils.isSameDay(
-                                  start,
-                                  DateTime(now.year, now.month, now.day + i),
+          if (c.context!.instantBooking) ...[
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  key: const ValueKey('booking-book-now'),
+                  label: const Text('Book now'),
+                  selected: c.bookNow,
+                  onSelected: c.busy ? null : (_) => c.chooseBookNow(true),
+                ),
+                ChoiceChip(
+                  key: const ValueKey('booking-schedule-later'),
+                  label: const Text('Schedule later'),
+                  selected: !c.bookNow,
+                  onSelected: c.busy ? null : (_) => c.chooseBookNow(false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (c.bookNow)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Book now · Find an available provider for your request.',
+                style: CustomerTypography.card,
+              ),
+            ),
+          if (!c.bookNow) ...[
+            if (modern && c.minimumNoticeMinutes > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Book at least ${c.minimumNoticeMinutes} minutes ahead.',
+                  style: CustomerTypography.compact,
+                ),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < 4; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              visualDensity: VisualDensity.compact,
+                              showCheckmark: false,
+                              label: Text(
+                                localizations.formatMediumDate(
+                                  firstDay.add(Duration(days: i)),
                                 ),
-                            onSelected: c.busy
-                                ? null
-                                : (_) => _day(
-                                    DateTime(now.year, now.month, now.day + i),
+                              ),
+                              labelStyle: CustomerTypography.compactStrong,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                              ),
+                              labelPadding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              selected:
+                                  c.start.isNotEmpty &&
+                                  DateUtils.isSameDay(
+                                    start,
+                                    firstDay.add(Duration(days: i)),
                                   ),
+                              onSelected: c.busy
+                                  ? null
+                                  : (_) =>
+                                        _day(firstDay.add(Duration(days: i))),
+                            ),
                           ),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('booking-calendar'),
+                  tooltip: 'Choose another date',
+                  onPressed: c.busy ? null : () => showCalendar(context),
+                  icon: const Icon(Icons.calendar_month, color: catalogTeal),
+                ),
+              ],
+            ),
+            if (start
+                    .difference(DateTime.utc(now.year, now.month, now.day))
+                    .inDays >
+                3)
+              Text(
+                'Selected date: ${localizations.formatFullDate(start)}',
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
+              ),
+            const SizedBox(height: 10),
+            Container(
+              key: const ValueKey('booking-preferred-time'),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: c.startTimeError != null
+                    ? CustomerColors.error.withValues(alpha: .04)
+                    : const Color(0xFFF7FBFB),
+                border: Border.all(
+                  color: c.startTimeError != null
+                      ? CustomerColors.error
+                      : const Color(0xFFE6EDF0),
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: LayoutBuilder(
+                builder: (context, bounds) {
+                  final label = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: CustomerColors.selection,
+                          borderRadius: BorderRadius.circular(10),
                         ),
+                        child: const Icon(
+                          Icons.schedule,
+                          color: catalogTeal,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _TimeLabel(
+                        title: c.context!.route
+                            ? 'Pickup time'
+                            : 'Preferred time',
+                        value: at(minutes.toDouble()),
+                      ),
                     ],
+                  );
+                  return bounds.maxWidth >= 300 &&
+                          MediaQuery.textScalerOf(context).scale(14) <= 20
+                      ? Row(
+                          children: [
+                            label,
+                            const SizedBox(width: 6),
+                            Expanded(child: slider),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [label, slider],
+                        );
+                },
+              ),
+            ),
+            if (c.startTimeError ?? c.fieldErrors['Start time']
+                case final String issue) ...[
+              const SizedBox(height: 6),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  issue,
+                  key: const ValueKey('booking-preferred-time-error'),
+                  style: CustomerTypography.compact.copyWith(
+                    color: CustomerColors.error,
                   ),
                 ),
               ),
-              IconButton(
-                key: const ValueKey('booking-calendar'),
-                tooltip: 'Choose another date',
-                onPressed: c.busy ? null : () => showCalendar(context),
-                icon: const Icon(Icons.calendar_month, color: catalogTeal),
-              ),
             ],
-          ),
-          if (start
-                  .difference(DateTime.utc(now.year, now.month, now.day))
-                  .inDays >
-              3)
-            Text(
-              'Selected date: ${localizations.formatFullDate(start)}',
-              style: const TextStyle(color: catalogMuted, fontSize: 12),
-            ),
-          const SizedBox(height: 10),
-          Container(
-            key: const ValueKey('booking-preferred-time'),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: c.startTimeError != null
-                  ? CustomerColors.error.withValues(alpha: .04)
-                  : const Color(0xFFF7FBFB),
-              border: Border.all(
-                color: c.startTimeError != null
-                    ? CustomerColors.error
-                    : const Color(0xFFE6EDF0),
-              ),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: LayoutBuilder(
-              builder: (context, bounds) {
-                final label = Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: CustomerColors.selection,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.schedule,
-                        color: catalogTeal,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _TimeLabel(
-                      title: c.context!.route
-                          ? 'Pickup time'
-                          : 'Preferred time',
-                      value: at(minutes.toDouble()),
-                    ),
-                  ],
-                );
-                return bounds.maxWidth >= 300 &&
-                        MediaQuery.textScalerOf(context).scale(14) <= 20
-                    ? Row(
-                        children: [
-                          label,
-                          const SizedBox(width: 6),
-                          Expanded(child: slider),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [label, slider],
-                      );
-              },
-            ),
-          ),
-          if (c.startTimeError ?? c.fieldErrors['Start time']
-              case final String issue) ...[
-            const SizedBox(height: 6),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                issue,
-                key: const ValueKey('booking-preferred-time-error'),
-                style: const TextStyle(
-                  color: CustomerColors.error,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ),
           ],
           if (!c.context!.route) ...[
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Duration',
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                color: catalogInk,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: CustomerTypography.card.copyWith(color: catalogInk),
             ),
             const SizedBox(height: 6),
             SingleChildScrollView(
@@ -615,16 +627,11 @@ class _TimeLabel extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(color: catalogMuted, fontSize: 12)),
         Text(
-          value,
-          style: const TextStyle(
-            fontFamily: CustomerTypography.family,
-            color: catalogInk,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-          ),
+          title,
+          style: CustomerTypography.compact.copyWith(color: catalogMuted),
         ),
+        Text(value, style: CustomerTypography.card.copyWith(color: catalogInk)),
       ],
     ),
   );

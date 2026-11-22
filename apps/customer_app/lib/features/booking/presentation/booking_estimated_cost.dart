@@ -15,12 +15,10 @@ class BookingEstimatedCost extends StatefulWidget {
     required this.controller,
     this.showPricingChoices = true,
     this.compact = false,
-    this.amountFontSize,
   });
   final CustomerBookingController controller;
   final bool showPricingChoices;
   final bool compact;
-  final double? amountFontSize;
   @override
   State<BookingEstimatedCost> createState() => _BookingEstimatedCostState();
 }
@@ -173,11 +171,9 @@ class _BookingEstimatedCostState extends State<BookingEstimatedCost> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Estimated cost',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: CustomerTypography.compactStrong.copyWith(
                       color: CustomerColors.secondaryText,
                     ),
                   ),
@@ -190,15 +186,13 @@ class _BookingEstimatedCostState extends State<BookingEstimatedCost> {
                         : _quote!['currencyCode'] == 'LKR'
                         ? walletMoney(_quote!['expectedAmount'])
                         : '${_quote!['currencyCode']} ${_quote!['expectedAmount']}',
-                    style: TextStyle(
-                      fontSize: _quote == null
-                          ? 12
-                          : widget.amountFontSize ?? (widget.compact ? 16 : 21),
-                      fontWeight: _quote == null
-                          ? FontWeight.w400
-                          : FontWeight.w700,
-                      color: CustomerColors.text,
-                    ),
+                    style:
+                        (_quote == null
+                                ? CustomerTypography.compact
+                                : widget.compact
+                                ? CustomerTypography.section
+                                : CustomerTypography.screen)
+                            .copyWith(color: CustomerColors.text),
                   ),
                 ],
               ),

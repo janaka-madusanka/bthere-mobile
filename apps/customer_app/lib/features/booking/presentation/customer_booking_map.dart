@@ -43,7 +43,10 @@ final customerMapBuilderProvider = Provider<Widget Function(CustomerMapState)>(
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       // Keep Google attribution above the draggable booking panel.
-      padding: EdgeInsets.only(bottom: state.bottomPadding),
+      padding: EdgeInsets.only(
+        top: state.topPadding,
+        bottom: state.bottomPadding,
+      ),
       gestureRecognizers: {
         Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
       },
@@ -60,6 +63,7 @@ class CustomerMapState {
     required this.circles,
     this.polylines = const {},
     this.bottomPadding = 0,
+    this.topPadding = 0,
     this.onCameraMoveStarted,
     this.onCameraIdle,
     this.onCameraMove,
@@ -71,6 +75,7 @@ class CustomerMapState {
   final Set<Circle> circles;
   final Set<Polyline> polylines;
   final double bottomPadding;
+  final double topPadding;
   final VoidCallback? onCameraMoveStarted;
   final VoidCallback? onCameraIdle;
   final ValueChanged<CameraPosition>? onCameraMove;

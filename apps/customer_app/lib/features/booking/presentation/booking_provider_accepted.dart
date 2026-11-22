@@ -21,6 +21,8 @@ class BookingProviderAccepted extends StatelessWidget {
     this.paymentAmount,
     this.paymentMethod = 'WALLET',
     this.error,
+    this.paymentEnabled = true,
+    this.retryPayment = false,
   });
 
   final String serviceName;
@@ -33,8 +35,21 @@ class BookingProviderAccepted extends StatelessWidget {
   final String? paymentAmount;
   final String paymentMethod;
   final String? error;
+  final bool paymentEnabled;
+  final bool retryPayment;
 
   static const _ink = Color(0xFF0C1248);
+
+  bool get _urgent {
+    if (expired || deadline == null) return false;
+    final parts = deadline!.split(':');
+    if (parts.length != 2) return false;
+    final minutes = int.tryParse(parts[0]);
+    final seconds = int.tryParse(parts[1]);
+    if (minutes == null || seconds == null) return false;
+    final remaining = minutes * 60 + seconds;
+    return remaining > 0 && remaining <= 30;
+  }
 
   @override
   Widget build(BuildContext context) => Center(
@@ -42,23 +57,16 @@ class BookingProviderAccepted extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 420),
       child: Column(
         children: [
-          const Text(
+          Text(
             'We found a provider!',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 26,
-              height: 1.2,
-              fontWeight: FontWeight.w700,
-              color: _ink,
-            ),
+            style: CustomerTypography.screen.copyWith(color: _ink),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'A provider has accepted your request.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.45,
+            style: CustomerTypography.body.copyWith(
               color: CustomerColors.secondaryText,
             ),
           ),
@@ -111,10 +119,7 @@ class BookingProviderAccepted extends StatelessWidget {
                         children: [
                           Text(
                             provider?.name ?? 'Your provider',
-                            style: const TextStyle(
-                              fontSize: 21,
-                              height: 1.3,
-                              fontWeight: FontWeight.w700,
+                            style: CustomerTypography.screen.copyWith(
                               color: _ink,
                             ),
                           ),
@@ -131,17 +136,14 @@ class BookingProviderAccepted extends StatelessWidget {
                                 ),
                                 Text(
                                   '${provider!.data['averageRating']}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
+                                  style: CustomerTypography.card.copyWith(
                                     color: _ink,
                                   ),
                                 ),
                                 if (provider!.data['totalRatings'] is int)
                                   Text(
                                     '(${provider!.data['totalRatings']} ratings)',
-                                    style: const TextStyle(
-                                      fontSize: 11,
+                                    style: CustomerTypography.compact.copyWith(
                                       color: CustomerColors.secondaryText,
                                     ),
                                   ),
@@ -164,8 +166,7 @@ class BookingProviderAccepted extends StatelessWidget {
                     Expanded(
                       child: Text(
                         serviceName,
-                        style: const TextStyle(
-                          fontSize: 12,
+                        style: CustomerTypography.compact.copyWith(
                           color: CustomerColors.secondaryText,
                         ),
                       ),
@@ -177,6 +178,7 @@ class BookingProviderAccepted extends StatelessWidget {
                   child: Divider(height: 1, color: Color(0xFFE8F1F2)),
                 ),
                 Container(
+                  key: const ValueKey('accepted-payment-countdown'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 18,
@@ -184,6 +186,8 @@ class BookingProviderAccepted extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: expired
                         ? const Color(0xFFFFF2F2)
+                        : _urgent
+                        ? const Color(0xFFFFF4DE)
                         : CustomerColors.selection,
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -196,8 +200,10 @@ class BookingProviderAccepted extends StatelessWidget {
                           Container(
                             width: 48,
                             height: 48,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFD7F2F2),
+                            decoration: BoxDecoration(
+                              color: _urgent
+                                  ? const Color(0xFFFFE5AD)
+                                  : const Color(0xFFD7F2F2),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -205,6 +211,8 @@ class BookingProviderAccepted extends StatelessWidget {
                               size: 32,
                               color: expired
                                   ? const Color(0xFFB74C59)
+                                  : _urgent
+                                  ? CustomerColors.warning
                                   : CustomerColors.action,
                             ),
                           ),
@@ -213,28 +221,27 @@ class BookingProviderAccepted extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Confirm payment before',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _ink,
-                                  ),
+                                Text(
+                                  _urgent
+                                      ? 'Time is running out'
+                                      : 'Confirm payment before',
+                                  style: CustomerTypography.compactStrong
+                                      .copyWith(color: _ink),
                                 ),
                                 if (deadline != null)
                                   Text(
                                     deadline!,
-                                    style: TextStyle(
-                                      fontSize: 38,
-                                      height: 1.2,
-                                      fontWeight: FontWeight.w800,
-                                      color: expired
-                                          ? const Color(0xFFB74C59)
-                                          : const Color(0xFF087E9A),
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                    ),
+                                    style: CustomerTypography.countdown
+                                        .copyWith(
+                                          color: expired
+                                              ? const Color(0xFFB74C59)
+                                              : _urgent
+                                              ? CustomerColors.warning
+                                              : const Color(0xFF087E9A),
+                                          fontFeatures: [
+                                            const FontFeature.tabularFigures(),
+                                          ],
+                                        ),
                                   ),
                               ],
                             ),
@@ -251,9 +258,7 @@ class BookingProviderAccepted extends StatelessWidget {
                                   : 'Confirm below to pay with BThere Wallet.'
                             : 'You’ll confirm the payment in the next step.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.45,
+                        style: CustomerTypography.compact.copyWith(
                           color: CustomerColors.secondaryText,
                         ),
                       ),
@@ -296,18 +301,15 @@ class BookingProviderAccepted extends StatelessWidget {
                                 paymentMethod == 'CARD'
                                     ? 'Credit / Debit Card'
                                     : 'BThere Wallet',
-                                style: const TextStyle(
-                                  fontSize: 12,
+                                style: CustomerTypography.compact.copyWith(
                                   color: CustomerColors.secondaryText,
                                 ),
                               ),
                               const SizedBox(height: 3),
                               Text(
                                 paymentAmount!,
-                                style: const TextStyle(
+                                style: CustomerTypography.screen.copyWith(
                                   color: _ink,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -331,11 +333,7 @@ class BookingProviderAccepted extends StatelessWidget {
                       liveRegion: true,
                       child: Text(
                         error!,
-                        style: const TextStyle(
-                          color: _ink,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
+                        style: CustomerTypography.body.copyWith(color: _ink),
                       ),
                     ),
                   ),
@@ -352,7 +350,10 @@ class BookingProviderAccepted extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  onPressed: busy || (paymentAmount != null && expired)
+                  onPressed:
+                      !paymentEnabled ||
+                          busy ||
+                          (paymentAmount != null && expired)
                       ? null
                       : onContinue,
                   child: Row(
@@ -371,13 +372,12 @@ class BookingProviderAccepted extends StatelessWidget {
                           paymentAmount != null
                               ? (busy
                                     ? 'Confirming payment...'
+                                    : retryPayment
+                                    ? 'Retry payment'
                                     : 'Confirm and Pay')
                               : 'Continue to payment',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: CustomerTypography.card,
                         ),
                       ),
                       if (!busy) ...[
@@ -403,10 +403,7 @@ class BookingProviderAccepted extends StatelessWidget {
                     icon: const Icon(Icons.cancel_rounded, size: 20),
                     label: const Text(
                       'Cancel request',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: CustomerTypography.card,
                     ),
                   ),
                 ],

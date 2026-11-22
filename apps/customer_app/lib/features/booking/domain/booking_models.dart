@@ -348,6 +348,8 @@ class BookingContext {
   String get schedule => text(option['schedulingModel']);
   bool get route => schedule == 'ROUTE_BASED';
   bool get openRequest => option['providerSelectionMode'] == 'OPEN_REQUEST';
+  int? get minimumNoticeMinutes => option['minimumNoticeMinutes'] as int?;
+  bool get instantBooking => option['instantBooking'] == true;
   int get providerCount => positiveId(option['requiredProviderCount']);
   List<String> get modes => List<String>.from(option['deliveryModes'] as List);
   List<String> get methods =>
@@ -357,6 +359,14 @@ class BookingContext {
         selection = object(root['selection']),
         option = object(selection['option']);
     text(option['name']);
+    if (option['minimumNoticeMinutes'] != null &&
+            (option['minimumNoticeMinutes'] is! int ||
+                (option['minimumNoticeMinutes'] as int) < 0) ||
+        option['instantBooking'] != null && option['instantBooking'] is! bool ||
+        option['instantBooking'] == true &&
+            option['minimumNoticeMinutes'] != 0) {
+      throw const FormatException('Invalid booking notice configuration');
+    }
     object(selection['access']);
     MarketTime.location(text(root['timezone']));
     if (root['marketId'] != key.marketId ||
@@ -556,6 +566,14 @@ class ProviderCandidate {
   String get key => '$id/${locationId ?? 'none'}';
   String get name => text(data['displayName']);
   String? get photo => safeImageUrl(data['profilePhoto']);
+  // Explicit null means this option is unrated, even with an overall rating.
+  bool get hasOptionRatings =>
+      data.containsKey('optionAverageRating') ||
+      data.containsKey('optionTotalRatings');
+  num? get searchRating =>
+      data[hasOptionRatings ? 'optionAverageRating' : 'averageRating'] as num?;
+  int? get searchRatingCount =>
+      data[hasOptionRatings ? 'optionTotalRatings' : 'totalRatings'] as int?;
   String? get markerIcon {
     final marker = data['mapMarker'];
     final icon = marker is Map ? marker['icon'] : null;
@@ -576,6 +594,16 @@ class ProviderCandidate {
     if (rating != null && (rating is! num || !rating.isFinite) ||
         ratings != null && (ratings is! int || ratings < 0)) {
       throw const FormatException('Invalid provider rating');
+    }
+    final optionRating = candidate.data['optionAverageRating'];
+    final optionCount = candidate.data['optionTotalRatings'];
+    if (optionRating != null &&
+            (optionRating is! num ||
+                !optionRating.isFinite ||
+                optionRating < 1 ||
+                optionRating > 5) ||
+        optionCount != null && (optionCount is! int || optionCount < 0)) {
+      throw const FormatException('Invalid option rating');
     }
     final languages = candidate.data['languages'];
     if (languages is! List || languages.any((value) => value is! String)) {

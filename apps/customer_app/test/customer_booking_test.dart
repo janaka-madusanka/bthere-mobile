@@ -12,6 +12,92 @@ import 'booking_fixture.dart';
 import 'customer_discovery_test.dart' show waitForState;
 
 void main() {
+  test(
+    'service setup starts payment settings alongside context, not after it',
+    () async {
+      final f = BookingFixture();
+      addTearDown(f.dispose);
+      await f.start();
+      final held = Completer<void>();
+      final contextReached = Completer<void>();
+      var settingsStarted = false;
+      final handler = f.f.adapter.extraHandler!;
+      f.f.adapter.extraHandler = (request) async {
+        if (request.uri.path.endsWith('/booking-context')) {
+          if (!contextReached.isCompleted) contextReached.complete();
+          await held.future;
+        }
+        if (request.uri.path.endsWith('/me/payment-settings')) {
+          settingsStarted = true;
+        }
+        return handler(request);
+      };
+      final loading = f.journey.load();
+      await contextReached.future;
+      await Future<void>.delayed(Duration.zero);
+      try {
+        expect(settingsStarted, isTrue);
+        expect(f.journey.busy, isTrue);
+      } finally {
+        held.complete();
+        await loading;
+      }
+      expect(f.journey.stage, BookingStage.details);
+      expect(f.journey.busy, isFalse);
+    },
+  );
+  test(
+    'single matching choice seeds pricing and updates after filter changes',
+    () async {
+      final f = BookingFixture();
+      addTearDown(f.dispose);
+      f.contextBody = contextJson(
+        selectionMode: 'OPEN_REQUEST',
+        methods: ['WALLET'],
+      );
+      f.contextBody['providerFilters'] = [
+        {
+          'fieldId': 45,
+          'label': 'Vehicle type',
+          'fieldType': 'SELECT',
+          'filterOperator': 'IN',
+          'options': ['CAR', 'VAN'],
+        },
+      ];
+      f.contextBody['pricingFieldIds'] = [45];
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 0,
+        'maximumRadiusKm': 50,
+      };
+      await f.start();
+      f.input();
+      final c = f.journey;
+      c.languages.add('ENGLISH');
+      c.skills.add(10);
+      c.method = 'WALLET';
+      c.providerFilters[45] = ['CAR'];
+      await c.nextServiceDetails();
+      expect(
+        c.stage,
+        BookingStage.serviceDetails,
+        reason: '${c.error} ${c.fieldErrors}',
+      );
+      expect(c.pricingSelections[45], 'CAR');
+      expect((c.openEstimateInput()['booking'] as Map)['pricingSelections'], [
+        {'fieldId': 45, 'choiceValue': 'CAR'},
+      ]);
+      c.backFromServiceDetails();
+      c.edit(() => c.providerFilters[45] = ['VAN']);
+      await c.nextServiceDetails();
+      expect(c.pricingSelections[45], 'VAN');
+      c.backFromServiceDetails();
+      c.edit(() => c.providerFilters[45] = ['CAR', 'VAN']);
+      await c.nextServiceDetails();
+      expect(c.pricingSelections[45], isNull);
+      expect(() => c.openEstimateInput(), throwsA(isA<BookingProblem>()));
+    },
+  );
   test('background request reads leave actions enabled and cannot overwrite a later cancellation', () async {
     final f = BookingFixture();
     addTearDown(f.dispose);

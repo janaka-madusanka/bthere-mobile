@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../application/customer_booking_controller.dart';
+import '../application/customer_request_payment_controller.dart';
 import '../domain/booking_card_checkout.dart';
 
 final bookingCardCheckoutPresenterProvider =
@@ -31,9 +32,16 @@ class BookingCardCheckoutPage extends StatefulWidget {
     super.key,
     required this.checkout,
     required this.controller,
-  });
+  }) : recovery = null;
+  const BookingCardCheckoutPage.recovery({
+    super.key,
+    required this.checkout,
+    required CustomerRequestPaymentController payment,
+  }) : controller = null,
+       recovery = payment;
   final BookingCardCheckout checkout;
-  final CustomerBookingController controller;
+  final CustomerBookingController? controller;
+  final CustomerRequestPaymentController? recovery;
   @override
   State<BookingCardCheckoutPage> createState() =>
       _BookingCardCheckoutPageState();
@@ -50,7 +58,7 @@ class _BookingCardCheckoutPageState extends State<BookingCardCheckoutPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.controller.addListener(_changed);
+    (widget.controller ?? widget.recovery!).addListener(_changed);
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -97,12 +105,22 @@ class _BookingCardCheckoutPageState extends State<BookingCardCheckoutPage>
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
-    await widget.controller.refreshCreatedRequest(background: true);
+    if (widget.recovery != null) {
+      await widget.recovery!.refresh(background: true);
+    } else {
+      await widget.controller!.refreshCreatedRequest(background: true);
+    }
   }
 
   void _changed() {
     final c = widget.controller;
-    if (!c.alive ||
+    if (widget.recovery != null) {
+      if (widget.recovery!.checkoutFinished) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _close());
+      }
+      return;
+    }
+    if (!c!.alive ||
         c.paymentOutcome != null ||
         {'CANCELLED', 'EXPIRED', 'UNMATCHED'}.contains(c.created?['status'])) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _close());
@@ -123,7 +141,7 @@ class _BookingCardCheckoutPageState extends State<BookingCardCheckoutPage>
   @override
   void dispose() {
     _timer?.cancel();
-    widget.controller.removeListener(_changed);
+    (widget.controller ?? widget.recovery!).removeListener(_changed);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

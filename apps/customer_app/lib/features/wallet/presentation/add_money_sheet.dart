@@ -205,12 +205,10 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Add Money',
-                      style: TextStyle(
-                        fontSize: 25,
-                        fontWeight: FontWeight.w700,
+                      style: CustomerTypography.screen.copyWith(
                         color: CustomerColors.text,
                       ),
                     ),
@@ -256,10 +254,7 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                               fit: BoxFit.scaleDown,
                               child: Text(
                                 walletMoney(amount).replaceAll('.00', ''),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: CustomerTypography.compactStrong,
                               ),
                             ),
                           ),
@@ -295,7 +290,7 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
               TextField(
                 key: const ValueKey('topup-amount'),
                 controller: _amount,
-                style: const TextStyle(fontSize: 14),
+                style: CustomerTypography.body,
                 enabled: !_busy && !_locked,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -319,10 +314,7 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                 }),
               ),
               const SizedBox(height: 14),
-              const Text(
-                'Pay with',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-              ),
+              const Text('Pay with', style: CustomerTypography.section),
               const SizedBox(height: 8),
               RadioGroup<int>(
                 groupValue: _method,
@@ -351,14 +343,11 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                           ),
                           title: Text(
                             card['displayLabel'] as String,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: CustomerTypography.card,
                           ),
                           subtitle: const Text(
                             'Test payment method',
-                            style: TextStyle(fontSize: 11),
+                            style: CustomerTypography.compact,
                           ),
                           secondary:
                               {
@@ -393,7 +382,7 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                     horizontal: 12,
                     vertical: 8,
                   ),
-                  textStyle: const TextStyle(fontSize: 13),
+                  textStyle: CustomerTypography.card,
                 ),
                 onPressed: _busy || _locked
                     ? null
@@ -405,10 +394,9 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                 label: const Text('Add new payment method'),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Test mode · no real card is charged.',
-                style: TextStyle(
-                  fontSize: 12,
+                style: CustomerTypography.compact.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
               ),
@@ -451,10 +439,7 @@ class _AddMoneySheetState extends ConsumerState<AddMoneySheet> {
                     horizontal: 16,
                     vertical: 10,
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  textStyle: CustomerTypography.card,
                 ),
                 onPressed:
                     _busy ||

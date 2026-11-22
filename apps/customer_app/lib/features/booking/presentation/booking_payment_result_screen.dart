@@ -22,6 +22,8 @@ class BookingPaymentResultScreen extends StatelessWidget {
     this.testPayment = false,
     this.onAutoContinue,
     this.autoContinueDelay = const Duration(seconds: 3),
+    this.retryKeepsRequest = false,
+    this.failureDetails,
   });
   final bool success, busy, testPayment;
   final String subtitle;
@@ -31,6 +33,8 @@ class BookingPaymentResultScreen extends StatelessWidget {
   final VoidCallback? onRetry, onDifferentMethod;
   final VoidCallback? onAutoContinue;
   final Duration autoContinueDelay;
+  final bool retryKeepsRequest;
+  final Widget? failureDetails;
 
   @override
   Widget build(BuildContext context) => success
@@ -44,6 +48,8 @@ class BookingPaymentResultScreen extends StatelessWidget {
           delay: autoContinueDelay,
         )
       : _PaymentFailureView(
+          retryKeepsRequest: retryKeepsRequest,
+          failureDetails: failureDetails,
           subtitle: subtitle,
           reason: reason,
           selectedMethod: selectedMethod,
@@ -157,6 +163,8 @@ class _PaymentFailureView extends StatelessWidget {
     required this.onRetry,
     required this.onDifferentMethod,
     required this.onHome,
+    required this.retryKeepsRequest,
+    this.failureDetails,
   });
   final String subtitle;
   final String? reason;
@@ -164,6 +172,8 @@ class _PaymentFailureView extends StatelessWidget {
   final bool busy, testPayment;
   final VoidCallback? onRetry, onDifferentMethod;
   final VoidCallback onHome;
+  final bool retryKeepsRequest;
+  final Widget? failureDetails;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -192,23 +202,18 @@ class _PaymentFailureView extends StatelessWidget {
                         semanticLabel: 'Bee holding a payment failed symbol',
                       ),
                       const SizedBox(height: 22),
-                      const Text(
+                      Text(
                         'Payment Failed!',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0C1248),
+                        style: CustomerTypography.screen.copyWith(
+                          color: const Color(0xFF0C1248),
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         subtitle,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.5,
+                        style: CustomerTypography.body.copyWith(
                           color: CustomerColors.secondaryText,
                         ),
                       ),
@@ -220,12 +225,10 @@ class _PaymentFailureView extends StatelessWidget {
                           key: const ValueKey('payment-replacement-selection'),
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text(
+                            Text(
                               'Selected payment method',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0C1248),
+                              style: CustomerTypography.card.copyWith(
+                                color: const Color(0xFF0C1248),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -233,15 +236,18 @@ class _PaymentFailureView extends StatelessWidget {
                               method: selectedMethod!,
                               subtitle: selectedCardLabel,
                               showRadio: false,
+                              compact: true,
                             ),
                             const SizedBox(height: 8),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                               child: Text(
-                                'Try Again will send a new provider request.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  height: 1.4,
+                                retryKeepsRequest
+                                    ? 'Retry payment for this same booking. Your accepted provider is kept until the deadline.'
+                                    : 'Try Again will send a new provider request.',
+                                style: CustomerTypography.compact.copyWith(
                                   color: CustomerColors.secondaryText,
                                 ),
                               ),
@@ -251,16 +257,19 @@ class _PaymentFailureView extends StatelessWidget {
                       ],
                       if (testPayment) ...[
                         const SizedBox(height: 12),
-                        const Text(
+                        Text(
                           'Test payment \u00b7 no real card charge',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
+                          style: CustomerTypography.compact.copyWith(
                             color: CustomerColors.secondaryText,
                           ),
                         ),
                       ],
                       const SizedBox(height: 22),
+                      if (failureDetails != null) ...[
+                        failureDetails!,
+                        const SizedBox(height: 16),
+                      ],
                       FilledButton.icon(
                         key: const ValueKey('payment-result-retry'),
                         style: FilledButton.styleFrom(
@@ -284,51 +293,51 @@ class _PaymentFailureView extends StatelessWidget {
                               )
                             : const Icon(Icons.refresh_rounded, size: 20),
                         label: Text(
-                          busy ? 'Trying again...' : 'Try Again',
+                          busy
+                              ? 'Trying again...'
+                              : retryKeepsRequest
+                              ? 'Retry payment'
+                              : 'Try Again',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: CustomerTypography.card,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        key: const ValueKey('payment-result-change-method'),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: CustomerColors.action),
-                          backgroundColor: Colors.white.withValues(alpha: .7),
-                          minimumSize: const Size.fromHeight(48),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                      if (!retryKeepsRequest || onDifferentMethod != null) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          key: const ValueKey('payment-result-change-method'),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: CustomerColors.action,
+                            ),
+                            backgroundColor: Colors.white.withValues(alpha: .7),
+                            minimumSize: const Size.fromHeight(48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: busy ? null : onDifferentMethod,
-                        icon: const Icon(Icons.credit_card_rounded, size: 20),
-                        label: const Text(
-                          'Use Different Payment Method',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (onDifferentMethod == null) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'This booking?s payment method cannot be changed here.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.4,
-                            color: CustomerColors.secondaryText,
+                          onPressed: busy ? null : onDifferentMethod,
+                          icon: const Icon(Icons.credit_card_rounded, size: 20),
+                          label: const Text(
+                            'Use Different Payment Method',
+                            textAlign: TextAlign.center,
+                            style: CustomerTypography.compactStrong,
                           ),
                         ),
+                        if (onDifferentMethod == null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'This booking?s payment method cannot be changed here.',
+                            textAlign: TextAlign.center,
+                            style: CustomerTypography.compact.copyWith(
+                              color: CustomerColors.secondaryText,
+                            ),
+                          ),
+                        ],
                       ],
                       const SizedBox(height: 12),
                       TextButton(
@@ -336,10 +345,7 @@ class _PaymentFailureView extends StatelessWidget {
                         onPressed: busy ? null : onHome,
                         child: const Text(
                           'Go to Home',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: CustomerTypography.card,
                         ),
                       ),
                     ],
@@ -381,10 +387,8 @@ class _FailureReasons extends StatelessWidget {
         children: [
           Text(
             known ? 'Payment details' : 'Possible Reasons',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0C1248),
+            style: CustomerTypography.section.copyWith(
+              color: const Color(0xFF0C1248),
             ),
           ),
           const SizedBox(height: 14),
@@ -421,15 +425,13 @@ class _FailureReasonRow extends StatelessWidget {
           color: Color(0xFFFFEEEE),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 24, color: Color(0xFFF25C6A)),
+        child: Icon(icon, size: 24, color: const Color(0xFFF25C6A)),
       ),
       const SizedBox(width: 12),
       Expanded(
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.45,
+          style: CustomerTypography.body.copyWith(
             color: CustomerColors.secondaryText,
           ),
         ),
@@ -479,33 +481,27 @@ class _PaymentSuccessView extends StatelessWidget {
                         semanticLabel: 'Happy bee holding a success symbol',
                       ),
                       const SizedBox(height: 22),
-                      const Text(
+                      Text(
                         'Payment Successful!',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0C1248),
+                        style: CustomerTypography.screen.copyWith(
+                          color: const Color(0xFF0C1248),
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         subtitle,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.5,
+                        style: CustomerTypography.body.copyWith(
                           color: CustomerColors.secondaryText,
                         ),
                       ),
                       if (autoContinue) ...[
                         const SizedBox(height: 10),
-                        const Text(
+                        Text(
                           'Your booking details will open shortly.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
+                          style: CustomerTypography.compact.copyWith(
                             color: CustomerColors.secondaryText,
                           ),
                         ),
@@ -532,27 +528,25 @@ class _PaymentSuccessView extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Expanded(
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Payment confirmed',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0C1248),
+                                        style: CustomerTypography.card.copyWith(
+                                          color: const Color(0xFF0C1248),
                                         ),
                                       ),
-                                      SizedBox(height: 4),
+                                      const SizedBox(height: 4),
                                       Text(
                                         'View your booking for the latest details.',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          height: 1.4,
-                                          color: CustomerColors.secondaryText,
-                                        ),
+                                        style: CustomerTypography.compact
+                                            .copyWith(
+                                              color:
+                                                  CustomerColors.secondaryText,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -567,13 +561,11 @@ class _PaymentSuccessView extends StatelessWidget {
                                   color: const Color(0xFFFFF7E8),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Test payment · no real card charge',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    height: 1.4,
-                                    color: Color(0xFF87652B),
+                                  style: CustomerTypography.compact.copyWith(
+                                    color: const Color(0xFF87652B),
                                   ),
                                 ),
                               ),
@@ -599,10 +591,7 @@ class _PaymentSuccessView extends StatelessWidget {
                                     child: Text(
                                       'View booking',
                                       textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      style: CustomerTypography.card,
                                     ),
                                   ),
                                   SizedBox(width: 10),
@@ -622,10 +611,7 @@ class _PaymentSuccessView extends StatelessWidget {
                               onPressed: busy ? null : onHome,
                               child: const Text(
                                 'Go to Home',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: CustomerTypography.card,
                               ),
                             ),
                           ],
@@ -644,7 +630,7 @@ class _PaymentSuccessView extends StatelessWidget {
 }
 
 class _PaymentBackground extends CustomPainter {
-  const _PaymentBackground();
+  _PaymentBackground();
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = const Color(0xFFE6F9FA);
@@ -702,6 +688,6 @@ class BookingFlowBackdrop extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) => SizedBox.expand(
-    child: CustomPaint(painter: const _PaymentBackground(), child: child),
+    child: CustomPaint(painter: _PaymentBackground(), child: child),
   );
 }

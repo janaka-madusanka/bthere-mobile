@@ -260,22 +260,19 @@ class _BookingRequestProgressViewState extends State<BookingRequestProgressView>
                           ),
                         ),
                         const SizedBox(height: 28),
-                        const Text(
+                        Text(
                           'Finding a suitable',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 17,
-                            color: Color(0xFF8586A5),
+                          style: CustomerTypography.section.copyWith(
+                            color: const Color(0xFF8586A5),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'Provider for you',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0C1248),
+                          style: CustomerTypography.screen.copyWith(
+                            color: const Color(0xFF0C1248),
                           ),
                         ),
                         if (widget.requestId != null &&
@@ -284,10 +281,8 @@ class _BookingRequestProgressViewState extends State<BookingRequestProgressView>
                           SelectableText(
                             'Request #${widget.requestId}',
                             key: const ValueKey('booking-matching-request-id'),
-                            style: const TextStyle(
+                            style: CustomerTypography.card.copyWith(
                               color: CustomerColors.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -296,18 +291,15 @@ class _BookingRequestProgressViewState extends State<BookingRequestProgressView>
                         Text(
                           'We’re searching for available providers for ${widget.serviceName}.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.5,
-                            color: Color(0xFF8586A5),
+                          style: CustomerTypography.body.copyWith(
+                            color: const Color(0xFF8586A5),
                           ),
                         ),
                         const SizedBox(height: 18),
-                        const Text(
+                        Text(
                           'Payment is pending provider acceptance.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
+                          style: CustomerTypography.compact.copyWith(
                             color: CustomerColors.secondaryText,
                           ),
                         ),
@@ -332,9 +324,8 @@ class _BookingRequestProgressViewState extends State<BookingRequestProgressView>
                           child: Text(
                             widget.error!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: CustomerTypography.compact.copyWith(
                               color: CustomerColors.secondaryText,
-                              fontSize: 12,
                             ),
                           ),
                         ),

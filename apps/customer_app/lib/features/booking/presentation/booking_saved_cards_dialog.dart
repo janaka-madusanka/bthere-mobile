@@ -128,18 +128,12 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Expanded(
+                Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(top: 7),
+                    padding: const EdgeInsets.only(top: 7),
                     child: Text(
                       'Select Payment Method',
-                      style: TextStyle(
-                        fontFamily: CustomerTypography.family,
-                        fontSize: 18,
-                        height: 1.2,
-                        fontWeight: FontWeight.w700,
-                        color: _ink,
-                      ),
+                      style: CustomerTypography.section.copyWith(color: _ink),
                     ),
                   ),
                 ),
@@ -157,24 +151,14 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
               ],
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Choose a saved card or add a new one.',
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 12,
-                height: 1.4,
-                color: _muted,
-              ),
+              style: CustomerTypography.compact.copyWith(color: _muted),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Saved Cards',
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: _ink,
-              ),
+              style: CustomerTypography.card.copyWith(color: _ink),
             ),
             const SizedBox(height: 8),
             if (_loading)
@@ -185,7 +169,7 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
             if (_error != null) ...[
               Text(
                 _error!,
-                style: const TextStyle(fontSize: 12, color: _muted),
+                style: CustomerTypography.compact.copyWith(color: _muted),
               ),
               TextButton(
                 onPressed: _load,
@@ -193,11 +177,11 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
               ),
             ],
             if (!_loading && _error == null && _cards.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
                   'No saved cards yet.',
-                  style: TextStyle(fontSize: 13, color: _muted),
+                  style: CustomerTypography.body.copyWith(color: _muted),
                 ),
               ),
             RadioGroup<int>(
@@ -247,21 +231,14 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
                                 children: [
                                   Text(
                                     _cardTitle(card),
-                                    style: const TextStyle(
-                                      fontFamily: CustomerTypography.family,
-                                      fontSize: 13,
-                                      height: 1.3,
-                                      fontWeight: FontWeight.w700,
+                                    style: CustomerTypography.card.copyWith(
                                       color: _ink,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     _cardSubtitle(card),
-                                    style: const TextStyle(
-                                      fontFamily: CustomerTypography.family,
-                                      fontSize: 11,
-                                      height: 1.3,
+                                    style: CustomerTypography.compact.copyWith(
                                       color: _muted,
                                     ),
                                   ),
@@ -276,12 +253,12 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
                                         color: const Color(0xFFDDF6F5),
                                         borderRadius: BorderRadius.circular(7),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'Default',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: CustomerColors.action,
-                                        ),
+                                        style: CustomerTypography.micro
+                                            .copyWith(
+                                              color: CustomerColors.action,
+                                            ),
                                       ),
                                     ),
                                   ],
@@ -313,28 +290,23 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            const Row(
+            Row(
               children: [
-                Expanded(child: Divider(color: Color(0xFFE8ECF4))),
+                const Expanded(child: Divider(color: Color(0xFFE8ECF4))),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Text(
                     'OR',
-                    style: TextStyle(fontSize: 11, color: _muted),
+                    style: CustomerTypography.compact.copyWith(color: _muted),
                   ),
                 ),
-                Expanded(child: Divider(color: Color(0xFFE8ECF4))),
+                const Expanded(child: Divider(color: Color(0xFFE8ECF4))),
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Add New Card',
-              style: TextStyle(
-                fontFamily: CustomerTypography.family,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: _ink,
-              ),
+              style: CustomerTypography.card.copyWith(color: _ink),
             ),
             const SizedBox(height: 6),
             Material(
@@ -368,26 +340,20 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Add New Card',
-                              style: TextStyle(
-                                fontFamily: CustomerTypography.family,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                              style: CustomerTypography.compactStrong.copyWith(
                                 color: _ink,
                               ),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
                               'Save your card for faster payments',
-                              style: TextStyle(
-                                fontFamily: CustomerTypography.family,
-                                fontSize: 10,
-                                height: 1.3,
+                              style: CustomerTypography.micro.copyWith(
                                 color: _muted,
                               ),
                             ),
@@ -417,11 +383,7 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
                   borderRadius: BorderRadius.circular(13),
                 ),
                 backgroundColor: CustomerColors.action,
-                textStyle: const TextStyle(
-                  fontFamily: CustomerTypography.family,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                textStyle: CustomerTypography.card,
               ),
               onPressed: _loading || _error != null || _selected == null
                   ? null
@@ -432,16 +394,16 @@ class _BookingSavedCardsDialogState extends State<BookingSavedCardsDialog> {
               child: const Text('Use Selected Card'),
             ),
             const SizedBox(height: 10),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.science_outlined, size: 13, color: _muted),
-                SizedBox(width: 5),
+                const Icon(Icons.science_outlined, size: 13, color: _muted),
+                const SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     'Test cards only',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 10, color: _muted),
+                    style: CustomerTypography.micro.copyWith(color: _muted),
                   ),
                 ),
               ],

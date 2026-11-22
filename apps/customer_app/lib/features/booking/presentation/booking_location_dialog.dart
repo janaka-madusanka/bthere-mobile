@@ -174,7 +174,7 @@ class _BookingLocationDialogState extends ConsumerState<BookingLocationDialog> {
       onPressed: uri != null && {'https', 'http'}.contains(uri.scheme)
           ? () => launchUrl(uri, mode: LaunchMode.externalApplication)
           : null,
-      child: Text(label, style: const TextStyle(fontSize: 10)),
+      child: Text(label, style: CustomerTypography.micro),
     );
   }
 

@@ -1,8 +1,8 @@
+import 'catalog_media_image.dart';
 import '../../../app/customer_theme.dart';
 
 import 'package:bthere_design_system/bthere_design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../domain/customer_discovery.dart';
 
@@ -92,18 +92,7 @@ class CatalogIcon extends StatelessWidget {
     final uri = url == null ? null : Uri.tryParse(url!);
     final image = uri == null
         ? fallback
-        : uri.path.toLowerCase().endsWith('.svg')
-        ? SvgPicture.network(
-            url!,
-            fit: BoxFit.contain,
-            placeholderBuilder: (_) => fallback,
-            errorBuilder: (_, _, _) => fallback,
-          )
-        : Image.network(
-            url!,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => fallback,
-          );
+        : CatalogMediaImage(url: url!, fallback: fallback);
     return Container(
       width: size,
       height: size,
@@ -126,7 +115,7 @@ class CatalogAccess extends StatelessWidget {
     final color = available ? const Color(0xFF21866D) : const Color(0xFFB7791F);
     return Text(
       service.badge,
-      style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700),
+      style: CustomerTypography.compactStrong.copyWith(color: color),
     );
   }
 }

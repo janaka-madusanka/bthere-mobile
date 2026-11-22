@@ -52,11 +52,9 @@ class _BookingCalendarDialogState extends State<BookingCalendarDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Choose service date',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                      style: CustomerTypography.card.copyWith(
                         color: CustomerColors.text,
                       ),
                     ),
@@ -67,9 +65,7 @@ class _BookingCalendarDialogState extends State<BookingCalendarDialog> {
                           child: Text(
                             MaterialLocalizations.of(context)
                                 .formatMediumDate(_selected),
-                            style: const TextStyle(
-                              fontSize: 23,
-                              fontWeight: FontWeight.w700,
+                            style: CustomerTypography.screen.copyWith(
                               color: CustomerColors.text,
                             ),
                           ),

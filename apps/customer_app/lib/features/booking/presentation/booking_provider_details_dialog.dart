@@ -34,10 +34,14 @@ Future<void> showBookingProviderDetails(
   BuildContext context,
   ProviderCandidate candidate, {
   ProviderProfileDetails? details,
+  Widget? feedback,
 }) => showDialog<void>(
   context: context,
-  builder: (_) =>
-      BookingProviderDetailsDialog(candidate: candidate, details: details),
+  builder: (_) => BookingProviderDetailsDialog(
+    candidate: candidate,
+    details: details,
+    feedback: feedback,
+  ),
 );
 
 class BookingProviderDetailsDialog extends StatelessWidget {
@@ -45,9 +49,11 @@ class BookingProviderDetailsDialog extends StatelessWidget {
     super.key,
     required this.candidate,
     this.details,
+    this.feedback,
   });
   final ProviderCandidate candidate;
   final ProviderProfileDetails? details;
+  final Widget? feedback;
   static const _ink = Color(0xFF0C1248);
 
   Widget _section(String title, Widget child) => Column(
@@ -57,14 +63,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: 16),
         child: Divider(height: 1, color: Color(0xFFE9EDF3)),
       ),
-      Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: _ink,
-        ),
-      ),
+      Text(title, style: CustomerTypography.section.copyWith(color: _ink)),
       const SizedBox(height: 10),
       child,
     ],
@@ -83,9 +82,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
           ),
           child: Text(
             value,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+            style: CustomerTypography.compact.copyWith(
               color: CustomerColors.action,
             ),
           ),
@@ -97,7 +94,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final rating = candidate.data['averageRating'];
     final count = candidate.data['totalRatings'];
-    final languages = (candidate.data['languages'] as List? ?? const [])
+    final languages = (candidate.data['languages'] as List? ?? [])
         .whereType<String>()
         .map(
           (value) => value.isEmpty
@@ -150,10 +147,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                             children: [
                               Text(
                                 candidate.name,
-                                style: const TextStyle(
-                                  fontSize: 21,
-                                  height: 1.25,
-                                  fontWeight: FontWeight.w700,
+                                style: CustomerTypography.screen.copyWith(
                                   color: _ink,
                                 ),
                               ),
@@ -171,23 +165,27 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                                     ),
                                     Text(
                                       rating.toStringAsFixed(1),
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
+                                      style: CustomerTypography.card.copyWith(
                                         color: _ink,
                                       ),
                                     ),
                                     if (count is int)
                                       Text(
                                         '($count ratings)',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: CustomerColors.secondaryText,
-                                        ),
+                                        style: CustomerTypography.compact
+                                            .copyWith(
+                                              color:
+                                                  CustomerColors.secondaryText,
+                                            ),
                                       ),
                                   ],
                                 ),
                               ],
+                              if (feedback != null && rating is num)
+                                const Text(
+                                  'Overall rating',
+                                  style: CustomerTypography.micro,
+                                ),
                               if (details?.experienceYears
                                   case final years?) ...[
                                 const SizedBox(height: 10),
@@ -248,9 +246,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                           'About Me',
                           Text(
                             about,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
+                            style: CustomerTypography.body.copyWith(
                               color: CustomerColors.secondaryText,
                             ),
                           ),
@@ -259,6 +255,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                         _section('Skills', _chips(details!.skills)),
                       if (languages.isNotEmpty)
                         _section('Languages', _chips(languages)),
+                      ?feedback,
                       if (details?.reviews.isNotEmpty == true)
                         _section(
                           'Previous Work',
@@ -286,11 +283,8 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                                         children: [
                                           Text(
                                             review.name,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: _ink,
-                                            ),
+                                            style: CustomerTypography.card
+                                                .copyWith(color: _ink),
                                           ),
                                           const Icon(
                                             Icons.star_rounded,
@@ -299,30 +293,28 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                                           ),
                                           Text(
                                             review.rating.toStringAsFixed(1),
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: _ink,
-                                            ),
+                                            style: CustomerTypography
+                                                .compactStrong
+                                                .copyWith(color: _ink),
                                           ),
                                           Text(
                                             review.date,
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              color:
-                                                  CustomerColors.secondaryText,
-                                            ),
+                                            style: CustomerTypography.micro
+                                                .copyWith(
+                                                  color: CustomerColors
+                                                      .secondaryText,
+                                                ),
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
                                         review.text,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          height: 1.45,
-                                          color: CustomerColors.secondaryText,
-                                        ),
+                                        style: CustomerTypography.compact
+                                            .copyWith(
+                                              color:
+                                                  CustomerColors.secondaryText,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -344,10 +336,7 @@ class BookingProviderDetailsDialog extends StatelessWidget {
                   ),
                 ),
                 onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
+                child: const Text('Close', style: CustomerTypography.card),
               ),
             ],
           ),
@@ -379,9 +368,7 @@ class _ProfileLine extends StatelessWidget {
       Expanded(
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 12,
-            height: 1.35,
+          style: CustomerTypography.compact.copyWith(
             color: CustomerColors.secondaryText,
           ),
         ),

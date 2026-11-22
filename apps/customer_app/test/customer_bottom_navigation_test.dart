@@ -1,6 +1,7 @@
 import 'package:customer_app/features/discovery/presentation/customer_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'customer_auth_test.dart' show Fixture;
 import 'customer_discovery_test.dart' show marketEntry, continueMarket;
@@ -23,9 +24,7 @@ void main() {
             .selected,
         CustomerNavigationTab.home,
       );
-      await tester.tap(find.byKey(const ValueKey('customer-nav-messages')));
-      await tester.pumpAndSettle();
-      expect(find.text('Messages coming soon.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('customer-nav-messages')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('customer-nav-services')));
       await tester.pumpAndSettle();
       expect(
@@ -48,9 +47,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('customer-home-account')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('My bookings'));
+      expect(find.text('My bookings'), findsNothing);
+      expect(find.text('Sign out all sessions'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('customer-nav-opportunities')),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('My bookings'), findsOneWidget);
+      expect(find.text('Bookings'), findsOneWidget);
     },
   );
 
@@ -63,16 +66,18 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       for (final scale in [1.0, 2.0]) {
         await tester.pumpWidget(
-          MaterialApp(
-            home: MediaQuery(
-              data: MediaQueryData(
-                size: const Size(320, 568),
-                padding: const EdgeInsets.only(bottom: 34),
-                textScaler: TextScaler.linear(scale),
-              ),
-              child: const Scaffold(
-                bottomNavigationBar: CustomerBottomNavigation(
-                  selected: CustomerNavigationTab.home,
+          ProviderScope(
+            child: MaterialApp(
+              home: MediaQuery(
+                data: MediaQueryData(
+                  size: const Size(320, 568),
+                  padding: const EdgeInsets.only(bottom: 34),
+                  textScaler: TextScaler.linear(scale),
+                ),
+                child: const Scaffold(
+                  bottomNavigationBar: CustomerBottomNavigation(
+                    selected: CustomerNavigationTab.home,
+                  ),
                 ),
               ),
             ),

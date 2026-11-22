@@ -394,8 +394,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('customer-profile-save')));
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
-      expect(find.text('Welcome, customer12'), findsOneWidget);
-      expect(find.text('Your Customer profile is ready.'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Account verification'), findsOneWidget);
       expect(
         (f.adapter.requests.lastWhere((request) => request.method == 'PUT').data
             as Map)['firstName'],
@@ -420,7 +420,7 @@ void main() {
       await tester.tap(find.text('Retry profile'));
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
-      expect(find.text('Welcome, customer12'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
     },
   );
   testWidgets(
@@ -467,8 +467,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('customer-profile-save')));
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
-      expect(find.text('Welcome, customer12'), findsOneWidget);
-      expect((f.adapter.requests.last.data as Map)['addressLine2'], 'Unit 2');
+      expect(find.text('Profile'), findsOneWidget);
+      expect(
+        (f.adapter.requests.lastWhere((r) => r.method == 'PUT').data
+            as Map)['addressLine2'],
+        'Unit 2',
+      );
     },
   );
 }

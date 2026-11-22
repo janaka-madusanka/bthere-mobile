@@ -8,6 +8,7 @@ import '../domain/booking_models.dart';
 import 'booking_location_picker.dart';
 import 'booking_service_dropdown.dart';
 import 'booking_provider_details_dialog.dart';
+import 'customer_provider_reviews.dart';
 
 class BookingProviderResultsCanvas extends StatelessWidget {
   const BookingProviderResultsCanvas({
@@ -38,8 +39,14 @@ class BookingProviderResultsCanvas extends StatelessWidget {
       error: c.error,
       onBack: onBack,
       onSelect: c.select,
-      onProviderDetails: (candidate) =>
-          showBookingProviderDetails(context, candidate),
+      onProviderDetails: (candidate) => showBookingProviderDetails(
+        context,
+        candidate,
+        feedback: CustomerProviderReviews(
+          providerId: candidate.id,
+          optionId: c.key.optionId,
+        ),
+      ),
       onContinue: c.continueWithProviders,
       onLoadMore: () => c.search(more: true),
       onChangeFilters: c.details,
@@ -208,10 +215,8 @@ class _BookingProviderResultsViewState
                                   widget.serviceName,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: CustomerTypography.card.copyWith(
                                     color: catalogInk,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
                                   ),
                                 ),
                               ),
@@ -285,21 +290,17 @@ class _BookingProviderResultsViewState
                                           online
                                               ? 'Available providers'
                                               : 'Available providers nearby',
-                                          style: const TextStyle(
-                                            color: Color(0xFF0C1248),
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                          style: CustomerTypography.section
+                                              .copyWith(
+                                                color: const Color(0xFF0C1248),
+                                              ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
                                         '$count${widget.hasNext ? '+' : ''} ${count == 1 && !widget.hasNext ? 'provider' : 'providers'}',
-                                        style: const TextStyle(
-                                          color: catalogMuted,
-                                          fontSize: 11,
-                                          height: 2,
-                                        ),
+                                        style: CustomerTypography.compact
+                                            .copyWith(color: catalogMuted),
                                       ),
                                     ],
                                   ),
@@ -308,9 +309,8 @@ class _BookingProviderResultsViewState
                                     widget.requiredCount == 1
                                         ? 'Choose your provider'
                                         : 'Choose ${widget.requiredCount} providers · ${widget.selected.length} selected',
-                                    style: const TextStyle(
+                                    style: CustomerTypography.compact.copyWith(
                                       color: catalogMuted,
-                                      fontSize: 12,
                                     ),
                                   ),
                                   if (widget.error != null)
@@ -318,10 +318,10 @@ class _BookingProviderResultsViewState
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
                                         widget.error!,
-                                        style: const TextStyle(
-                                          color: CustomerColors.error,
-                                          fontSize: 12,
-                                        ),
+                                        style: CustomerTypography.compact
+                                            .copyWith(
+                                              color: CustomerColors.error,
+                                            ),
                                       ),
                                     ),
                                   if (widget.busy)
@@ -351,6 +351,7 @@ class _BookingProviderResultsViewState
                                 final candidate = widget.candidates[index];
                                 return BookingProviderCard(
                                   candidate: candidate,
+                                  serviceName: widget.serviceName,
                                   onDetails:
                                       widget.onProviderDetails == null ||
                                           widget.busy
@@ -398,10 +399,8 @@ class _BookingProviderResultsViewState
                                         ? 'Availability is checked again when you book.'
                                         : 'Pins show public locations or approximate service areas. Availability is checked again when you book.',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: CustomerTypography.micro.copyWith(
                                       color: catalogMuted,
-                                      fontSize: 10,
-                                      height: 1.4,
                                     ),
                                   ),
                                 ),
@@ -432,10 +431,7 @@ class _BookingProviderResultsViewState
                           ),
                           child: const Text(
                             'Continue',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
+                            style: CustomerTypography.section,
                           ),
                         ),
                       ),
@@ -458,17 +454,22 @@ class BookingProviderCard extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.onDetails,
+    this.serviceName,
   });
   final ProviderCandidate candidate;
   final bool selected;
   final VoidCallback? onTap;
   final VoidCallback? onDetails;
+  final String? serviceName;
 
   @override
   Widget build(BuildContext context) {
-    final rating = candidate.data['averageRating'] as num?;
-    final ratings = candidate.data['totalRatings'] as int?;
-    final rated = rating != null && (ratings == null || ratings > 0);
+    final rating = candidate.searchRating;
+    final ratings = candidate.searchRatingCount;
+    final rated = rating != null && (ratings ?? 0) > 0;
+    final scope = candidate.hasOptionRatings
+        ? 'For ${serviceName?.trim().isNotEmpty == true ? serviceName!.trim() : 'this service'}'
+        : 'Overall rating';
     final distance = candidate.data['distanceKm'] as num?;
     final languages = (candidate.data['languages'] as List).cast<String>();
     final details = Column(
@@ -478,11 +479,8 @@ class BookingProviderCard extends StatelessWidget {
           candidate.name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFF0C1248),
-            fontSize: 14,
-            height: 1.25,
-            fontWeight: FontWeight.w700,
+          style: CustomerTypography.card.copyWith(
+            color: const Color(0xFF0C1248),
           ),
         ),
         const SizedBox(height: 4),
@@ -498,9 +496,7 @@ class BookingProviderCard extends StatelessWidget {
             ),
             Text(
               rated ? rating.toStringAsFixed(1) : 'Not yet rated',
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.2,
+              style: CustomerTypography.compact.copyWith(
                 color: rated ? const Color(0xFF0C1248) : catalogMuted,
                 fontWeight: rated ? FontWeight.w700 : FontWeight.w400,
               ),
@@ -508,18 +504,21 @@ class BookingProviderCard extends StatelessWidget {
             if (rated && ratings != null)
               Text(
                 '($ratings)',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF9598B2)),
+                style: CustomerTypography.compact.copyWith(
+                  color: const Color(0xFF9598B2),
+                ),
               ),
             if (distance != null)
               Text(
                 '· ${distance.toStringAsFixed(1)} km',
-                style: const TextStyle(
-                  color: catalogMuted,
-                  fontSize: 11,
-                  height: 1.2,
-                ),
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
               ),
           ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          scope,
+          style: CustomerTypography.micro.copyWith(color: catalogMuted),
         ),
         if (languages.isNotEmpty) ...[
           const SizedBox(height: 5),
@@ -541,9 +540,8 @@ class BookingProviderCard extends StatelessWidget {
                     language.isEmpty
                         ? language
                         : '${language[0]}${language.substring(1).toLowerCase()}',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      color: Color(0xFF69738B),
+                    style: CustomerTypography.micro.copyWith(
+                      color: const Color(0xFF69738B),
                     ),
                   ),
                 ),
@@ -562,11 +560,7 @@ class BookingProviderCard extends StatelessWidget {
       ),
       child: Text(
         selected ? 'Selected' : 'Select',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: CustomerTypography.compactStrong.copyWith(color: Colors.white),
       ),
     );
     return Padding(

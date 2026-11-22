@@ -17,6 +17,7 @@ class BookingOptionDraft {
     required this.skills,
     required this.filters,
     required this.serviceDetails,
+    this.bookNow = false,
   });
   final int marketId;
   final int? userId;
@@ -28,4 +29,5 @@ class BookingOptionDraft {
   final Set<int> skills;
   final Map<int, Object?> filters;
   final bool serviceDetails;
+  final bool bookNow;
 }

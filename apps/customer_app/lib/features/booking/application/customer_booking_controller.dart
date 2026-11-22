@@ -14,6 +14,7 @@ import '../../auth/data/customer_auth_service.dart';
 import '../../discovery/application/customer_discovery_controller.dart';
 import '../../discovery/domain/customer_discovery.dart';
 import '../data/customer_booking_repository.dart';
+import '../data/customer_request_recovery_store.dart';
 import '../domain/booking_models.dart';
 import '../domain/booking_card_checkout.dart';
 import '../../profile/data/customer_profile_repository.dart';
@@ -105,11 +106,10 @@ class CustomerBookingController extends ChangeNotifier {
   }
 
   String? _startTimeIssue(DateTime from) {
+    if (bookNow && context?.instantBooking == true) return null;
     if (!from.isAfter(now())) return 'Choose a future start time.';
-    if (usesRequestPolicy &&
-        from.difference(now()) <
-            Duration(minutes: requestPolicy['minimumNoticeMinutes'] as int)) {
-      return 'Choose a start time at least ${requestPolicy['minimumNoticeMinutes']} minutes from now.';
+    if (from.difference(now()) < Duration(minutes: minimumNoticeMinutes)) {
+      return 'Choose a start time at least $minimumNoticeMinutes minutes from now.';
     }
     return null;
   }
@@ -118,7 +118,7 @@ class CustomerBookingController extends ChangeNotifier {
     if (context == null) return null;
     if (start.trim().isEmpty) return 'Choose a date and start time.';
     try {
-      return _startTimeIssue(MarketTime.parse(start, context!.zone));
+      return _startTimeIssue(effectiveStart);
     } on BookingProblem catch (failure) {
       return failure.message;
     } catch (_) {
@@ -128,7 +128,7 @@ class CustomerBookingController extends ChangeNotifier {
 
   String? _availabilityFingerprint() {
     try {
-      return jsonEncode(searchInput(locationStep: true));
+      return _scheduleIdentity(searchInput(locationStep: true));
     } catch (_) {
       return null;
     }
@@ -238,12 +238,90 @@ class CustomerBookingController extends ChangeNotifier {
   Map<String, dynamic> requestPolicy = const {'enabled': false};
   bool get isOpenRequest => context?.openRequest == true;
   bool get usesRequestPolicy => requestPolicy['enabled'] == true;
+  bool bookNow = false;
+  int get minimumNoticeMinutes =>
+      context?.minimumNoticeMinutes ??
+      (usesRequestPolicy ? requestPolicy['minimumNoticeMinutes'] as int : 0);
+  tz.TZDateTime get effectiveStart => bookNow && context!.instantBooking
+      ? tz.TZDateTime.from(now(), MarketTime.location(context!.zone))
+      : MarketTime.parse(start, context!.zone);
+  tz.TZDateTime effectiveEnd(tz.TZDateTime from) => bookNow
+      ? from.add(
+          MarketTime.parse(
+            end,
+            context!.zone,
+          ).difference(MarketTime.parse(start, context!.zone)),
+        )
+      : MarketTime.parse(end, context!.zone);
+  DateTime get earliestScheduledStart {
+    final value = tz.TZDateTime.from(
+      now().add(Duration(minutes: minimumNoticeMinutes)),
+      MarketTime.location(context!.zone),
+    );
+    final wall = DateTime.utc(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+    );
+    final exact =
+        value.second == 0 &&
+        value.millisecond == 0 &&
+        value.microsecond == 0 &&
+        value.minute % 5 == 0;
+    return exact && minimumNoticeMinutes > 0
+        ? wall
+        : wall.add(Duration(minutes: 5 - value.minute % 5));
+  }
+
+  void chooseBookNow(bool value) => edit(() {
+    bookNow = value && context!.instantBooking;
+    final initial = bookNow
+        ? tz.TZDateTime.from(now(), MarketTime.location(context!.zone))
+        : earliestScheduledStart;
+    Duration duration = const Duration(hours: 6);
+    try {
+      duration = MarketTime.parse(
+        end,
+        context!.zone,
+      ).difference(MarketTime.parse(start, context!.zone));
+    } catch (_) {}
+    start = MarketTime.local(initial);
+    if (!context!.route) end = MarketTime.local(initial.add(duration));
+  });
+  String _scheduleIdentity(Map<String, Object?> input) {
+    if (!bookNow) return jsonEncode(input);
+    Object? normalize(Object? value) {
+      if (value is Map) {
+        return {
+          for (final entry in value.entries)
+            '${entry.key}':
+                {
+                  'startAt',
+                  'startDatetime',
+                  'requestedPickupTime',
+                }.contains(entry.key)
+                ? 'NOW'
+                : {'endAt', 'expectedEndDatetime'}.contains(entry.key)
+                ? 'DURATION:${context!.route ? 0 : MarketTime.parse(end, context!.zone).difference(MarketTime.parse(start, context!.zone)).inSeconds}'
+                : normalize(entry.value),
+        };
+      }
+      if (value is List) return value.map(normalize).toList();
+      return value;
+    }
+
+    return jsonEncode(normalize(input));
+  }
+
   Map<String, dynamic>? _availability;
   String? _availabilityInput;
   final _availableCandidates = <ProviderCandidate>[];
   Map<String, dynamic>? get availability {
     try {
-      return _availabilityInput == jsonEncode(searchInput(locationStep: true))
+      return _availabilityInput ==
+              _scheduleIdentity(searchInput(locationStep: true))
           ? _availability
           : null;
     } catch (_) {
@@ -393,22 +471,31 @@ class CustomerBookingController extends ChangeNotifier {
     }
   }
 
+  bool resendingRequest = false;
   Future<void> resendExpiredRequest() async {
     if (!alive ||
         busy ||
+        resendingRequest ||
         !{'EXPIRED', 'UNMATCHED'}.contains(created?['status']) ||
         !usesRequestPolicy) {
       return;
     }
-    await returnToBookingForm();
-    if (!alive ||
-        busy ||
-        created != null ||
-        stage != BookingStage.serviceDetails) {
-      return;
+    resendingRequest = true;
+    _notify();
+    try {
+      await returnToBookingForm();
+      if (!alive ||
+          busy ||
+          created != null ||
+          stage != BookingStage.serviceDetails) {
+        return;
+      }
+      continueServiceDetails();
+      if (stage == BookingStage.review && error == null) await submit();
+    } finally {
+      resendingRequest = false;
+      if (alive) _notify();
     }
-    continueServiceDetails();
-    if (stage == BookingStage.review && error == null) await submit();
   }
 
   Future<void> returnToBookingFilters() async {
@@ -516,7 +603,7 @@ class CustomerBookingController extends ChangeNotifier {
   String? _quotedInput;
   Map<String, dynamic>? get quote {
     try {
-      return _quotedInput == jsonEncode(bookingInput()) ? _quote : null;
+      return _quotedInput == _scheduleIdentity(bookingInput()) ? _quote : null;
     } catch (_) {
       return null;
     }
@@ -544,6 +631,15 @@ class CustomerBookingController extends ChangeNotifier {
   bool busy = false, uncertain = false, hasNext = false, _disposed = false;
   int _epoch = 0, _page = 0;
   bool get allowed => access?['eligible'] == true;
+  bool get needsServiceDocuments =>
+      created == null &&
+      !allowed &&
+      requirements.any(
+        (r) =>
+            r.field.upload &&
+            (r.blocksBooking || r.field.required) &&
+            !{'APPROVED', 'PROVIDED'}.contains(r.status),
+      );
   bool get alive =>
       !_disposed &&
       auth.stage == CustomerAuthStage.authenticated &&
@@ -596,7 +692,7 @@ class CustomerBookingController extends ChangeNotifier {
     }
   }
 
-  Future<void> load() async {
+  Future<void> load({void Function(BookingContext)? onContextReady}) async {
     if (!alive || busy) return;
     _cancelAutoAvailability();
     _availability = null;
@@ -612,12 +708,28 @@ class CustomerBookingController extends ChangeNotifier {
     busy = true;
     error = null;
     _notify();
+    final requirementsRead = repository.requirements(key);
+    final eligibilityRead = repository.eligibility(key);
     try {
+      Future<Map<String, dynamic>?> paymentOptions() async {
+        try {
+          return await repository.capabilities();
+        } catch (_) {
+          // Payment settings are optional for opening the form. Retain the
+          // existing unavailable-payment handling without delaying their read.
+          return null;
+        }
+      }
+
       final values = await Future.wait<Object?>([
-        repository.context(key),
-        repository.requirements(key),
-        repository.eligibility(key),
+        repository.context(key).then((value) {
+          if (alive && epoch == _epoch) onContextReady?.call(value);
+          return value;
+        }),
+        requirementsRead,
+        eligibilityRead,
         repository.requestPolicy(key.optionId),
+        paymentOptions(),
       ]);
       if (!alive || epoch != _epoch) return;
       final next = values[0] as BookingContext;
@@ -651,40 +763,33 @@ class CustomerBookingController extends ChangeNotifier {
             ? 'PROVIDER_TO_CUSTOMER'
             : next.modes.first;
       }
-      try {
-        final settings = await repository.capabilities();
-        if (!alive || epoch != _epoch) return;
-        capabilities = settings;
-        paymentError = null;
-      } catch (_) {
-        if (!alive || epoch != _epoch) return;
-        capabilities = {};
-        paymentError = 'Payment options could not be loaded. Cash remains available only if configured.';
-      }
+      final settings = values[4] as Map<String, dynamic>?;
+      capabilities = settings ?? {};
+      paymentError = settings == null
+          ? 'Payment options could not be loaded. Cash remains available only if configured.'
+          : null;
       if (!alive || epoch != _epoch) return;
       if (!availableMethods.contains(method)) {
         method = availableMethods.length == 1 ? availableMethods.single : null;
       }
+      if (!next.instantBooking) bookNow = false;
       if (start.isEmpty) {
+        bookNow = next.instantBooking;
         final local = tz.TZDateTime.from(
-          now().add(
-            Duration(
-              minutes: usesRequestPolicy
-                  ? requestPolicy['minimumNoticeMinutes'] as int
-                  : 0,
-            ),
-          ),
+          now().add(Duration(minutes: minimumNoticeMinutes)),
           MarketTime.location(next.zone),
         );
-        // The next quarter-hour is the closest valid current-time default:
-        // the API requires a strictly future start, rather than a past slot.
-        final initial = DateTime.utc(
-          local.year,
-          local.month,
-          local.day,
-          local.hour,
-          ((local.minute ~/ 15) + 1) * 15,
-        );
+        final initial = bookNow
+            ? local
+            : next.minimumNoticeMinutes != null
+            ? earliestScheduledStart
+            : DateTime.utc(
+                local.year,
+                local.month,
+                local.day,
+                local.hour,
+                ((local.minute ~/ 15) + 1) * 15,
+              );
         start = MarketTime.local(initial);
         if (!next.route) {
           end = MarketTime.local(initial.add(const Duration(hours: 6)));
@@ -693,7 +798,24 @@ class CustomerBookingController extends ChangeNotifier {
       stage = BookingStage.details;
       _resetSearch();
     } catch (e) {
-      if (alive && epoch == _epoch) await _failure(e);
+      if (alive && epoch == _epoch) {
+        await _failure(e);
+        // Access metadata remains useful even when booking-context is denied.
+        try {
+          final rows = await requirementsRead;
+          final eligibility = await eligibilityRead;
+          if (alive && epoch == _epoch && eligibility['eligible'] == false) {
+            requirements = rows;
+            access = eligibility;
+            if (needsServiceDocuments) {
+              stage = BookingStage.details;
+              error = null;
+            }
+          }
+        } catch (_) {
+          /* Keep the original retryable loading error. */
+        }
+      }
     } finally {
       if (alive && epoch == _epoch) {
         busy = false;
@@ -750,6 +872,21 @@ class CustomerBookingController extends ChangeNotifier {
     _quote = null;
     _quotedInput = null;
     pricingSelections.clear();
+    // A single matching choice is also the explicit pricing choice. Match by
+    // backend ID/value, never by label (which may be translated or duplicated).
+    for (final id in context?.pricingFieldIds ?? <int>[]) {
+      final filter = context!.providerFilters
+          .where((field) => field.id == id)
+          .firstOrNull;
+      final values = providerFilters[id];
+      if (filter != null &&
+          values is List &&
+          values.length == 1 &&
+          values.single is String &&
+          filter.options.any((option) => option['value'] == values.single)) {
+        pricingSelections[id] = values.single as String;
+      }
+    }
     candidates.clear();
     selected.clear();
     searchResult = null;
@@ -916,7 +1053,7 @@ class CustomerBookingController extends ChangeNotifier {
     if (!radius.isFinite || radius < .1 || radius > 500) {
       throw const BookingProblem('Choose a radius between 0.1 and 500 km.');
     }
-    final from = MarketTime.parse(start, ctx.zone);
+    final from = effectiveStart;
     final timeIssue = _startTimeIssue(from);
     if (timeIssue != null) throw BookingProblem(timeIssue);
     if (usesRequestPolicy &&
@@ -926,7 +1063,11 @@ class CustomerBookingController extends ChangeNotifier {
       );
     }
     if (!ctx.route) {
-      MarketTime.interval(from, MarketTime.parse(end, ctx.zone), now());
+      MarketTime.interval(
+        from,
+        effectiveEnd(from),
+        bookNow ? from.subtract(const Duration(microseconds: 1)) : now(),
+      );
     }
     if (ctx.route && mode != 'PROVIDER_TO_CUSTOMER') {
       throw const BookingProblem('This route configuration is unsupported.');
@@ -988,8 +1129,7 @@ class CustomerBookingController extends ChangeNotifier {
       'optionId': key.optionId,
       'deliveryMode': mode,
       'startAt': MarketTime.offset(from),
-      if (!ctx.route)
-        'endAt': MarketTime.offset(MarketTime.parse(end, ctx.zone)),
+      if (!ctx.route) 'endAt': MarketTime.offset(effectiveEnd(from)),
       if (!ctx.route && mode != 'ONLINE') 'location': point!.toJson(),
       if (ctx.route) 'pickup': point!.toJson(),
       if (ctx.route) 'destination': destination!.toJson(),
@@ -1079,7 +1219,7 @@ class CustomerBookingController extends ChangeNotifier {
       }
       searchResult = result;
       _availability = result;
-      _availabilityInput = jsonEncode(searchInput(locationStep: true));
+      _availabilityInput = _scheduleIdentity(searchInput(locationStep: true));
       _availableCandidates
         ..clear()
         ..addAll(candidates);
@@ -1228,15 +1368,15 @@ class CustomerBookingController extends ChangeNotifier {
       fieldErrors['Start time'] = timeIssue;
     } else {
       try {
-        final from = MarketTime.parse(start, context!.zone);
-        if (!from.isAfter(now())) {
+        final from = effectiveStart;
+        if (!bookNow && !from.isAfter(now())) {
           fieldErrors['Start time'] = 'Choose a future start time.';
         }
         if (!context!.route && end.trim().isNotEmpty) {
           MarketTime.interval(
             from,
-            MarketTime.parse(end, context!.zone),
-            now(),
+            effectiveEnd(from),
+            bookNow ? from.subtract(const Duration(microseconds: 1)) : now(),
           );
         }
       } catch (e) {
@@ -1326,7 +1466,7 @@ class CustomerBookingController extends ChangeNotifier {
           'Availability could not be confirmed. Please try again.',
         );
       }
-      _availabilityInput = jsonEncode(input);
+      _availabilityInput = _scheduleIdentity(input);
       _availability = result;
       _availableCandidates.addAll(matches);
       if (result['status'] == 'NO_AVAILABLE_PROVIDERS') {
@@ -1379,6 +1519,7 @@ class CustomerBookingController extends ChangeNotifier {
 
   Map<String, Object?> openEstimateInput() {
     final ctx = context!;
+    final from = effectiveStart;
     searchInput(locationStep: true);
     if (!isOpenRequest) {
       throw const BookingProblem('Choose an open request service.');
@@ -1400,16 +1541,10 @@ class CustomerBookingController extends ChangeNotifier {
         'serviceTypeId': key.serviceId,
         'optionId': key.optionId,
         'deliveryMode': mode,
+        if (!ctx.route) 'startDatetime': MarketTime.local(from),
         if (!ctx.route)
-          'startDatetime': MarketTime.local(MarketTime.parse(start, ctx.zone)),
-        if (!ctx.route)
-          'expectedEndDatetime': MarketTime.local(
-            MarketTime.parse(end, ctx.zone),
-          ),
-        if (ctx.route)
-          'requestedPickupTime': MarketTime.local(
-            MarketTime.parse(start, ctx.zone),
-          ),
+          'expectedEndDatetime': MarketTime.local(effectiveEnd(from)),
+        if (ctx.route) 'requestedPickupTime': MarketTime.local(from),
         if (ctx.route)
           'pickup': {...point!.toJson(), 'address': address.trim()},
         if (ctx.route)
@@ -1433,6 +1568,7 @@ class CustomerBookingController extends ChangeNotifier {
 
   Map<String, Object?> bookingInput({String? quotePaymentMethod}) {
     final ctx = context!;
+    final from = effectiveStart;
     searchInput();
     if ((!isOpenRequest && selected.length != ctx.providerCount) ||
         searchResult == null) {
@@ -1466,16 +1602,10 @@ class CustomerBookingController extends ChangeNotifier {
       if (!isOpenRequest && ctx.providerCount > 1)
         'providerIds': selected.keys.toList(),
       'deliveryMode': mode,
+      if (!ctx.route) 'startDatetime': MarketTime.local(from),
       if (!ctx.route)
-        'startDatetime': MarketTime.local(MarketTime.parse(start, ctx.zone)),
-      if (!ctx.route)
-        'expectedEndDatetime': MarketTime.local(
-          MarketTime.parse(end, ctx.zone),
-        ),
-      if (ctx.route)
-        'requestedPickupTime': MarketTime.local(
-          MarketTime.parse(start, ctx.zone),
-        ),
+        'expectedEndDatetime': MarketTime.local(effectiveEnd(from)),
+      if (ctx.route) 'requestedPickupTime': MarketTime.local(from),
       if (ctx.route) 'pickup': {...point!.toJson(), 'address': address.trim()},
       if (ctx.route)
         'destination': {
@@ -1522,7 +1652,7 @@ class CustomerBookingController extends ChangeNotifier {
       final result = await repository.quote(input);
       if (!alive || epoch != _epoch) return;
       _quote = result;
-      _quotedInput = jsonEncode(input);
+      _quotedInput = _scheduleIdentity(input);
     } catch (e) {
       if (alive && epoch == _epoch) await _failure(e);
     } finally {
@@ -1641,6 +1771,19 @@ class CustomerBookingController extends ChangeNotifier {
       if (response['selectionMode'] !=
           context!.option['providerSelectionMode']) {
         throw const FormatException('Request mode mismatch');
+      }
+      try {
+        final recovery = CustomerRequestRecoveryStore(
+          discovery.selectionStore,
+          userId!,
+        );
+        await recovery.remember(response['requestId'] as int);
+        if (method != null) {
+          await recovery.saveMethod(response['requestId'] as int, method!);
+        }
+      } catch (_) {
+        // A confirmed request must remain visible even if local storage fails.
+        // Own booking-events can recover this reference on a later visit.
       }
       try {
         await store.delete(storeKey);

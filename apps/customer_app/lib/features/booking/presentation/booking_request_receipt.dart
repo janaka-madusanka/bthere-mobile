@@ -144,20 +144,11 @@ class BookingRequestReceipt extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 24,
-                height: 1.25,
-                fontWeight: FontWeight.w700,
-                color: ink,
-              ),
-            ),
+            Text(title, style: CustomerTypography.screen.copyWith(color: ink)),
             const SizedBox(height: 7),
             Text(
               'Request #${request['requestId']}',
-              style: const TextStyle(
-                fontSize: 12,
+              style: CustomerTypography.compact.copyWith(
                 color: CustomerColors.secondaryText,
               ),
             ),
@@ -177,20 +168,16 @@ class BookingRequestReceipt extends StatelessWidget {
                   children: [
                     Text(
                       confirmed ? 'Booking amount' : 'Amount to pay',
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.secondaryText,
                       ),
                     ),
                     const SizedBox(height: 7),
                     Text(
                       amountLabel,
-                      style: const TextStyle(
-                        fontSize: 29,
-                        height: 1.2,
-                        fontWeight: FontWeight.w700,
+                      style: CustomerTypography.screen.copyWith(
                         color: ink,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                        fontFeatures: [const FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -198,13 +185,9 @@ class BookingRequestReceipt extends StatelessWidget {
               ),
               const SizedBox(height: 22),
             ],
-            const Text(
+            Text(
               'Payment method',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: ink,
-              ),
+              style: CustomerTypography.card.copyWith(color: ink),
             ),
             const SizedBox(height: 9),
             Container(
@@ -249,19 +232,14 @@ class BookingRequestReceipt extends StatelessWidget {
                               : request['paymentMethod'] == 'CARD'
                               ? 'Credit / Debit Card'
                               : '${request['paymentMethod'] ?? 'Not selected'}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: ink,
-                          ),
+                          style: CustomerTypography.card.copyWith(color: ink),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           wallet
                               ? 'Your selected wallet'
                               : 'Your selected payment method',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: CustomerTypography.compact.copyWith(
                             color: CustomerColors.secondaryText,
                           ),
                         ),
@@ -302,9 +280,7 @@ class BookingRequestReceipt extends StatelessWidget {
                   Expanded(
                     child: Text(
                       message,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.secondaryText,
                       ),
                     ),
@@ -337,10 +313,7 @@ class BookingRequestReceipt extends StatelessWidget {
                 label: Text(
                   busy ? 'Confirming payment...' : 'Confirm and Pay',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: CustomerTypography.card,
                 ),
               ),
               const SizedBox(height: 10),
@@ -357,13 +330,16 @@ class BookingRequestReceipt extends StatelessWidget {
               label: const Text(
                 'Refresh request status',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12),
+                style: CustomerTypography.compact,
               ),
             ),
             const SizedBox(height: 6),
             TextButton(
               onPressed: busy ? null : onHome,
-              child: const Text('Back to Home', style: TextStyle(fontSize: 12)),
+              child: const Text(
+                'Back to Home',
+                style: CustomerTypography.compact,
+              ),
             ),
           ],
         ),

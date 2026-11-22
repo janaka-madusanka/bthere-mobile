@@ -18,13 +18,9 @@ class BookingPaymentPage extends StatelessWidget {
     appBar: AppBar(
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
-      title: const Text(
+      title: Text(
         'Get a Service',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
+        style: CustomerTypography.section.copyWith(color: Colors.white),
       ),
       leading: IconButton(
         tooltip: 'Back',
@@ -81,19 +77,12 @@ class PaymentArtHeading extends StatelessWidget {
       Text(
         title,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 25,
-          height: 1.2,
-          fontWeight: FontWeight.w800,
-          color: paymentInk,
-        ),
+        style: CustomerTypography.screen.copyWith(color: paymentInk),
       ),
       const SizedBox(height: 9),
       Text(
         'Request #$requestId',
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
+        style: CustomerTypography.body.copyWith(
           color: CustomerColors.secondaryText,
         ),
       ),
@@ -102,9 +91,7 @@ class PaymentArtHeading extends StatelessWidget {
         Text(
           subtitle!,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 12,
-            height: 1.4,
+          style: CustomerTypography.compact.copyWith(
             color: CustomerColors.secondaryText,
           ),
         ),
@@ -126,9 +113,6 @@ class PaymentAmountArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
-      final compact =
-          bounds.maxWidth < 350 ||
-          MediaQuery.textScalerOf(context).scale(14) > 18;
       final showArtwork =
           bounds.maxWidth >= 280 &&
           MediaQuery.textScalerOf(context).scale(14) <= 18;
@@ -176,21 +160,16 @@ class PaymentAmountArtwork extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: CustomerTypography.compactStrong.copyWith(
                       color: CustomerColors.secondaryText,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     amount,
-                    style: TextStyle(
-                      fontSize: compact ? 25 : 28,
-                      height: 1.2,
-                      fontWeight: FontWeight.w800,
+                    style: CustomerTypography.screen.copyWith(
                       color: paymentInk,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                      fontFeatures: [const FontFeature.tabularFigures()],
                     ),
                   ),
                 ],
@@ -209,94 +188,172 @@ class PaymentSelectedMethod extends StatelessWidget {
     required this.method,
     this.showRadio = true,
     this.subtitle,
+    this.compact = false,
   });
   final String method;
   final bool showRadio;
   final String? subtitle;
+  final bool compact;
 
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  Widget _compact() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE2E5EF)),
+      color: CustomerColors.selection,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: CustomerColors.action.withValues(alpha: .4)),
     ),
     child: Row(
       children: [
-        if (showRadio) ...[
-          const Icon(
-            Icons.radio_button_checked,
-            color: CustomerColors.action,
-            size: 21,
-          ),
-          const SizedBox(width: 12),
-        ],
-        Container(
-          width: 42,
-          height: 42,
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            color: CustomerColors.selection,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: method == 'WALLET'
-              ? SvgPicture.asset(
-                  'assets/icons/navigation/wallet_selected.svg',
-                  colorFilter: const ColorFilter.mode(
-                    CustomerColors.action,
-                    BlendMode.srcIn,
-                  ),
-                )
-              : const Icon(
-                  Icons.credit_card_rounded,
-                  color: CustomerColors.action,
-                  size: 22,
-                ),
+        const Icon(
+          Icons.check_circle_rounded,
+          size: 18,
+          color: CustomerColors.action,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                method == 'WALLET'
-                    ? 'BThere Wallet'
-                    : method == 'CARD'
-                    ? 'Credit / Debit Card'
-                    : method,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                method == 'WALLET' ? 'BThere Wallet' : 'Credit / Debit Card',
+                style: CustomerTypography.compactStrong.copyWith(
                   color: paymentInk,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 subtitle ??
                     (method == 'WALLET'
-                        ? 'Your selected wallet'
+                        ? 'Use your available wallet balance'
                         : 'Your selected payment method'),
-                style: const TextStyle(
-                  fontSize: 11,
+                style: CustomerTypography.micro.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
               ),
             ],
           ),
         ),
-        if (MediaQuery.sizeOf(context).width > 400 &&
-            MediaQuery.textScalerOf(context).scale(12) < 16) ...[
-          const SizedBox(width: 6),
-          const Icon(
-            Icons.check_circle_rounded,
-            size: 18,
-            color: CustomerColors.action,
+        const SizedBox(width: 8),
+        if (method == 'WALLET')
+          SvgPicture.asset(
+            'assets/icons/navigation/wallet_selected.svg',
+            width: 22,
+            height: 22,
+            semanticsLabel: 'BThere Wallet',
+            colorFilter: const ColorFilter.mode(
+              CustomerColors.action,
+              BlendMode.srcIn,
+            ),
+          )
+        else
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SvgPicture.asset(
+                'assets/icons/payment/mastercard.svg',
+                width: 20,
+                height: 16,
+                semanticsLabel: 'Mastercard',
+              ),
+              const SizedBox(width: 6),
+              SvgPicture.asset(
+                'assets/icons/payment/visa.svg',
+                width: 24,
+                height: 16,
+                semanticsLabel: 'Visa',
+                colorFilter: const ColorFilter.mode(
+                  Color(0xFF1434CB),
+                  BlendMode.srcIn,
+                ),
+              ),
+            ],
           ),
-        ],
       ],
     ),
   );
+
+  @override
+  Widget build(BuildContext context) => compact
+      ? _compact()
+      : Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E5EF)),
+          ),
+          child: Row(
+            children: [
+              if (showRadio) ...[
+                const Icon(
+                  Icons.radio_button_checked,
+                  color: CustomerColors.action,
+                  size: 21,
+                ),
+                const SizedBox(width: 12),
+              ],
+              Container(
+                width: 42,
+                height: 42,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: CustomerColors.selection,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: method == 'WALLET'
+                    ? SvgPicture.asset(
+                        'assets/icons/navigation/wallet_selected.svg',
+                        colorFilter: const ColorFilter.mode(
+                          CustomerColors.action,
+                          BlendMode.srcIn,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.credit_card_rounded,
+                        color: CustomerColors.action,
+                        size: 22,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      method == 'WALLET'
+                          ? 'BThere Wallet'
+                          : method == 'CARD'
+                          ? 'Credit / Debit Card'
+                          : method,
+                      style: CustomerTypography.card.copyWith(
+                        color: paymentInk,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle ??
+                          (method == 'WALLET'
+                              ? 'Your selected wallet'
+                              : 'Your selected payment method'),
+                      style: CustomerTypography.compact.copyWith(
+                        color: CustomerColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (MediaQuery.sizeOf(context).width > 400 &&
+                  MediaQuery.textScalerOf(context).scale(12) < 16) ...[
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: CustomerColors.action,
+                ),
+              ],
+            ],
+          ),
+        );
 }
 
 class PaymentStatusNotice extends StatelessWidget {
@@ -331,19 +388,12 @@ class PaymentStatusNotice extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.3,
-                  fontWeight: FontWeight.w700,
-                  color: paymentInk,
-                ),
+                style: CustomerTypography.card.copyWith(color: paymentInk),
               ),
               const SizedBox(height: 5),
               Text(
                 message,
-                style: const TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
+                style: CustomerTypography.compact.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
               ),

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../discovery/presentation/customer_discovery_style.dart';
 import '../../discovery/domain/customer_discovery.dart';
 import '../application/customer_booking_controller.dart';
+import '../domain/booking_models.dart' show GeoPoint;
 import 'booking_location_picker.dart';
 import 'booking_service_dropdown.dart';
 
@@ -19,6 +20,7 @@ class BookingDetailsCanvas extends StatefulWidget {
     required this.onOptionChanged,
     this.panelTitle = 'Location and time',
     this.keyboardOpen = false,
+    this.initialLocation,
   });
   final CustomerBookingController controller;
   final VoidCallback onBack;
@@ -26,6 +28,7 @@ class BookingDetailsCanvas extends StatefulWidget {
   final ValueChanged<CustomerServiceOption> onOptionChanged;
   final String panelTitle;
   final bool keyboardOpen;
+  final Future<GeoPoint>? initialLocation;
   @override
   State<BookingDetailsCanvas> createState() => _BookingDetailsCanvasState();
 }
@@ -141,7 +144,9 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                 .clamp(_minSize, .94);
       final maximum = (height / availableHeight).clamp(_minSize, cap);
       final openReview =
-          widget.panelTitle == 'Review your booking' && !_userAdjustedSheet;
+          widget.panelTitle == 'Review your booking' &&
+          !_userAdjustedSheet &&
+          widget.controller.context?.route != true;
       if ((maximum - _maxSize).abs() < .001) {
         if (openReview && _sheet.isAttached && _sheet.size < maximum - .001) {
           _sheet.jumpTo(maximum);
@@ -162,8 +167,17 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
     });
   }
 
-  double get _minSize => widget.panelTitle == 'Service details' ? .25 : .35;
-  double get _initialSize => _maxSize;
+  double get _minSize => widget.controller.context?.route == true
+      ? .25
+      : widget.panelTitle == 'Service details'
+      ? .25
+      : .35;
+  double get _initialSize => widget.controller.context?.route == true
+      ? _maxSize.clamp(
+          _minSize,
+          widget.panelTitle == 'Choose your route' ? .36 : .48,
+        )
+      : _maxSize;
   @override
   void initState() {
     super.initState();
@@ -243,7 +257,7 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
         _measureContent(bounds.maxHeight);
         return Stack(
           children: [
-            Positioned.fill(child: ColoredBox(color: const Color(0xFFE9F6F4))),
+            const Positioned.fill(child: ColoredBox(color: Color(0xFFE9F6F4))),
             if (physical)
               Positioned(
                 top: 0,
@@ -260,6 +274,15 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                               '${c.languages}|${c.skills}|${c.providerFilters}'
                         : null,
                     point: c.point,
+                    destination: c.context?.route == true
+                        ? c.destination
+                        : null,
+                    topPadding: c.context?.route == true
+                        ? MediaQuery.paddingOf(context).top + 120
+                        : 0,
+                    label: c.context?.route == true
+                        ? 'Pickup'
+                        : 'Service location',
                     onChanged: (point) => c.edit(() {
                       c.point = point;
                       c.address = '';
@@ -267,13 +290,21 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                     onAddressChanged: (address) =>
                         c.edit(() => c.address = address),
                     radiusKm: c.radius.isFinite && c.radius > 0 ? c.radius : 10,
-                    candidates: c.availableCandidates,
+                    // Route editing shows trip endpoints only. A nearby
+                    // provider's default red pin otherwise looks like a second
+                    // pickup pin. Keep providers visible in later steps.
+                    candidates:
+                        c.context?.route == true &&
+                            widget.panelTitle == 'Choose your route'
+                        ? const []
+                        : c.availableCandidates,
                     enabled:
                         !c.busy && widget.panelTitle != 'Review your booking',
                     showRecenter: widget.panelTitle == 'Review your booking',
                     showControls: !keyboardOpen,
                     mapOnly: true,
                     autoLocate: true,
+                    initialLocation: widget.initialLocation,
                     height: keyboardOpen
                         ? _normalViewportHeight *
                               (1 - (_sizeBeforeKeyboard ?? _maxSize))
@@ -347,10 +378,8 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                                 Flexible(
                                   child: Text(
                                     c.context!.name,
-                                    style: const TextStyle(
+                                    style: CustomerTypography.card.copyWith(
                                       color: catalogInk,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
                                     ),
                                   ),
                                 ),
@@ -412,9 +441,8 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                                 maxLines: c.availabilityInputHint != null
                                     ? 3
                                     : 2,
-                                style: const TextStyle(
+                                style: CustomerTypography.compact.copyWith(
                                   color: catalogInk,
-                                  fontSize: 12,
                                 ),
                               ),
                             ),
@@ -492,7 +520,7 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                               keyboardDismissBehavior: keyboardOpen
                                   ? ScrollViewKeyboardDismissBehavior.manual
                                   : ScrollViewKeyboardDismissBehavior.onDrag,
-                              padding: EdgeInsets.fromLTRB(18, 10, 18, 8),
+                              padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
                               child:
                                   NotificationListener<
                                     SizeChangedLayoutNotification
@@ -563,11 +591,12 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                                                       children: [
                                                         Text(
                                                           notice,
-                                                          style:
-                                                              const TextStyle(
+                                                          style: CustomerTypography
+                                                              .body
+                                                              .copyWith(
                                                                 color:
                                                                     catalogInk,
-                                                                fontSize: 14,
+
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .w600,
@@ -576,13 +605,14 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                                                         const SizedBox(
                                                           height: 4,
                                                         ),
-                                                        const Text(
+                                                        Text(
                                                           'Try a different time, widen your search area or adjust your filters.',
-                                                          style: TextStyle(
-                                                            color: catalogMuted,
-                                                            fontSize: 12,
-                                                            height: 1.5,
-                                                          ),
+                                                          style: CustomerTypography
+                                                              .compact
+                                                              .copyWith(
+                                                                color:
+                                                                    catalogMuted,
+                                                              ),
                                                         ),
                                                       ],
                                                     ),

@@ -1,3 +1,5 @@
+import '../../../app/customer_theme.dart';
+
 import 'package:flutter/material.dart';
 
 import 'booking_payment_visuals.dart';
@@ -34,13 +36,9 @@ class BookingPaymentConfirmation extends StatelessWidget {
             PaymentAmountArtwork(amount: amount!),
             const SizedBox(height: 20),
           ],
-          const Text(
+          Text(
             'Payment method',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: paymentInk,
-            ),
+            style: CustomerTypography.card.copyWith(color: paymentInk),
           ),
           const SizedBox(height: 10),
           PaymentSelectedMethod(method: method, showRadio: false),
@@ -84,10 +82,7 @@ class BookingPaymentConfirmation extends StatelessWidget {
                     child: Text(
                       busy ? 'Confirming payment...' : 'Confirm and Pay',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: CustomerTypography.card,
                     ),
                   ),
                   if (!busy) ...[
@@ -101,10 +96,7 @@ class BookingPaymentConfirmation extends StatelessWidget {
           ],
           TextButton(
             onPressed: busy ? null : onHome,
-            child: const Text(
-              'Back to Home',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Back to Home', style: CustomerTypography.card),
           ),
         ],
       ),

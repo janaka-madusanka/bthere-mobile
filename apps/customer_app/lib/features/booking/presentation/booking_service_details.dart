@@ -69,19 +69,16 @@ class ServiceDetailCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           label!,
-                          style: const TextStyle(
+                          style: CustomerTypography.compact.copyWith(
                             color: catalogMuted,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
                           ),
                         ),
                       ),
                       if (counter != null)
                         Text(
                           counter!,
-                          style: const TextStyle(
+                          style: CustomerTypography.compact.copyWith(
                             color: catalogMuted,
-                            fontSize: 11,
                           ),
                         ),
                     ],
@@ -193,7 +190,9 @@ class BookingServiceSchedule extends StatelessWidget {
     final c = controller;
     final start = DateTime.tryParse(c.start), end = DateTime.tryParse(c.end);
     final localizations = MaterialLocalizations.of(context);
-    final displayStart = start == null
+    final displayStart = c.bookNow
+        ? 'Book now'
+        : start == null
         ? 'Not selected'
         : '${localizations.formatShortMonthDay(start)}, ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(start), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}';
     DateTime wall(DateTime date) =>
@@ -212,15 +211,13 @@ class BookingServiceSchedule extends StatelessWidget {
         child: InkWell(
           onTap: onEdit,
           child: Semantics(
-            label: bookingDisplayTime(context, c.start),
+            label: c.bookNow
+                ? 'Book now'
+                : bookingDisplayTime(context, c.start),
             excludeSemantics: true,
             child: Text(
               displayStart,
-              style: const TextStyle(
-                color: catalogInk,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: CustomerTypography.card.copyWith(color: catalogInk),
             ),
           ),
         ),
@@ -232,11 +229,7 @@ class BookingServiceSchedule extends StatelessWidget {
           tinted: true,
           child: Text(
             duration,
-            style: const TextStyle(
-              color: catalogInk,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+            style: CustomerTypography.card.copyWith(color: catalogInk),
           ),
         ),
     ];
