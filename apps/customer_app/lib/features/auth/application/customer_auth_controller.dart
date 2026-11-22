@@ -35,6 +35,7 @@ enum CustomerAuthStage { checking, signedOut, authenticated, failure }
 class CustomerAuthController extends ChangeNotifier {
   CustomerAuthController(this.service);
   final CustomerAuthService service;
+  Future<void> Function()? beforeLogout;
   CustomerAuthStage stage = CustomerAuthStage.checking;
   SessionUser? user;
   CustomerVerificationChannel? verificationSuccess;
@@ -196,6 +197,7 @@ class CustomerAuthController extends ChangeNotifier {
   }
 
   Future<void> logout({bool all = false}) => _run(() async {
+    await beforeLogout?.call();
     await service.logout(all: all);
     user = null;
     verificationSuccess = null;

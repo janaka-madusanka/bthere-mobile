@@ -81,3 +81,24 @@ Validation for the completed controls: all 24 wallet tests passed, including the
 The banner entry button remains clickable when server funding flags are disabled. It opens the top-up sheet with a service-status explanation and Refresh availability. Payment submission still enforces capabilities, reconciliation, wallet status and unresolved-request guards. All 26 wallet tests passed after this navigation correction; analyzer was clean.
 
 Wallets with fundingMode UNFUNDED show the compact teal balance banner with the visibility toggle, native wallet/coins illustration and an inline white Top Up Wallet button. The button opens the existing top-up sheet and follows payment capabilities, reconciliation and pending-operation guards. Funded wallets retain the detailed available/pending/reserved card. The server balance is displayed directly; reference amounts are not hardcoded. Twenty-five wallet tests passed and analyzer was clean after this presentation update.
+
+
+## Wallet flow completion (20 October 2026)
+
+The payment sheet now supports the documented optional card on top-ups. Select
+"Continue without a saved card" to send a null methodId, or use Add card directly
+in the sheet; setup selects the returned method ID. Withdrawals still require a
+saved BANK_ACCOUNT returned by setup. Bank-detail collection remains deferred;
+setup sends only the type query and never submits account or card credentials.
+
+Refresh and app resume re-read a known unresolved intent, refresh server balances,
+and clear the retry journal only once the intent is terminal. Payment result
+controls also support top-ups without a saved card. Creation retains the same
+persistent idempotency key across uncertain retries.
+
+The configured API base is https://jobhub.pentarixlabs.com/api/v1. The screenshot
+shows linking and funding unavailable. The deployed backend must enable the
+corresponding payment-settings flags before the customer/provider app can perform
+setup or funding. The mobile app has no administrator credentials or gateway
+selector and does not override disabled server capabilities. Deploying the API
+implementation and enabling its payment configuration are backend prerequisites.

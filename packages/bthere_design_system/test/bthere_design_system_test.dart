@@ -3,6 +3,48 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bthere_design_system/bthere_design_system.dart';
 
 void main() {
+  testWidgets('loading sign in retains contrast and blocks repeated taps', (
+    tester,
+  ) async {
+    var taps = 0;
+    final theme = BThereTheme.authentication();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: BTherePrimaryButton(
+            label: 'Sign in',
+            loading: true,
+            onPressed: () => taps++,
+          ),
+        ),
+      ),
+    );
+    final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    final foreground = button.style!.foregroundColor!.resolve({
+      WidgetState.disabled,
+    })!;
+    final background = button.style!.backgroundColor!.resolve({
+      WidgetState.disabled,
+    })!;
+    final a = foreground.computeLuminance(), b = background.computeLuminance();
+    expect(
+      (a > b ? (a + .05) / (b + .05) : (b + .05) / (a + .05)),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      tester
+          .widget<CircularProgressIndicator>(
+            find.byType(CircularProgressIndicator),
+          )
+          .color,
+      foreground,
+    );
+    expect(button.onPressed, isNull);
+    await tester.tap(find.text('Sign in'));
+    expect(taps, 0);
+  });
+
   test('authentication theme is bright and flat without replacing global feature themes', () {
     final auth = BThereTheme.authentication();
     expect(auth.brightness, Brightness.light);
@@ -149,15 +191,15 @@ void main() {
       ],
       [4, 8, 12, 16, 24, 32, 40, 48],
     );
-    expect(BThereRadius.control, 16);
-    expect(BThereRadius.surface, 24);
+    expect(BThereRadius.control, 12);
+    expect(BThereRadius.surface, 14);
   });
   for (final dark in [false, true]) {
     test('${dark ? 'dark' : 'light'} Material 3 theme has readable roles', () {
       final theme = dark ? BThereTheme.dark() : BThereTheme.light();
       expect(theme.useMaterial3, isTrue);
       expect(theme.brightness, dark ? Brightness.dark : Brightness.light);
-      expect(theme.textTheme.headlineLarge!.fontSize, 28);
+      expect(theme.textTheme.headlineLarge!.fontSize, 24);
       expect(
         theme.textTheme.bodyMedium!.fontFamily,
         BThereTypography.fontFamily,

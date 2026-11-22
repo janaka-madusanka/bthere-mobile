@@ -107,7 +107,7 @@ class ServiceCatalogCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontFamily: 'HomeInter',
+                    fontFamily: 'PublicSans',
                     letterSpacing: 0,
                     fontSize: 9.5 * scale,
                     height: 11.5 / 9.5,

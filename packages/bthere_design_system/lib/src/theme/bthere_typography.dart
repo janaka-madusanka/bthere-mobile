@@ -1,56 +1,56 @@
 import 'package:flutter/material.dart';
 
-/// Requests local Nunito; platform fallback applies until verified assets exist.
+/// Public Sans is bundled locally by each application.
 /// No runtime font fetching is performed.
 abstract final class BThereTypography {
-  static const fontFamily = 'Nunito';
+  static const fontFamily = 'PublicSans';
   static const h1 = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 28,
-    fontWeight: FontWeight.w700,
-    height: 1.25,
-  );
-  static const h2 = TextStyle(
     fontFamily: fontFamily,
     fontSize: 24,
     fontWeight: FontWeight.w700,
-    height: 1.3,
+    height: 32 / 24,
+  );
+  static const h2 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 24 / 18,
   );
   static const h3 = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: FontWeight.w600,
-    height: 1.3,
+    height: 20 / 14,
   );
   static const bodyLarge = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w500,
-    height: 1.5,
+    height: 20 / 14,
   );
   static const body = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w400,
-    height: 1.5,
+    height: 20 / 14,
   );
   static const label = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    height: 1.4,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 16 / 12,
   );
   static const caption = TextStyle(
     fontFamily: fontFamily,
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    height: 1.4,
+    height: 16 / 12,
   );
   static const button = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 16,
-    fontWeight: FontWeight.w700,
-    height: 1.4,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 20 / 14,
   );
 
   static TextTheme textTheme(Color primary, Color secondary) => TextTheme(

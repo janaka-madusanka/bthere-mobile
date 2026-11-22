@@ -1,0 +1,978 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../app/customer_theme.dart';
+import '../../auth/application/customer_auth_controller.dart';
+import '../../booking/presentation/booking_ui_format.dart';
+import '../../booking/presentation/customer_booking_details_screen.dart'
+    show bookingStatusLabel;
+import '../../booking/presentation/booking_details_skeleton.dart';
+import '../../discovery/presentation/customer_bottom_navigation.dart';
+import '../../wallet/data/customer_wallet_repository.dart' show walletMoney;
+import '../data/customer_profile_overview_repository.dart';
+import 'profile_contact_sheet.dart';
+import 'profile_document_sheet.dart';
+import 'profile_requests_screen.dart';
+import 'service_documents_screen.dart';
+
+class CustomerProfileOverviewScreen extends ConsumerStatefulWidget {
+  const CustomerProfileOverviewScreen({super.key});
+  @override
+  ConsumerState<CustomerProfileOverviewScreen> createState() =>
+      _CustomerProfileOverviewScreenState();
+}
+
+class _CustomerProfileOverviewScreenState
+    extends ConsumerState<CustomerProfileOverviewScreen>
+    with WidgetsBindingObserver {
+  static const _navy = Color(0xFF10143F);
+  static const _muted = Color(0xFF7B819F);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        mounted &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      refresh();
+    }
+  }
+
+  void refresh() {
+    final owner = ref.read(customerAuthControllerProvider).user?.id;
+    if (owner != null) ref.invalidate(customerProfileOverviewProvider(owner));
+  }
+
+  Widget panel(List<Widget> children) => Container(
+    margin: const EdgeInsets.only(bottom: 18),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: CustomerColors.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    ),
+  );
+  Widget title(String text, {VoidCallback? all}) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: LayoutBuilder(
+      builder: (context, bounds) {
+        final heading = Text(
+          text,
+          style: CustomerTypography.section.copyWith(color: _navy),
+        );
+        final action = all == null
+            ? null
+            : TextButton.icon(
+                onPressed: all,
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.chevron_right, size: 18),
+                label: const Text('View all'),
+              );
+        if (bounds.maxWidth < 300 ||
+            MediaQuery.textScalerOf(context).scale(14) > 20) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              heading,
+              if (action != null)
+                Align(alignment: Alignment.centerRight, child: action),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: heading),
+            ?action,
+          ],
+        );
+      },
+    ),
+  );
+  Widget badge(String label, bool verified) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: verified ? const Color(0xFFE3F8EF) : const Color(0xFFF2F5F8),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Text(
+      label,
+      style: CustomerTypography.compactStrong.copyWith(
+        color: verified
+            ? const Color(0xFF16845F)
+            : CustomerColors.secondaryText,
+      ),
+    ),
+  );
+  Future<void> contacts(Map data) async {
+    final owner = ref.read(customerAuthControllerProvider).user?.id;
+    if (owner == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (_) => ProfileContactSheet(
+        owner: owner,
+        contacts: Map<String, dynamic>.from(data),
+      ),
+    );
+    if (mounted) refresh();
+  }
+
+  Future<void> document(Map<String, dynamic> data) async {
+    final owner = ref.read(customerAuthControllerProvider).user?.id;
+    if (owner == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (_) => ProfileDocumentSheet(owner: owner, document: data),
+    );
+    if (mounted) refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = ref.watch(customerAuthControllerProvider);
+    final owner = auth.user?.id;
+    final overview = owner == null
+        ? null
+        : ref.watch(customerProfileOverviewProvider(owner));
+    return Theme(
+      data: CustomerTheme.authentication(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF00686D),
+        appBar: AppBar(
+          title: Text(
+            'Profile',
+            style: CustomerTypography.section.copyWith(color: Colors.white),
+          ),
+          centerTitle: true,
+          backgroundColor: CustomerColors.action,
+          foregroundColor: Colors.white,
+          flexibleSpace: ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFF00666B),
+                        Color(0xFF009D9E),
+                        Color(0xFF005A61),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: -45,
+                  top: -105,
+                  child: Container(
+                    width: 210,
+                    height: 210,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0x2400D9D6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          leading: IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/home'),
+          ),
+        ),
+        bottomNavigationBar: const CustomerBottomNavigation(selected: null),
+        body: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: overview == null
+              ? const SizedBox.shrink()
+              : overview.when(
+                  skipLoadingOnRefresh: true,
+                  skipLoadingOnReload: true,
+                  loading: () => const BookingDetailsPageSkeleton(),
+                  error: (_, _) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Profile could not be loaded.'),
+                        TextButton(
+                          onPressed: refresh,
+                          child: const Text('Retry profile'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  data: (data) {
+                    final profile = data['profile'] as Map?;
+                    final contact = data['contacts'] as Map;
+                    final stats = data['statistics'] as Map;
+                    final pending = data['pendingServices'] as Map;
+                    final history = data['serviceHistory'] as Map;
+                    final photo = profile?['profilePhoto'];
+                    final uri = photo is String ? Uri.tryParse(photo) : null;
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        refresh();
+                        await ref.read(
+                          customerProfileOverviewProvider(owner!).future,
+                        );
+                      },
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(18),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 640),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _identity(profile, photo, uri),
+                                const SizedBox(height: 20),
+                                LayoutBuilder(
+                                  builder: (context, bounds) {
+                                    final stacked =
+                                        bounds.maxWidth < 290 ||
+                                        MediaQuery.textScalerOf(context)
+                                                .scale(14) >
+                                            20;
+                                    final width = stacked
+                                        ? bounds.maxWidth
+                                        : (bounds.maxWidth - 16) / 3;
+                                    return Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        SizedBox(
+                                          width: width,
+                                          child: _stat(
+                                            Icons.pending_actions,
+                                            '${stats['pendingCount']}',
+                                            'Pending services',
+                                            const Color(0xFFECFAF7),
+                                            const Color(0xFF009B98),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: width,
+                                          child: _stat(
+                                            Icons.calendar_today_outlined,
+                                            '${stats['completedCount']}',
+                                            'Completed',
+                                            const Color(0xFFF6F0FE),
+                                            const Color(0xFF8145DB),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: width,
+                                          child: _spending(
+                                            stats['spending'] as List,
+                                            'Total spent',
+                                            const Color(0xFFFFF8ED),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                if ((stats['excludedPaymentCount'] as int) > 0)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      'Some payments are being processed.',
+                                      style: CustomerTypography.compact,
+                                    ),
+                                  ),
+                                const SizedBox(height: 20),
+                                title('Account verification'),
+                                panel([
+                                  _contactRow(
+                                    Icons.phone_outlined,
+                                    'Phone number',
+                                    contact['phoneNumber'],
+                                    contact['phoneVerified'] == true,
+                                  ),
+                                  const Divider(height: 22),
+                                  _contactRow(
+                                    Icons.email_outlined,
+                                    'Email address',
+                                    contact['email'],
+                                    contact['emailVerified'] == true,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  FilledButton.tonal(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEDF9FA),
+                                      foregroundColor: CustomerColors.action,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () => contacts(contact),
+                                    child: const Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text('Manage contact details'),
+                                        ),
+                                        Icon(Icons.chevron_right),
+                                      ],
+                                    ),
+                                  ),
+                                ]),
+                                title('My documents'),
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 10),
+                                  child: Text(
+                                    'Required for selected services',
+                                    style: CustomerTypography.body,
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  key: const ValueKey(
+                                    'profile-add-service-documents',
+                                  ),
+                                  onPressed: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ServiceDocumentsScreen(),
+                                      ),
+                                    );
+                                    if (mounted) refresh();
+                                  },
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  label: const Text('Add service documents'),
+                                ),
+                                const SizedBox(height: 10),
+                                panel([
+                                  if ((data['documents'] as List).isEmpty)
+                                    const Text(
+                                      'No documents submitted yet.',
+                                      style: CustomerTypography.body,
+                                    ),
+                                  for (final raw
+                                      in data['documents'] as List) ...[
+                                    _document(
+                                      Map<String, dynamic>.from(raw as Map),
+                                    ),
+                                    const SizedBox(height: 10),
+                                  ],
+                                ]),
+                                title(
+                                  'Pending services',
+                                  all: pending['hasMore'] == true
+                                      ? () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ProfileRequestsScreen(),
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                panel([
+                                  if ((pending['items'] as List).isEmpty)
+                                    const Text(
+                                      'No pending services.',
+                                      style: CustomerTypography.body,
+                                    ),
+                                  for (final row in pending['items'] as List)
+                                    _service(
+                                      Map<String, dynamic>.from(row as Map),
+                                    ),
+                                ]),
+                                title(
+                                  'Service history',
+                                  all: () => context.push('/opportunities'),
+                                ),
+                                panel([
+                                  if ((history['items'] as List).isEmpty)
+                                    const Text(
+                                      'No service history yet.',
+                                      style: CustomerTypography.body,
+                                    ),
+                                  for (final row in history['items'] as List)
+                                    _service(
+                                      Map<String, dynamic>.from(row as Map),
+                                    ),
+                                ]),
+                                if (kDebugMode &&
+                                    (stats['testSpending'] as List)
+                                        .isNotEmpty) ...[
+                                  _spending(
+                                    stats['testSpending'] as List,
+                                    'Test spending (not real money)',
+                                    const Color(0xFFF1F5F8),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                                _accountAction(
+                                  key: const ValueKey(
+                                    'customer-account-market',
+                                  ),
+                                  label: 'Change service area',
+                                  icon: Icons.location_on_outlined,
+                                  onTap: auth.busy
+                                      ? null
+                                      : () => context.go('/market'),
+                                ),
+                                const SizedBox(height: 10),
+                                _accountAction(
+                                  key: const ValueKey(
+                                    'customer-account-signout',
+                                  ),
+                                  label: auth.busy
+                                      ? 'Signing out...'
+                                      : 'Sign out',
+                                  icon: Icons.logout_rounded,
+                                  danger: true,
+                                  onTap: auth.busy ? null : auth.logout,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accountAction({
+    required Key key,
+    required String label,
+    required IconData icon,
+    required VoidCallback? onTap,
+    bool danger = false,
+  }) {
+    final colour = danger ? CustomerColors.error : CustomerColors.action;
+    return Material(
+      key: key,
+      color: danger ? const Color(0xFFFFF4F5) : const Color(0xFFEDF9F8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: danger ? const Color(0xFFF6DFE2) : const Color(0xFFD6EEEB),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              _bubble(icon, colour, size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: CustomerTypography.compactStrong.copyWith(
+                    color: colour,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: colour, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _identity(Map? profile, dynamic photo, Uri? uri) => LayoutBuilder(
+    builder: (context, bounds) {
+      final edit = TextButton.icon(
+        style: TextButton.styleFrom(
+          backgroundColor: const Color(0xFFE8F9F7),
+          foregroundColor: CustomerColors.action,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: () => context.go('/profile'),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: Text(
+          profile == null ? 'Complete profile' : 'Edit profile',
+          style: CustomerTypography.compactStrong.copyWith(
+            color: CustomerColors.action,
+          ),
+        ),
+      );
+      final narrow =
+          bounds.maxWidth < 310 ||
+          MediaQuery.textScalerOf(context).scale(14) > 20;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 36,
+                backgroundColor: CustomerColors.selection,
+                child: uri != null && {'http', 'https'}.contains(uri.scheme)
+                    ? ClipOval(
+                        child: Image.network(
+                          photo as String,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.person_outline, size: 36),
+                        ),
+                      )
+                    : const Icon(Icons.person_outline, size: 36),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile?['displayName'] as String? ??
+                          'Complete your profile',
+                      style: CustomerTypography.section.copyWith(color: _navy),
+                    ),
+                    const SizedBox(height: 7),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F9FA),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        'Client account',
+                        style: CustomerTypography.compactStrong.copyWith(
+                          color: CustomerColors.action,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!narrow) ...[const SizedBox(width: 8), edit],
+            ],
+          ),
+          if (narrow) ...[
+            const SizedBox(height: 10),
+            Align(alignment: Alignment.centerRight, child: edit),
+          ],
+        ],
+      );
+    },
+  );
+
+  Widget _bubble(IconData icon, Color colour, {double size = 36}) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: colour.withValues(alpha: .10),
+      shape: BoxShape.circle,
+    ),
+    child: Icon(icon, size: size * .55, color: colour),
+  );
+
+  Widget _stat(
+    IconData icon,
+    String value,
+    String label,
+    Color colour,
+    Color accent,
+  ) => Container(
+    constraints: const BoxConstraints(minHeight: 88),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: colour,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _bubble(icon, accent, size: 28),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: CustomerTypography.section.copyWith(color: _navy),
+              ),
+              Text(
+                label,
+                style: CustomerTypography.compact.copyWith(
+                  color: const Color(0xFF555B80),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  Widget _spending(List values, String label, Color colour) => Container(
+    constraints: const BoxConstraints(minHeight: 88),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: colour,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _bubble(Icons.bar_chart_rounded, const Color(0xFFF1A111), size: 28),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (values.isEmpty)
+                Text(
+                  'No real payments yet',
+                  style: CustomerTypography.compactStrong.copyWith(
+                    color: _navy,
+                  ),
+                ),
+              for (final raw in values)
+                Text(
+                  '${raw['currencyCode']} ${walletMoney(raw['totalSpent']).replaceFirst('Rs. ', '')}',
+                  style: CustomerTypography.compactStrong.copyWith(
+                    color: _navy,
+                  ),
+                ),
+              Text(
+                label,
+                style: CustomerTypography.compact.copyWith(
+                  color: const Color(0xFF555B80),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  Widget _contactRow(
+    IconData icon,
+    String label,
+    dynamic value,
+    bool verified,
+  ) => LayoutBuilder(
+    builder: (context, bounds) {
+      final narrow =
+          bounds.maxWidth < 300 ||
+          MediaQuery.textScalerOf(context).scale(14) > 20;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bubble(icon, CustomerColors.action, size: 38),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: CustomerTypography.compactStrong.copyWith(
+                    color: _navy,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value as String? ?? 'Not added',
+                  style: CustomerTypography.compact.copyWith(color: _muted),
+                ),
+                if (narrow) ...[
+                  const SizedBox(height: 7),
+                  badge(verified ? 'Verified' : 'Not verified', verified),
+                ],
+              ],
+            ),
+          ),
+          if (!narrow) ...[
+            const SizedBox(width: 8),
+            badge(verified ? 'Verified' : 'Not verified', verified),
+          ],
+        ],
+      );
+    },
+  );
+  Widget _statusBadge(String status, {bool document = false}) {
+    final (label, ink, fill) = switch (status) {
+      'COMPLETED' => (
+        'Completed',
+        const Color(0xFF009C69),
+        const Color(0xFFE1F8ED),
+      ),
+      'APPROVED' when document => (
+        'Verified',
+        const Color(0xFF009C69),
+        const Color(0xFFE1F8ED),
+      ),
+      'CANCELLED' => (
+        'Cancelled',
+        const Color(0xFFEA3A70),
+        const Color(0xFFFFE6EF),
+      ),
+      'REJECTED' => (
+        'Rejected',
+        const Color(0xFFD9405A),
+        const Color(0xFFFFE9EE),
+      ),
+      'MATCHING' => (
+        'Awaiting provider',
+        const Color(0xFFD88710),
+        const Color(0xFFFFF0D2),
+      ),
+      'CONFIRMED' => (
+        'Provider assigned',
+        const Color(0xFF1688DC),
+        const Color(0xFFE1F2FF),
+      ),
+      'MISSING' => (
+        'No documents',
+        const Color(0xFF7D8294),
+        const Color(0xFFF0F0F3),
+      ),
+      'PENDING' when document => (
+        'Under review',
+        const Color(0xFFD88710),
+        const Color(0xFFFFF0D2),
+      ),
+      _ => (
+        bookingStatusLabel(status),
+        CustomerColors.action,
+        CustomerColors.selection,
+      ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: CustomerTypography.compactStrong.copyWith(color: ink),
+      ),
+    );
+  }
+
+  Widget _document(Map<String, dynamic> d) => LayoutBuilder(
+    builder: (context, bounds) {
+      final narrow =
+          bounds.maxWidth < 300 ||
+          MediaQuery.textScalerOf(context).scale(14) > 20;
+      final actions = Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _statusBadge(d['status'] as String, document: true),
+          if (d['reviewedAt'] is String)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                bookingDisplayTime(context, d['reviewedAt'] as String),
+                style: CustomerTypography.compact.copyWith(color: _muted),
+              ),
+            ),
+          const SizedBox(height: 5),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(70, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            onPressed: () => document(d),
+            child: Text(
+              {'MISSING', 'REJECTED', 'EXPIRED'}.contains(d['status'])
+                  ? 'Upload / resubmit'
+                  : 'View documents',
+              style: CustomerTypography.compactStrong,
+            ),
+          ),
+        ],
+      );
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFEEF1F6))),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _bubble(
+              Icons.description_outlined,
+              CustomerColors.action,
+              size: 36,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d['name'] as String,
+                    style: CustomerTypography.compactStrong.copyWith(
+                      color: _navy,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    (d['services'] as List)
+                        .map(
+                          (s) =>
+                              s['optionName'] ??
+                              s['serviceName'] ??
+                              'All services',
+                        )
+                        .toSet()
+                        .join(', '),
+                    style: CustomerTypography.compact.copyWith(color: _muted),
+                  ),
+                  if (d['expiresOn'] is String)
+                    Text(
+                      'Expires: ${d['expiresOn']}',
+                      style: CustomerTypography.compact.copyWith(color: _muted),
+                    ),
+                  if (d['rejectionReason'] is String)
+                    Text(
+                      d['rejectionReason'] as String,
+                      style: CustomerTypography.compact.copyWith(
+                        color: CustomerColors.error,
+                      ),
+                    ),
+                  if (narrow) ...[const SizedBox(height: 8), actions],
+                ],
+              ),
+            ),
+            if (!narrow) ...[
+              const SizedBox(width: 10),
+              Flexible(child: actions),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+  Widget _service(Map<String, dynamic> row) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: () async {
+        if (row['jobId'] is int) {
+          await context.push('/bookings/${row['jobId']}');
+        } else if (row['requestId'] is int) {
+          await showProfileRequest(context, ref, row['requestId'] as int);
+        }
+        if (mounted) refresh();
+      },
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final narrow =
+              bounds.maxWidth < 300 ||
+              MediaQuery.textScalerOf(context).scale(14) > 20;
+          final status = row['status'] as String;
+          final accent = status == 'CANCELLED'
+              ? const Color(0xFFEA3A70)
+              : status == 'MATCHING'
+              ? const Color(0xFFE49B15)
+              : CustomerColors.action;
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _statusBadge(status),
+              if (row['amount'] is num && row['currencyCode'] is String)
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Text(
+                    '${row['currencyCode']} ${walletMoney(row['amount']).replaceFirst('Rs. ', '')}',
+                    style: CustomerTypography.compact.copyWith(color: _muted),
+                  ),
+                ),
+            ],
+          );
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFEEF1F6))),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _bubble(Icons.event_note_outlined, accent, size: 36),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row['optionName'] as String? ??
+                            row['serviceName'] as String? ??
+                            'Service booking',
+                        style: CustomerTypography.compactStrong.copyWith(
+                          color: _navy,
+                        ),
+                      ),
+                      if (row['startAt'] is String) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          bookingDisplayTime(context, row['startAt'] as String),
+                          style: CustomerTypography.compact.copyWith(
+                            color: _muted,
+                          ),
+                        ),
+                      ],
+                      if (narrow) ...[const SizedBox(height: 7), summary],
+                    ],
+                  ),
+                ),
+                if (!narrow) ...[
+                  const SizedBox(width: 8),
+                  Flexible(child: summary),
+                ],
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: _muted, size: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}

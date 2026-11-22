@@ -83,34 +83,26 @@ class CustomerMarketScreen extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-                              const Text(
+                              Text(
                                 'STEP 2 OF 2',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: discoveryMuted,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                style: CustomerTypography.compactStrong
+                                    .copyWith(color: discoveryMuted),
                               ),
                               const SizedBox(height: 24),
-                              const Text(
+                              Text(
                                 'Where do you need care?',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
+                                style: CustomerTypography.screen.copyWith(
                                   color: discoveryNavy,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.2,
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Choose your market to discover services available in your area.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
+                                style: CustomerTypography.body.copyWith(
                                   color: discoveryMuted,
-                                  fontSize: 14,
-                                  height: 1.4,
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -140,12 +132,10 @@ class CustomerMarketScreen extends ConsumerWidget {
                                   ),
                                 )
                               else ...[
-                                const Text(
+                                Text(
                                   'Available markets',
-                                  style: TextStyle(
+                                  style: CustomerTypography.section.copyWith(
                                     color: discoveryNavy,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 18,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -222,19 +212,19 @@ class CustomerMarketScreen extends ConsumerWidget {
                                                 children: [
                                                   Text(
                                                     market.name,
-                                                    style: const TextStyle(
-                                                      color: discoveryNavy,
-                                                      fontSize: 24,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
+                                                    style: CustomerTypography
+                                                        .screen
+                                                        .copyWith(
+                                                          color: discoveryNavy,
+                                                        ),
                                                   ),
                                                   Text(
                                                     '${market.countryCode} · ${market.currencyCode} · ${market.timezone}',
-                                                    style: const TextStyle(
-                                                      color: discoveryMuted,
-                                                      fontSize: 14,
-                                                    ),
+                                                    style: CustomerTypography
+                                                        .body
+                                                        .copyWith(
+                                                          color: discoveryMuted,
+                                                        ),
                                                   ),
                                                 ],
                                               ),
@@ -246,25 +236,21 @@ class CustomerMarketScreen extends ConsumerWidget {
                                           ],
                                         ),
                                         const Divider(height: 24),
-                                        const Text(
+                                        Text(
                                           'Services and schedules are shown for this market',
-                                          style: TextStyle(
-                                            color: discoveryMuted,
-                                            fontSize: 12,
-                                          ),
+                                          style: CustomerTypography.compact
+                                              .copyWith(color: discoveryMuted),
                                         ),
                                       ],
                                     ),
                                   ),
                                 if (controller.countrySuggested)
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 8),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
                                     child: Text(
                                       'Suggested from your saved profile country. You can change it.',
-                                      style: TextStyle(
-                                        color: discoveryMuted,
-                                        fontSize: 12,
-                                      ),
+                                      style: CustomerTypography.compact
+                                          .copyWith(color: discoveryMuted),
                                     ),
                                   ),
                                 const SizedBox(height: 24),
@@ -341,12 +327,11 @@ class CustomerMarketScreen extends ConsumerWidget {
                                       : null,
                                 ),
                                 const SizedBox(height: 12),
-                                const Text(
+                                Text(
                                   'You can change your market later.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
+                                  style: CustomerTypography.body.copyWith(
                                     color: discoveryMuted,
-                                    fontSize: 14,
                                   ),
                                 ),
                                 if (controller.confirmed)

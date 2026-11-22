@@ -36,13 +36,16 @@ class _CustomerServicesScreenState
   }
 
   void _open(CustomerDiscoveryController controller, int id) {
+    FocusScope.of(context).unfocus();
     setState(() => _expanded = _expanded == id ? null : id);
     if (_expanded != null) controller.loadOptions(id);
   }
 
   void _optionDetails(CustomerServiceOption option) {
+    FocusScope.of(context).unfocus();
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Colors.white,
       showDragHandle: true,
       isScrollControlled: true,
       useSafeArea: true,
@@ -54,14 +57,14 @@ class _CustomerServicesScreenState
           children: [
             Text(
               option.name,
-              style: const TextStyle(
-                color: catalogInk,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-              ),
+              style: CustomerTypography.screen.copyWith(color: catalogInk),
             ),
             const SizedBox(height: 12),
-            if (option.description case final description?) Text(description),
+            if (option.description case final description?)
+              Text(
+                description,
+                style: CustomerTypography.body.copyWith(color: catalogMuted),
+              ),
             const SizedBox(height: 12),
             CatalogAccess(service: option.access),
             for (final reason in option.access.reasons)
@@ -103,25 +106,25 @@ class _CustomerServicesScreenState
                   padding: const EdgeInsets.fromLTRB(8, 10, 48, 12),
                   child: Row(
                     children: [
-                      IconButton(
-                        key: const ValueKey('customer-services-back'),
-                        tooltip: 'Back to home',
-                        onPressed: () => context.canPop()
-                            ? context.pop()
-                            : context.go('/home'),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
+                      Semantics(
+                        label: 'Back to home',
+                        child: IconButton(
+                          key: const ValueKey('customer-services-back'),
+                          onPressed: () => context.canPop()
+                              ? context.pop()
+                              : context.go('/home'),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Get a Service',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: CustomerTypography.section.copyWith(
                             color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -132,7 +135,7 @@ class _CustomerServicesScreenState
                   child: Container(
                     clipBehavior: Clip.antiAlias,
                     decoration: const BoxDecoration(
-                      color: catalogPaper,
+                      color: Colors.white,
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(28),
                       ),
@@ -200,21 +203,17 @@ class _CustomerServicesScreenState
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    const Text(
-                                      'Choose service category',
-                                      style: TextStyle(
+                                    Text(
+                                      'Choose a service category',
+                                      style: CustomerTypography.screen.copyWith(
                                         color: catalogInk,
-                                        fontSize: 24,
-                                        height: 1.2,
-                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    const Text(
-                                      'Tap a category to see available services.',
-                                      style: TextStyle(
+                                    Text(
+                                      'Choose a category to explore available services.',
+                                      style: CustomerTypography.body.copyWith(
                                         color: catalogMuted,
-                                        fontSize: 14,
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -224,9 +223,41 @@ class _CustomerServicesScreenState
                                       ),
                                       controller: _search,
                                       onChanged: (_) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        hintText: 'Search services...',
-                                        prefixIcon: Icon(Icons.search_rounded),
+                                      decoration: InputDecoration(
+                                        hintText: 'Search services',
+                                        filled: true,
+                                        fillColor: const Color(0xFFF8FCFC),
+                                        prefixIcon: const Icon(
+                                          Icons.search_rounded,
+                                          color: catalogTeal,
+                                        ),
+                                        suffixIcon: _search.text.isEmpty
+                                            ? null
+                                            : IconButton(
+                                                tooltip: 'Clear service search',
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
+                                                ),
+                                                onPressed: () =>
+                                                    setState(_search.clear),
+                                              ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFCADFE1),
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: catalogTeal,
+                                            width: 1.5,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 18),
@@ -319,154 +350,278 @@ class _ServiceAccordion extends StatelessWidget {
   final CustomerOptionsState state;
   final VoidCallback onTap, retry;
   final ValueChanged<CustomerServiceOption> onOption;
+  ServiceAppearance _optionAppearance(CustomerServiceOption option) {
+    final name = option.name.toLowerCase();
+    return ServiceAppearance(
+      catalogTeal,
+      name.contains('hospital')
+          ? Icons.local_hospital_outlined
+          : name.contains('home')
+          ? Icons.home_outlined
+          : name.contains('ride') || name.contains('transport')
+          ? Icons.directions_car_outlined
+          : appearance.icon,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Material(
-    color: appearance.color.withValues(alpha: .055),
+    color: Colors.white,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(19),
-      side: BorderSide(color: appearance.color.withValues(alpha: .1)),
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: expanded ? const Color(0xFF63C2BE) : const Color(0xFFBCDDE0),
+        width: expanded ? 1.2 : 1,
+      ),
     ),
     clipBehavior: Clip.antiAlias,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          expanded: expanded,
-          child: InkWell(
-            key: ValueKey('customer-category-${service.id}'),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  CatalogIcon(
-                    appearance: appearance,
-                    url: service.iconUrl,
-                    size: 48,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          service.name,
-                          style: const TextStyle(
-                            color: catalogInk,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (service.accessStatus != 'ELIGIBLE')
-                          CatalogAccess(service: service),
-                      ],
+    child: Ink(
+      decoration: BoxDecoration(
+        gradient: expanded
+            ? const LinearGradient(
+                colors: [Color(0xFFEAF9F6), Color(0xFFF3FCFB)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            expanded: expanded,
+            child: InkWell(
+              key: ValueKey('customer-category-${service.id}'),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                child: Row(
+                  children: [
+                    CatalogIcon(
+                      appearance: appearance,
+                      url: service.iconUrl,
+                      size: 46,
                     ),
-                  ),
-                  Icon(
-                    expanded ? Icons.expand_less : Icons.expand_more,
-                    color: appearance.color,
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            service.name,
+                            style: CustomerTypography.section.copyWith(
+                              color: catalogInk,
+                            ),
+                          ),
+                          if (service.description?.trim().isNotEmpty ??
+                              false) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              service.description!,
+                              maxLines:
+                                  MediaQuery.textScalerOf(context).scale(12) >
+                                      16
+                                  ? null
+                                  : 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: CustomerTypography.compact.copyWith(
+                                color: catalogMuted,
+                              ),
+                            ),
+                          ],
+                          if (service.accessStatus != 'ELIGIBLE')
+                            CatalogAccess(service: service),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: expanded
+                            ? const Color(0xFFCFF3EF)
+                            : const Color(0xFFF0FAF8),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: AnimatedRotation(
+                        turns: expanded ? .5 : 0,
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 220),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: catalogTeal,
+                          size: 23,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        AnimatedSize(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 220),
-          curve: Curves.easeInOut,
-          alignment: Alignment.topCenter,
-          child: !expanded
-              ? const SizedBox(width: double.infinity)
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final reason in service.reasons)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-                          child: Text(
-                            reason,
-                            style: const TextStyle(
-                              color: catalogMuted,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      if (state.stage != DiscoveryStage.ready ||
-                          state.options.isEmpty)
-                        CatalogStatus(
-                          options: true,
-                          loading:
-                              state.stage == DiscoveryStage.idle ||
-                              state.stage == DiscoveryStage.loading,
-                          failed: state.stage == DiscoveryStage.failure,
-                          empty: state.options.isEmpty,
-                          retry: retry,
-                        )
-                      else
-                        for (final option in state.options)
+          AnimatedSize(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: !expanded
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final reason in service.reasons)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 5),
-                            child: Material(
-                              color: Colors.white.withValues(alpha: .85),
-                              borderRadius: BorderRadius.circular(16),
-                              child: InkWell(
-                                key: ValueKey('customer-option-${option.id}'),
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => onOption(option),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      CatalogIcon(
-                                        appearance: appearance,
-                                        url: option.iconUrl,
-                                        size: 38,
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              option.name,
-                                              style: const TextStyle(
-                                                color: catalogInk,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            if (option.access.accessStatus !=
-                                                'ELIGIBLE')
-                                              CatalogAccess(
-                                                service: option.access,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 19,
-                                        color: catalogMuted,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+                            child: Text(
+                              reason,
+                              style: CustomerTypography.compact.copyWith(
+                                color: catalogMuted,
                               ),
                             ),
                           ),
-                    ],
+                        Material(
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Color(0xFFE0EFEF)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child:
+                              state.stage != DiscoveryStage.ready ||
+                                  state.options.isEmpty
+                              ? CatalogStatus(
+                                  options: true,
+                                  loading:
+                                      state.stage == DiscoveryStage.idle ||
+                                      state.stage == DiscoveryStage.loading,
+                                  failed: state.stage == DiscoveryStage.failure,
+                                  empty: state.options.isEmpty,
+                                  retry: retry,
+                                )
+                              : Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (
+                                      var index = 0;
+                                      index < state.options.length;
+                                      index++
+                                    ) ...[
+                                      if (index > 0)
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: Divider(
+                                            height: 1,
+                                            color: Color(0xFFDCEEEE),
+                                          ),
+                                        ),
+                                      InkWell(
+                                        key: ValueKey(
+                                          'customer-option-${state.options[index].id}',
+                                        ),
+                                        onTap: () =>
+                                            onOption(state.options[index]),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              CatalogIcon(
+                                                appearance: _optionAppearance(
+                                                  state.options[index],
+                                                ),
+                                                url: state
+                                                    .options[index]
+                                                    .iconUrl,
+                                                size: 38,
+                                              ),
+                                              const SizedBox(width: 11),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      state.options[index].name,
+                                                      style: CustomerTypography
+                                                          .card
+                                                          .copyWith(
+                                                            color: catalogInk,
+                                                          ),
+                                                    ),
+                                                    if (state
+                                                            .options[index]
+                                                            .description
+                                                            ?.trim()
+                                                            .isNotEmpty ??
+                                                        false) ...[
+                                                      const SizedBox(height: 3),
+                                                      Text(
+                                                        state
+                                                            .options[index]
+                                                            .description!,
+                                                        maxLines:
+                                                            MediaQuery.textScalerOf(
+                                                                  context,
+                                                                ).scale(12) >
+                                                                16
+                                                            ? null
+                                                            : 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: CustomerTypography
+                                                            .compact
+                                                            .copyWith(
+                                                              color:
+                                                                  catalogMuted,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                    if (state
+                                                            .options[index]
+                                                            .access
+                                                            .accessStatus !=
+                                                        'ELIGIBLE')
+                                                      CatalogAccess(
+                                                        service: state
+                                                            .options[index]
+                                                            .access,
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Icon(
+                                                Icons.chevron_right_rounded,
+                                                color: catalogTeal,
+                                                size: 22,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-        ),
-      ],
+          ),
+        ],
+      ),
     ),
   );
 }

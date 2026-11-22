@@ -1,6 +1,7 @@
 import 'package:bthere_common/bthere_common.dart';
 import 'package:bthere_network/bthere_network.dart';
 import 'package:provider_app/features/services/data/registration_repository.dart';
+import 'package:provider_app/features/services/domain/service_registration.dart';
 import 'package:provider_app/features/services/application/registration_draft.dart';
 import 'package:provider_app/features/onboarding/requirements/domain/provider_onboarding_schema.dart';
 
@@ -8,6 +9,16 @@ import '../service_draft_store_test.dart' show MemoryDraftStorage;
 import 'fake_session_storage.dart';
 
 class FakeRegistrationRepository extends RegistrationRepository {
+  final shared = <int, Result<SharedOptionRegistration?>>{};
+  final sharedLookups = <int>[];
+  @override
+  Future<Result<SharedOptionRegistration?>> sharedRegistration(
+    int optionId,
+  ) async {
+    sharedLookups.add(optionId);
+    return shared[optionId] ?? const Success(null);
+  }
+
   FakeRegistrationRepository()
     : super(
         ApiClient(

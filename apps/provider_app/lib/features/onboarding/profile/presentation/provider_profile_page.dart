@@ -47,7 +47,7 @@ class ProviderProfilePage extends StatelessWidget {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),

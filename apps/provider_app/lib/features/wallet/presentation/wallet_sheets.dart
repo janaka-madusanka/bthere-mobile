@@ -24,12 +24,52 @@ class _MethodsSheet extends ConsumerWidget {
             _walletText('Payment & Withdrawal Methods', 20, bold: true),
             const SizedBox(height: 8),
             const Text(
-              'Current setup creates test methods only. No card number or bank details are required.',
+              'Add a payment method to use with your wallet.',
               style: TextStyle(fontSize: 12),
             ),
+            if (c.testMode)
+              const _WalletMessage(
+                text: 'Test payments - Saved methods are synthetic. No real card is charged.',
+              ),
             const SizedBox(height: 16),
             for (final method in value.snapshot.methods)
-              _MethodRow(method: method, scale: 1),
+              Row(
+                children: [
+                  Expanded(child: _MethodRow(method: method, scale: 1)),
+                  IconButton(
+                    tooltip: 'Remove ${method.label}',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: !enabled
+                        ? null
+                        : () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Remove saved method?'),
+                                content: Text(
+                                  'Remove ${method.label}? Completed payments and wallet balances are kept.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Keep'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Remove'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              await controller.removeMethod(method.id);
+                            }
+                          },
+                  ),
+                ],
+              ),
             if (value.snapshot.methods.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(12),
@@ -43,7 +83,7 @@ class _MethodsSheet extends ConsumerWidget {
               OutlinedButton.icon(
                 onPressed: enabled ? () => controller.addMethod('CARD') : null,
                 icon: const Icon(Icons.credit_card),
-                label: const Text('Add test card'),
+                label: const Text('Add card'),
               ),
             if (c.bankLinking)
               OutlinedButton.icon(
@@ -51,7 +91,7 @@ class _MethodsSheet extends ConsumerWidget {
                     ? () => controller.addMethod('BANK_ACCOUNT')
                     : null,
                 icon: const Icon(Icons.account_balance_outlined),
-                label: const Text('Add test bank account'),
+                label: const Text('Add bank account'),
               ),
             if (!c.cardLinking && !c.bankLinking)
               const _WalletMessage(
@@ -117,7 +157,11 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
     FocusManager.instance.primaryFocus?.unfocus();
     await ref
         .read(walletControllerProvider.notifier)
-        .submit(widget.topup ? 'TOPUP' : 'WITHDRAWAL', amount, _methodId!);
+        .submit(
+          widget.topup ? 'TOPUP' : 'WITHDRAWAL',
+          amount,
+          _methodId == 0 ? null : _methodId,
+        );
   }
 
   @override
@@ -132,7 +176,9 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
     final methods = value.snapshot.methods
         .where((m) => m.usable && m.card == widget.topup)
         .toList();
-    if (_methodId != null && !methods.any((m) => m.id == _methodId)) {
+    if (_methodId != null &&
+        !(widget.topup && _methodId == 0) &&
+        !methods.any((m) => m.id == _methodId)) {
       _methodId = null;
     }
     final caps = value.snapshot.capabilities;
@@ -160,7 +206,7 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Test payment only. No real card charge or bank payout will occur.',
+              'Select a payment method and enter an amount to continue.',
               style: TextStyle(fontSize: 12, color: _walletTeal),
             ),
             const SizedBox(height: 12),
@@ -200,10 +246,15 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                 initialValue: _methodId,
                 isExpanded: true,
                 decoration: InputDecoration(
-                  labelText: widget.topup ? 'Test card' : 'Test bank account',
+                  labelText: widget.topup ? 'Card' : 'Bank account',
                   border: const OutlineInputBorder(),
                 ),
                 items: [
+                  if (widget.topup)
+                    const DropdownMenuItem(
+                      value: 0,
+                      child: Text('Continue without a saved card'),
+                    ),
                   for (final method in methods)
                     DropdownMenuItem(
                       value: method.id,
@@ -217,35 +268,48 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
                     ? null
                     : (id) => setState(() => _methodId = id),
               ),
-              if (methods.isEmpty)
-                TextButton(
+              if (widget.topup ? caps.cardLinking : caps.bankLinking)
+                TextButton.icon(
                   onPressed: value.busy
                       ? null
-                      : () => showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          showDragHandle: true,
-                          builder: (_) => const _MethodsSheet(),
-                        ),
-                  child: Text(
+                      : () async {
+                          await ref
+                              .read(walletControllerProvider.notifier)
+                              .addMethod(
+                                widget.topup ? 'CARD' : 'BANK_ACCOUNT',
+                              );
+                          if (!mounted) return;
+                          final updated = ref
+                              .read(walletControllerProvider)
+                              .asData
+                              ?.value;
+                          final method = updated?.snapshot.methods
+                              .where((m) => m.usable && m.card == widget.topup)
+                              .firstOrNull;
+                          if (method != null) {
+                            setState(() => _methodId = method.id);
+                          }
+                        },
+                  icon: Icon(
                     widget.topup
-                        ? 'Add a test card first'
-                        : 'Add a test bank account first',
+                        ? Icons.credit_card
+                        : Icons.account_balance_outlined,
                   ),
+                  label: Text(widget.topup ? 'Add card' : 'Add bank account'),
                 ),
               if (_validation != null)
                 _WalletMessage(text: _validation!, error: true),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: enabled && methods.isNotEmpty
+                onPressed: enabled && (widget.topup || methods.isNotEmpty)
                     ? () => _submit(value)
                     : null,
                 child: Text(
                   value.busy
                       ? 'Please wait…'
                       : widget.topup
-                      ? 'Create test top-up'
-                      : 'Create test withdrawal',
+                      ? 'Create top-up'
+                      : 'Create withdrawal',
                 ),
               ),
             ] else

@@ -193,7 +193,7 @@ class _ServiceFeaturedCarouselState extends State<ServiceFeaturedCarousel> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: index == _active
-                                  ? const Color(0xFF009FA5)
+                                  ? const Color(0xFF008F95)
                                   : const Color(0xFFDEEBF0),
                             ),
                           ),
@@ -382,4 +382,4 @@ class ServiceRegisteredGrid extends StatelessWidget {
   }
 }
 
-const homeRegisteredTeal = Color(0xFF009FA5);
+const homeRegisteredTeal = Color(0xFF008F95);

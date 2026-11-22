@@ -55,7 +55,7 @@ class StartupLoadingPage extends StatelessWidget {
   Widget build(BuildContext context) => Theme(
     data: ThemeData(
       brightness: Brightness.light,
-      fontFamily: 'Nunito',
+      fontFamily: 'PublicSans',
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff008b92)),
     ),
     child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -79,7 +79,7 @@ class StartupLoadingPage extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xff093d55),
                     ),
                   ),

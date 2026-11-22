@@ -1,3 +1,5 @@
+import 'package:customer_app/app/widgets/search_range_ripple.dart';
+
 import 'customer_test_map.dart';
 
 import 'dart:async';
@@ -7,13 +9,15 @@ import 'package:customer_app/features/booking/application/customer_booking_contr
 import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:customer_app/features/booking/presentation/booking_location_picker.dart';
 import 'package:customer_app/features/booking/presentation/customer_booking_screen.dart';
+import 'package:customer_app/features/booking/presentation/customer_request_payment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'booking_fixture.dart';
-import 'customer_auth_test.dart' show optionJson;
+import 'customer_auth_test.dart' show optionJson, tokens, account;
 
 import 'package:customer_app/features/booking/presentation/booking_validation_group.dart';
 
@@ -83,6 +87,462 @@ Future<void> advanceToServiceDetails(WidgetTester tester) async {
 
 void main() {
   testWidgets(
+    'unmatched resend never flashes payment selection during submission',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      f.contextBody = contextJson(
+        methods: ['WALLET'],
+        selectionMode: 'OPEN_REQUEST',
+      );
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 0,
+        'maximumRadiusKm': 50,
+      };
+      await openBooking(tester, f);
+      await advanceToServiceDetails(tester);
+      final c = activeJourney(tester);
+      c.method = 'WALLET';
+      c.answers['PERSON_NAME'] = 'Patient name';
+      c.continueServiceDetails();
+      final initialSubmit = c.submit();
+      await tester.pump(const Duration(milliseconds: 200));
+      await initialSubmit;
+      c.created!['status'] = 'UNMATCHED';
+      f.requestViewBody['status'] = 'UNMATCHED';
+      final initialRefresh = c.refreshCreatedRequest();
+      await tester.pump(const Duration(milliseconds: 200));
+      await initialRefresh;
+      await tester.pumpAndSettle();
+      final held = Completer<void>();
+      final previous = f.f.adapter.extraHandler!;
+      f.f.adapter.extraHandler = (request) async {
+        if (request.path == '/customers/me/booking-requests' &&
+            request.method == 'POST') {
+          await held.future;
+          f.requestViewBody['status'] = 'MATCHING';
+        }
+        return previous(request);
+      };
+      final send = find.byKey(const ValueKey('booking-unmatched-send-again'));
+      await tester.ensureVisible(send);
+      await tester.pumpAndSettle();
+      await tester.tap(send);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(c.resendingRequest, isTrue);
+      expect(
+        find.byKey(const ValueKey('booking-finding-provider')),
+        findsOneWidget,
+      );
+      expect(find.text('Choose a payment method'), findsNothing);
+      held.complete();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(c.resendingRequest, isFalse);
+      expect(c.created?['status'], 'MATCHING');
+      expect(c.method, 'WALLET');
+      expect(
+        find.byKey(const ValueKey('booking-finding-provider')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  // Accepted payment failures now retain the provider/request. The former
+  // replacement-method/cancel-and-rematch tests are superseded by same-ID tests.
+  for (final method in ['WALLET', 'CARD']) {
+    testWidgets(
+      'failed accepted $method retains provider and offers same-request retry',
+      (tester) async {
+        final f = BookingFixture();
+        f.contextBody = contextJson(methods: ['WALLET', 'CARD']);
+        addTearDown(f.f.dispose);
+        await openBooking(tester, f);
+        final c = activeJourney(tester);
+        f.requestViewBody.addAll({
+          'status': 'AWAITING_CUSTOMER_CONFIRMATION',
+          'paymentStatus': 'FAILED',
+          'paymentMethod': method,
+          'providerId': 15,
+          'jobId': 70,
+          'confirmationExpiresAt': c
+              .now()
+              .add(const Duration(minutes: 15))
+              .toIso8601String(),
+        });
+        c.created = {...f.requestViewBody};
+        c.stage = BookingStage.created;
+        await tester.runAsync(c.refreshCreatedRequest);
+        await tester.pumpAndSettle();
+        expect(find.text('Retry payment'), findsOneWidget);
+        expect(find.text('Use Different Payment Method'), findsOneWidget);
+        expect(find.text('15:00'), findsOneWidget);
+        expect(
+          f.f.adapter.requests.where(
+            (r) =>
+                r.path.endsWith('/cancel') ||
+                r.path.endsWith('/confirm-wallet') ||
+                r.path.endsWith('/confirm'),
+          ),
+          isEmpty,
+        );
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+  for (final scenario in [
+    'card',
+    'contact-card',
+    'rejected-card',
+    'expired-wallet',
+  ]) {
+    final expiredWallet = scenario == 'expired-wallet';
+    final missingPhone =
+        scenario == 'contact-card' || scenario == 'rejected-card';
+    final rejected = scenario == 'rejected-card';
+    testWidgets('accepted screen $scenario', (tester) async {
+      final f = BookingFixture();
+      var checkoutOpened = 0;
+      f.cardPhone = missingPhone ? null : '+94771234567';
+      f.cardConfirmationStatus = rejected ? 400 : 200;
+      f.f.adapter.loginBody = {
+        ...tokens(),
+        'user': {
+          ...account(),
+          if (!missingPhone) 'phoneNumber': '+94771234567',
+        },
+      };
+      f.f.wrapApp = (child) => ProviderScope(
+        overrides: [
+          recoveredCardCheckoutPresenterProvider.overrideWithValue((
+            context,
+            checkout,
+            controller,
+          ) async {
+            checkoutOpened++;
+            expect(
+              checkout.action.toString(),
+              'https://sandbox.payhere.lk/pay/checkout',
+            );
+            expect(controller.request?['status'], 'PAYMENT_PENDING');
+          }),
+        ],
+        child: child,
+      );
+      addTearDown(f.f.dispose);
+      await openBooking(tester, f);
+      final c = activeJourney(tester);
+      f.requestViewBody.addAll({
+        'status': 'AWAITING_CUSTOMER_CONFIRMATION',
+        'paymentMethod': expiredWallet ? 'WALLET' : 'CARD',
+        'providerId': 15,
+        'confirmationExpiresAt': c
+            .now()
+            .add(Duration(minutes: expiredWallet ? -1 : 2))
+            .toUtc()
+            .toIso8601String(),
+      });
+      c.created = {...f.requestViewBody};
+      c.stage = BookingStage.created;
+      await tester.runAsync(c.refreshCreatedRequest);
+      await tester.pumpAndSettle();
+      final button = find.byKey(const ValueKey('booking-accepted-continue'));
+      if (expiredWallet) {
+        expect(find.text('Confirm and Pay'), findsOneWidget);
+        expect(tester.widget<FilledButton>(button).onPressed, isNull);
+      } else {
+        expect(find.text('Confirm and Pay'), findsOneWidget);
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(find.text('Choose your card type'), findsOneWidget);
+        await tester.tap(find.text('Visa'));
+        await tester.pumpAndSettle();
+        if (missingPhone) {
+          expect(find.text('Payment contact details'), findsOneWidget);
+          final fields = find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(TextFormField),
+          );
+          await tester.enterText(fields.last, '+94771234567');
+          await tester.tap(find.text('Continue to payment'));
+          await tester.pumpAndSettle();
+        }
+        if (rejected) {
+          expect(checkoutOpened, 0);
+          expect(
+            find.byKey(const ValueKey('booking-payment-failed')),
+            findsOneWidget,
+          );
+          expect(find.text('Card payment declined'), findsOneWidget);
+          await tester.pump(const Duration(seconds: 6));
+          await tester.pump();
+          expect(find.text('Card payment declined'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('booking-payment-failed')),
+            findsOneWidget,
+          );
+        } else {
+          expect(checkoutOpened, 1, reason: c.error);
+          expect(find.text('Confirm your payment'), findsNothing);
+          expect(find.text('Checking your payment'), findsOneWidget);
+          expect(
+            f.f.adapter.requests.where((r) => r.path.endsWith('/501/confirm')),
+            hasLength(1),
+          );
+        }
+      }
+      expect(
+        f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+  testWidgets(
+    'unmatched request shows recovery actions and restores the filters with booking answers',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 0,
+        'maximumRadiusKm': 50,
+      };
+      await openBooking(tester, f);
+      final c = activeJourney(tester);
+      c.answers['PERSON_NAME'] = 'Patient name';
+      final start = c.start;
+      f.requestViewBody['status'] = 'UNMATCHED';
+      c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
+      c.stage = BookingStage.created;
+      final refresh = c.refreshCreatedRequest();
+      await tester.pumpAndSettle();
+      await refresh;
+      expect(find.text('No provider accepted'), findsOneWidget);
+      expect(find.text('Send request again'), findsOneWidget);
+      expect(find.text('Change filters'), findsOneWidget);
+      expect(find.text('Back to Home'), findsOneWidget);
+      expect(find.text('Refresh request status'), findsNothing);
+      final filters = find.byKey(const ValueKey('booking-unmatched-filters'));
+      await tester.ensureVisible(filters);
+      await tester.tap(filters);
+      await tester.pumpAndSettle();
+      expect(c.stage, BookingStage.details);
+      expect(c.created, isNull);
+      expect(c.answers['PERSON_NAME'], 'Patient name');
+      expect(c.start, start);
+    },
+  );
+  testWidgets(
+    'preferred time immediately highlights past and insufficient-notice choices',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 120,
+        'maximumRadiusKm': 50,
+      };
+      await openBooking(tester, f);
+      final c = activeJourney(tester);
+      final validStart = c.start;
+      final validEnd = c.end;
+      final tooSoon = MarketTime.local(
+        MarketTime.parse(
+          validStart,
+          c.context!.zone,
+        ).subtract(const Duration(minutes: 60)),
+      );
+      c.edit(() => c.start = tooSoon);
+      await tester.pumpAndSettle();
+      final error = find.byKey(const ValueKey('booking-preferred-time-error'));
+      expect(error, findsOneWidget);
+      expect(
+        tester.widget<Text>(error).data,
+        'Choose a start time at least 120 minutes from now.',
+      );
+      final card = tester.widget<Container>(
+        find.byKey(const ValueKey('booking-preferred-time')),
+      );
+      expect(
+        ((card.decoration! as BoxDecoration).border! as Border).top.color,
+        const Color(0xFFC44444),
+      );
+      c.edit(
+        () => c.start = MarketTime.local(
+          MarketTime.parse(
+            validStart,
+            c.context!.zone,
+          ).subtract(const Duration(days: 1)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(error).data, 'Choose a future start time.');
+      c.edit(() {
+        c.start = validStart;
+        c.end = validEnd;
+      });
+      await tester.pumpAndSettle();
+      expect(error, findsNothing);
+      expect(c.stage, BookingStage.details);
+    },
+  );
+  testWidgets(
+    'matching cancellation opens cancelled receipt and preserves the draft when returning to the form',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      f.contextBody = contextJson(
+        selectionMode: 'OPEN_REQUEST',
+        methods: ['WALLET'],
+        fields: [fieldJson(id: 20, code: 'PERSON_NAME')],
+      );
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 0,
+        'maximumRadiusKm': 50,
+      };
+      await openBooking(tester, f);
+      await advanceToServiceDetails(tester);
+      final c = activeJourney(tester);
+      c.answer(c.context!.fields.single, 'Keep this name');
+      c.method = 'WALLET';
+      c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
+      c.stage = BookingStage.created;
+      await tester.runAsync(c.refreshCreatedRequest);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('View request details'), findsNothing);
+      expect(find.text('Request #501'), findsOneWidget);
+      final cancel = find.byKey(const ValueKey('booking-cancel-request'));
+      await tester.ensureVisible(cancel);
+      await tester.tap(cancel);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Cancel this request?'), findsOneWidget);
+      final reads = f.f.adapter.requests
+          .where((r) => r.method == 'GET' && r.path.endsWith('/501'))
+          .length;
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        f.f.adapter.requests.where(
+          (r) => r.method == 'GET' && r.path.endsWith('/501'),
+        ),
+        hasLength(reads),
+      );
+      await tester.tap(find.byKey(const ValueKey('booking-keep-request')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
+        isEmpty,
+      );
+      await tester.tap(cancel);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(
+        find.byKey(const ValueKey('booking-confirm-cancel-request')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('booking-payment-confirmation')),
+        findsNothing,
+      );
+      expect(find.text('Request cancelled'), findsOneWidget);
+      expect(find.text('Back to Home'), findsOneWidget);
+      expect(c.stage, BookingStage.created);
+      expect(c.created?['status'], 'CANCELLED');
+      expect(c.answers['PERSON_NAME'], 'Keep this name');
+      expect(c.method, 'WALLET');
+      expect(
+        f.f.adapter.requests.where((r) => r.path.endsWith('/501/cancel')),
+        hasLength(1),
+      );
+      final edit = find.byKey(const ValueKey('booking-cancelled-edit'));
+      await tester.ensureVisible(edit);
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      expect(c.stage, BookingStage.serviceDetails);
+      expect(c.created, isNull);
+      expect(c.answers['PERSON_NAME'], 'Keep this name');
+      expect(c.method, 'WALLET');
+      expect(tester.takeException(), isNull);
+    },
+  );
+  for (final openRequest in [true, false]) {
+    testWidgets(
+      'review opens with all supported payment methods visible without scrolling ($openRequest)',
+      (tester) async {
+        tester.view.physicalSize = openRequest
+            ? const Size(360, 780)
+            : const Size(393, 852);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = BookingFixture();
+        addTearDown(f.f.dispose);
+        f.contextBody = contextJson(
+          selectionMode: openRequest ? 'OPEN_REQUEST' : 'DIRECT_REQUEST',
+          methods: openRequest
+              ? ['CARD', 'WALLET']
+              : ['CARD', 'WALLET', 'CASH'],
+          fields: [
+            {...fieldJson(id: 20, code: 'PERSON_NAME'), 'label': 'Person name'},
+            {
+              ...fieldJson(id: 21, code: 'CONTACT', type: 'PHONE'),
+              'label': 'Contact',
+            },
+            {...fieldJson(id: 22, code: 'HOSPITAL'), 'label': 'Hospital name'},
+            {...fieldJson(id: 23, code: 'WARD'), 'label': 'Ward number'},
+          ],
+        );
+        if (openRequest) {
+          f.policyBody = {
+            'enabled': true,
+            'minimumNoticeMinutes': 30,
+            'maximumRadiusKm': 50,
+          };
+        }
+        await openBooking(tester, f);
+        await advanceToServiceDetails(tester);
+        final c = activeJourney(tester);
+        for (final field in c.context!.fields) {
+          c.answer(field, field.code == 'CONTACT' ? '0768402570' : 'Test');
+        }
+        c.review();
+        await tester.pumpAndSettle();
+        expect(c.stage, BookingStage.review);
+        for (final label in [
+          'Credit / Debit Card',
+          'BThere Wallet',
+          if (!openRequest) 'Cash on Hand',
+        ]) {
+          expect(find.text(label).hitTestable(), findsOneWidget);
+        }
+        final sheet = tester.widget<DraggableScrollableSheet>(
+          find.byKey(const ValueKey('booking-details-sheet')),
+        );
+        expect(sheet.controller!.size, closeTo(sheet.maxChildSize, .001));
+        final scroll = tester.widget<SingleChildScrollView>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('booking-details-sheet')),
+                matching: find.byType(SingleChildScrollView),
+              )
+              .first,
+        );
+        expect(
+          scroll.controller!.position.maxScrollExtent,
+          lessThanOrEqualTo(1),
+        );
+        expect(
+          find.byKey(const ValueKey('booking-create')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets(
     'matching polls the backend and provider acceptance never auto-charges or invents auto-approval',
     (tester) async {
       final f = BookingFixture();
@@ -120,54 +580,133 @@ void main() {
         f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
         isEmpty,
       );
-      await tester.ensureVisible(find.text('View request details'));
-      await tester.tap(find.text('View request details'));
+      expect(find.text('View request details'), findsNothing);
+      await tester.ensureVisible(find.text('Confirm and Pay'));
+      expect(find.text('BThere Wallet'), findsOneWidget);
+      expect(find.text('Rs. 1,000.00'), findsOneWidget);
+      final original = f.f.adapter.extraHandler;
+      final pollingGate = Completer<void>();
+      var polling = false;
+      f.f.adapter.extraHandler = (request) async {
+        if (request.method == 'GET' &&
+            request.path.endsWith('/booking-requests/501')) {
+          polling = true;
+          await pollingGate.future;
+        }
+        return original?.call(request);
+      };
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(polling, isTrue);
+      expect(c.busy, isFalse);
+      final continueButton = find.widgetWithText(
+        FilledButton,
+        'Confirm and Pay',
+      );
+      expect(tester.widget<FilledButton>(continueButton).onPressed, isNotNull);
+      expect(
+        find.descendant(
+          of: continueButton,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+      await tester.tap(find.text('Confirm and Pay'));
+      pollingGate.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Request #501'), findsOneWidget);
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
+      expect(find.text('Confirm your payment'), findsNothing);
+      expect(
+        f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
+        hasLength(1),
+      );
     },
   );
   testWidgets(
-    'wallet decline shows the failure illustration and retry reaches verified success',
+    'wallet success stays on confirmation until booking details is tapped',
     (tester) async {
       final f = BookingFixture();
       addTearDown(f.f.dispose);
       await openBooking(tester, f);
       final c = activeJourney(tester);
       f.requestViewBody['status'] = 'AWAITING_CUSTOMER_CONFIRMATION';
+      f.requestViewBody['confirmationExpiresAt'] = c
+          .now()
+          .add(const Duration(minutes: 15))
+          .toIso8601String();
       f.walletConfirmationStatus = 409;
       c.created = {...f.requestViewBody, 'paymentMethod': 'WALLET'};
       c.stage = BookingStage.created;
-      await tester.runAsync(c.confirmRequestWallet);
+      await tester.runAsync(c.refreshCreatedRequest);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('booking-payment-failed')),
-        findsOneWidget,
-      );
+      final confirm = find.byKey(const ValueKey('booking-accepted-continue'));
+      await tester.ensureVisible(confirm);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomerRequestPaymentScreen), findsOneWidget);
       expect(find.text('Payment Failed!'), findsOneWidget);
       expect(
         find.text('Insufficient available wallet balance'),
         findsOneWidget,
       );
-      expect(find.text('Payment Successful!'), findsNothing);
+      // A retryable Wallet rejection retains the accepted request.
+      f.requestViewBody['paymentMethod'] = 'WALLET';
+      f.requestViewBody['confirmationExpiresAt'] = c
+          .now()
+          .add(const Duration(minutes: 15))
+          .toIso8601String();
       f.walletConfirmationStatus = 200;
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
       final retry = find.byKey(const ValueKey('payment-result-retry'));
       await tester.ensureVisible(retry);
       await tester.tap(retry);
       await tester.pumpAndSettle();
-      expect(find.text('Payment Successful!'), findsOneWidget);
-      expect(
-        find.text(
-          'Your booking is confirmed. Wallet funds have been reserved.',
-        ),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('View booking'));
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
+      f.bookings.add({
+        ...bookingJson(id: 70, method: 'WALLET', payment: 'RESERVED'),
+        'status': 'CONFIRMED',
+      });
+      await tester.pump(const Duration(seconds: 10));
       await tester.pumpAndSettle();
+      expect(find.text('Your booking is confirmed!'), findsOneWidget);
+      expect(find.text('Booking #70'), findsNothing);
+      final details = find.text('View booking details');
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await tester.pumpAndSettle();
+      expect(find.text('Your booking is confirmed!'), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Booking #70'), findsOneWidget);
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('View all bookings'), findsNothing);
       expect(
-        find.byKey(const ValueKey('booking-payment-success')),
+        find.byKey(const ValueKey('customer-bottom-navigation')),
         findsNothing,
       );
-      expect(find.text('Request #501'), findsOneWidget);
+      GoRouter.of(tester.element(find.text('Booking #70')))
+          .go('/opportunities');
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Bookings'), findsOneWidget);
+      final bookingCard = find.byKey(const ValueKey('customer-booking-70'));
+      final bookingLabel = find.descendant(
+        of: bookingCard,
+        matching: find.text('Booking #70'),
+      );
+      await tester.ensureVisible(bookingLabel);
+      await tester.tap(bookingLabel);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Booking #70'), findsOneWidget);
+      expect(find.text('Service schedule'), findsOneWidget);
     },
   );
   testWidgets(
@@ -342,6 +881,14 @@ void main() {
       final c = activeJourney(tester);
       c.review();
       await tester.pumpAndSettle();
+      final reviewSheet = tester.widget<DraggableScrollableSheet>(
+        find.byKey(const ValueKey('booking-details-sheet')),
+      );
+      expect(reviewSheet.initialChildSize, reviewSheet.maxChildSize);
+      expect(
+        reviewSheet.controller!.size,
+        closeTo(reviewSheet.maxChildSize, .001),
+      );
       expect(
         tester
             .widget<CustomerTestMap>(find.byType(CustomerTestMap))
@@ -544,6 +1091,17 @@ void main() {
       await tester.tap(find.text('Provider 15'));
       await tester.pumpAndSettle();
       expect(
+        find.byKey(const ValueKey('booking-provider-details-dialog')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('booking-provider-details-close')),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Select'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+      await tester.pumpAndSettle();
+      expect(
         find.byKey(const ValueKey('booking-results-continue')).hitTestable(),
         findsOneWidget,
       );
@@ -682,7 +1240,7 @@ void main() {
         ),
         hasLength(2),
       );
-      expect(map.state.circles.single.radius, 5000);
+      expect(map.state.circles.single.radius, 10000);
     },
   );
 
@@ -996,6 +1554,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('English'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Sinhala'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).languages, {'SINHALA'});
       expect(
         tester
             .widget<BookingValidationGroup>(
@@ -1042,6 +1603,15 @@ void main() {
       expect(find.text('Spoken languages'), findsNothing);
       final english = find.text('ENGLISH');
       await tester.ensureVisible(english);
+      await tester.tap(english);
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['ENGLISH']);
+      await tester.tap(find.text('TAMIL'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['TAMIL']);
+      await tester.tap(find.text('SINHALA'));
+      await tester.pumpAndSettle();
+      expect(activeJourney(tester).providerFilters[48], ['SINHALA']);
       await tester.tap(english);
       await tester.pumpAndSettle();
       expect(activeJourney(tester).providerFilters[48], ['ENGLISH']);
@@ -1273,6 +1843,18 @@ void main() {
       await openBooking(tester, f);
       expect(find.byKey(const ValueKey('booking-start-time')), findsNothing);
       expect(find.text('Duration'), findsNothing);
+      final ride = activeJourney(tester);
+      ride.edit(() {
+        ride.point = const GeoPoint(6.9, 79.8);
+        ride.address = 'Colombo';
+        ride.destination = const GeoPoint(7.4, 80.3);
+        ride.destinationAddress = 'Kurunegala';
+      });
+      await tester.pumpAndSettle();
+      final locations = find.byKey(const ValueKey('ride-locations-continue'));
+      await tester.ensureVisible(locations);
+      await tester.tap(locations);
+      await tester.pumpAndSettle();
       final slider = tester.widget<Slider>(
         find.byKey(const ValueKey('booking-pickup-time')),
       );
@@ -1284,7 +1866,7 @@ void main() {
     },
   );
   testWidgets(
-    'radius control updates the displayed search circle and fits the map',
+    'filters hide radius control and animate within the unchanged search range',
     (tester) async {
       final f = BookingFixture();
       addTearDown(f.f.dispose);
@@ -1292,41 +1874,32 @@ void main() {
       final c = activeJourney(tester);
       c.edit(() => c.point = const GeoPoint(6.9271, 79.8612));
       await tester.pumpAndSettle();
-      final oldZoom = tester
+      expect(find.byKey(const ValueKey('booking-radius-picker')), findsNothing);
+      expect(find.byKey(const ValueKey('booking-radius')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('booking-choose-location')),
+        findsOneWidget,
+      );
+      c.edit(() => c.languages.add('SINHALA'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      final circles = tester
           .widget<CustomerTestMap>(find.byType(CustomerTestMap))
           .state
-          .camera
-          .zoom;
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('booking-radius-picker')),
-      );
-      await tester.tap(find.byKey(const ValueKey('booking-radius-picker')));
-      await tester.pumpAndSettle();
-      await tester.drag(
-        find.byKey(const ValueKey('booking-radius')),
-        const Offset(120, 0),
-      );
-      await tester.pumpAndSettle();
-      expect(c.radius, greaterThan(5));
-      await tester.tap(find.text('Done'));
-      await tester.pumpAndSettle();
+          .circles;
       expect(
-        tester
-            .widget<CustomerTestMap>(find.byType(CustomerTestMap))
-            .state
-            .circles
-            .single
-            .radius,
-        c.radius * 1000,
+        circles.singleWhere((x) => x.circleId.value == 'search-radius').radius,
+        10000,
       );
-      expect(
-        tester
-            .widget<CustomerTestMap>(find.byType(CustomerTestMap))
-            .state
-            .camera
-            .zoom,
-        lessThan(oldZoom),
+      final ripple = tester.widget<SearchRangeRipple>(
+        find.byType(SearchRangeRipple),
       );
+      expect(ripple.trigger.toString(), contains('SINHALA'));
+      // This test uses a non-native map. Playback waits for real projection.
+      expect(ripple.center, isNull);
+      expect(circles, hasLength(1));
+      expect(c.radius, 10);
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     },
   );
@@ -1524,6 +2097,18 @@ void main() {
       await tester.ensureVisible(find.text('Provider 15'));
       await tester.tap(find.text('Provider 15'));
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('booking-provider-details-dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('About Me'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('booking-provider-details-close')),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Select'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(
         find.byKey(const ValueKey('booking-results-continue')),
       );
@@ -1563,7 +2148,8 @@ void main() {
       await tester.ensureVisible(find.text('My bookings'));
       await tester.tap(find.text('My bookings'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Nursing #100'), findsOneWidget);
+      expect(find.text('Nursing'), findsOneWidget);
+      expect(find.text('Booking #100'), findsOneWidget);
     },
   );
   testWidgets(
@@ -1700,7 +2286,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('booking-calendar')));
       await tester.pumpAndSettle();
-      expect(find.byType(DatePickerDialog), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('booking-calendar-dialog')),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(activeJourney(tester).start, '2030-01-07T08:00:00');

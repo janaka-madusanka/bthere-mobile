@@ -171,8 +171,12 @@ Future<void> pump(
   }
 }
 
-String path(ServiceFixture f) =>
-    f.container.read(appRouterProvider).routeInformationProvider.value.uri.path;
+String path(ServiceFixture f) => f.container
+    .read(appRouterProvider)
+    .routerDelegate
+    .currentConfiguration
+    .last
+    .matchedLocation;
 Map<String, dynamic> completeServiceJson({
   String verification = 'PENDING',
   String effective = 'ACTIVE',
@@ -222,11 +226,12 @@ void main() {
       );
       await pump(tester, f);
       expect(path(f), AppRoutes.services);
-      expect(find.text('Home Nurse'), findsOneWidget);
+      expect(find.text('Home Nurse'), findsWidgets);
       expect(
-        find.text('Service progress unavailable Â· Retry'),
+        find.textContaining('Service progress unavailable'),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('main-service-3')));
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceDetail(3));
@@ -297,6 +302,7 @@ void main() {
         find.byKey(const ValueKey('service-status-available')),
         findsNWidgets(2),
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('main-service-3')));
       await tester.tap(find.byKey(const ValueKey('main-service-3')));
       await tester.pumpAndSettle();
       expect(find.text('Sub Services'), findsOneWidget);
@@ -324,8 +330,10 @@ void main() {
     expect(find.text('Hospital Caregiver'), findsNWidgets(2));
     expect(find.text('Hospital Day Care'), findsOneWidget);
     expect(find.text('Hospital Night Care'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('sub-service-12')));
     await tester.tap(find.byKey(const ValueKey('sub-service-12')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('sub-service-13')));
     await tester.tap(find.byKey(const ValueKey('sub-service-13')));
     await tester.pump();
     expect((await detail(f)).selected, {12, 13});
@@ -605,6 +613,7 @@ void main() {
     await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('sub-service-12')));
     await tester.tap(find.byKey(const ValueKey('sub-service-12')));
     await tester.pump();
     await tester.enterText(find.byType(TextFormField), '4.5');
@@ -649,9 +658,19 @@ void main() {
     },
   );
   testWidgets(
-    'approved service catalog opens overview with management and read-only setup information',
+    'approved service catalog opens overview and the approved subservice profile',
     (tester) async {
       final f = ServiceFixture(existing: true);
+      f.services.assignments = Success([
+        parseProviderServiceAssignment(
+          assignmentJson()..['verificationStatus'] = 'APPROVED',
+        ),
+      ]);
+      f.options.selections = Success(
+        parseProviderOptions([
+          selectedOptionJson()..['verificationStatus'] = 'APPROVED',
+        ]),
+      );
       f.completion.result = Success(
         parseProviderCompletion(completeServiceJson(verification: 'APPROVED')),
       );
@@ -660,17 +679,24 @@ void main() {
         find.byKey(const ValueKey('service-status-approved')),
         findsOneWidget,
       );
-      await tester.ensureVisible(find.byKey(const ValueKey('main-service-3')));
-      await tester.tap(find.byKey(const ValueKey('main-service-3')));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('featured-service-3')),
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('featured-service-3')),
+      );
+      await tester.tap(find.byKey(const ValueKey('featured-service-3')));
       await tester.pumpAndSettle();
       expect(path(f), AppRoutes.serviceDetail(3));
       expect(find.text('Your Registered Sub-services'), findsOneWidget);
-      await tester.tap(find.text('Registered Â· Manage').first);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('registered-option-12')),
+      );
+      await tester.tap(find.byKey(const ValueKey('registered-option-12')));
       await tester.pumpAndSettle();
-      expect(path(f), AppRoutes.serviceStatus(3));
-      await tester.tap(find.text('View setup information'));
-      await tester.pumpAndSettle();
-      expect(path(f), AppRoutes.serviceSetup(3));
+      expect(path(f), AppRoutes.subServiceProfile(3, 12));
+      expect(find.text('Service Profile'), findsOneWidget);
+      expect(find.text('Service Details'), findsWidgets);
       expect(find.text('Change services you provide'), findsNothing);
       expect(f.services.submissions, 0);
     },

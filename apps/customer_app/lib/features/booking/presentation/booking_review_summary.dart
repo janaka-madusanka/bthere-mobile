@@ -48,16 +48,14 @@ class BookingReviewSummary extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                style: CustomerTypography.compactStrong.copyWith(
                   color: catalogInk,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(fontSize: 12, color: catalogMuted),
+                style: CustomerTypography.compact.copyWith(color: catalogMuted),
               ),
             ],
           ),
@@ -165,11 +163,7 @@ class BookingReviewSummary extends StatelessWidget {
               Expanded(
                 child: Text(
                   ctx.name,
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                    color: catalogInk,
-                  ),
+                  style: CustomerTypography.screen.copyWith(color: catalogInk),
                 ),
               ),
               TextButton.icon(

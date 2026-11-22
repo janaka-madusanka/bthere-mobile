@@ -2,6 +2,8 @@ import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:customer_app/features/booking/presentation/booking_location_picker.dart';
 import 'package:customer_app/features/booking/presentation/customer_map_marker_icons.dart';
 import 'package:customer_app/features/booking/presentation/provider_map_pins.dart';
+import 'package:customer_app/features/booking/data/customer_location_address.dart';
+import 'package:customer_app/app/widgets/search_range_ripple.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +14,71 @@ import 'customer_test_map.dart';
 
 void main() {
   testWidgets(
-    'results photo pins are a fallback while admin-resolved marker icons keep priority',
+    'dragging booking pin updates location, search circle and address while pausing the wave',
+    (tester) async {
+      var point = const GeoPoint(6.92, 79.85);
+      String? address;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            customerMapBuilderProvider.overrideWithValue(CustomerTestMap.new),
+            customerLocationAddressProvider.overrideWithValue(
+              (_) async => 'New service address',
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, update) => BookingLocationPicker(
+                  point: point,
+                  candidates: [ProviderCandidate.parse(candidateJson())],
+                  onChanged: (value) => update(() => point = value),
+                  onAddressChanged: (value) => address = value,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      CustomerMapState map() =>
+          tester.widget<CustomerTestMap>(find.byType(CustomerTestMap)).state;
+      final marker = map().markers.singleWhere(
+        (m) => m.markerId.value == 'service-location',
+      );
+      expect(marker.draggable, isTrue);
+      marker.onDragStart!(marker.position);
+      await tester.pump();
+      expect(
+        tester.widget<SearchRangeRipple>(find.byType(SearchRangeRipple)).paused,
+        isTrue,
+      );
+      marker.onDragEnd!(const LatLng(6.95, 79.89));
+      await tester.pumpAndSettle();
+      expect(point.latitude, 6.95);
+      expect(point.longitude, 79.89);
+      expect(
+        map().markers
+            .singleWhere((m) => m.markerId.value == 'service-location')
+            .position,
+        const LatLng(6.95, 79.89),
+      );
+      expect(map().circles.single.center, const LatLng(6.95, 79.89));
+      expect(address, 'New service address');
+      expect(
+        tester.widget<SearchRangeRipple>(find.byType(SearchRangeRipple)).paused,
+        isFalse,
+      );
+      expect(
+        map().markers
+            .singleWhere((m) => m.markerId.value.startsWith('provider-'))
+            .draggable,
+        isFalse,
+      );
+    },
+  );
+  testWidgets(
+    'provider results prefer profile photos while retaining custom marker fallback',
     (tester) async {
       final custom = ProviderCandidate.parse({
         ...candidateJson(),
@@ -24,6 +90,13 @@ void main() {
       final photo = ProviderCandidate.parse({
         ...candidateJson(id: 16),
         'profilePhoto': 'https://example.invalid/second.png',
+      });
+      final fallback = ProviderCandidate.parse({
+        ...candidateJson(id: 17),
+        'profilePhoto': 'https://example.invalid/unavailable.png',
+        'mapMarker': {
+          'icon': {'url': 'https://example.invalid/custom.svg'},
+        },
       });
       final customRequests = <String>[], photoRequests = <String>[];
       final customIcon = BitmapDescriptor.defaultMarkerWithHue(
@@ -44,6 +117,7 @@ void main() {
               url,
             ) async {
               photoRequests.add(url);
+              if (url.endsWith('unavailable.png')) return null;
               return photoIcon;
             }),
           ],
@@ -51,7 +125,7 @@ void main() {
             home: Scaffold(
               body: BookingLocationPicker(
                 point: const GeoPoint(6.92, 79.85),
-                candidates: [custom, photo],
+                candidates: [custom, photo, fallback],
                 preferProviderPhotos: true,
                 onChanged: (_) {},
               ),
@@ -64,16 +138,26 @@ void main() {
           .widget<CustomerTestMap>(find.byType(CustomerTestMap))
           .state;
       expect(customRequests, ['https://example.invalid/custom.svg']);
-      expect(photoRequests, ['https://example.invalid/second.png']);
+      expect(photoRequests, [
+        'https://example.invalid/first.png',
+        'https://example.invalid/second.png',
+        'https://example.invalid/unavailable.png',
+      ]);
       final customPin = state.markers.singleWhere(
         (m) => m.markerId.value == 'provider-${custom.key}',
       );
       final photoPin = state.markers.singleWhere(
         (m) => m.markerId.value == 'provider-${photo.key}',
       );
-      expect(customPin.icon, customIcon);
+      expect(customPin.icon, photoIcon);
+      expect(customPin.anchor, const Offset(.5, .5));
       expect(photoPin.icon, photoIcon);
       expect(photoPin.anchor, const Offset(.5, .5));
+      final fallbackPin = state.markers.singleWhere(
+        (m) => m.markerId.value == 'provider-${fallback.key}',
+      );
+      expect(fallbackPin.icon, customIcon);
+      expect(fallbackPin.anchor, const Offset(.5, 1));
     },
   );
   testWidgets(
@@ -242,7 +326,7 @@ void main() {
       expect(marker.infoWindow.snippet, 'Approximate service area');
       expect(marker.icon, icon);
       expect(requested, ['https://example.invalid/car.svg']);
-      expect(state.circles.single.radius, 5000);
+      expect(state.circles.single.radius, 10000);
     },
   );
 

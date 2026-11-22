@@ -60,7 +60,7 @@ Map<String, dynamic> walletObject(Object? value) {
 Object? decodeWalletJson(String raw) => jsonDecode(
   raw.replaceAllMapped(
     RegExp(
-      r'("(?:available|reserved|pending|amount|delta|balanceBefore|balanceAfter)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}])',
+      r'("(?:available|reserved|pending|amount|delta|balanceBefore|balanceAfter|providerEarnings)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}])',
     ),
     (m) => '${m[1]}"${m[2]}"',
   ),
@@ -68,6 +68,8 @@ Object? decodeWalletJson(String raw) => jsonDecode(
 
 class WalletCapabilities {
   const WalletCapabilities({
+    this.provider,
+    this.testMode = false,
     this.ledger = false,
     this.topups = false,
     this.withdrawals = false,
@@ -75,8 +77,11 @@ class WalletCapabilities {
     this.bankLinking = false,
   });
   factory WalletCapabilities.fromJson(Object? value) {
-    final j = walletObject(walletObject(value)['capabilities']);
+    final settings = walletObject(value);
+    final j = walletObject(settings['capabilities']);
     return WalletCapabilities(
+      provider: settings['provider'] as String?,
+      testMode: settings['testMode'] == true,
       ledger: j['walletLedger'] == true,
       topups: j['topups'] == true,
       withdrawals: j['withdrawals'] == true,
@@ -84,6 +89,8 @@ class WalletCapabilities {
       bankLinking: j['bankLinking'] == true,
     );
   }
+  final String? provider;
+  final bool testMode;
   final bool ledger, topups, withdrawals, cardLinking, bankLinking;
 }
 
@@ -103,7 +110,7 @@ class WalletBalance {
   late final String currency, status;
   late final String? fundingMode;
   late final WalletMoney available, reserved, pending;
-  bool get mock => fundingMode == 'MOCK';
+  bool get mock => fundingMode == 'MOCK' || fundingMode == 'PAYHERE_SANDBOX';
 }
 
 class WalletMethod {
@@ -112,10 +119,14 @@ class WalletMethod {
     id = j['methodId'] as int;
     type = j['type'] as String;
     label = j['displayLabel'] as String;
+    brand = type == 'CARD' && ['VISA', 'MASTERCARD'].contains(j['brand'])
+        ? j['brand'] as String
+        : null;
     status = j['status'] as String;
   }
   late final int id;
   late final String type, label, status;
+  late final String? brand;
   bool get card => type == 'CARD';
   bool get usable => status == 'VERIFIED_MOCK';
 }
@@ -130,8 +141,19 @@ class WalletEntry {
     before = WalletMoney.parse(j['balanceBefore']);
     after = WalletMoney.parse(j['balanceAfter']);
     createdAt = DateTime.parse(j['createdAt'] as String);
+    currency = j['currencyCode'] as String? ?? 'LKR';
+    type = j['type'] as String?;
+    jobId = j['jobId'] as int?;
+    fundingMode = j['fundingMode'] as String?;
+    providerEarnings = j['providerEarnings'] == null
+        ? null
+        : WalletMoney.parse(j['providerEarnings']);
   }
   late final int id, operationId;
+  late final int? jobId;
+  late final String currency;
+  late final String? type, fundingMode;
+  late final WalletMoney? providerEarnings;
   late final String bucket;
   late final WalletMoney delta, before, after;
   // API timestamps have no offset; preserve the supplied local wall time.

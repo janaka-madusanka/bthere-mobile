@@ -101,8 +101,12 @@ class LocalAdapter implements HttpClientAdapter {
     Object? body;
     var status = 200;
     switch (Uri.parse(options.path).path) {
+      case '/customers/me/booking-events':
+        body = [];
       case '/customers/me/bookings':
         body = [];
+      case '/customers/me/conversations':
+        body = {'conversations': [], 'totalUnread': 0};
       case '/markets':
         status = marketsStatus;
         body = marketsBody ?? [marketJson()];
@@ -152,6 +156,45 @@ class LocalAdapter implements HttpClientAdapter {
           status = 401;
         }
         body = {};
+      case '/customers/me/profile-overview':
+        body = {
+          'profile': profileStatus == 404
+              ? null
+              : {
+                  ...savedProfile,
+                  'displayName':
+                      '${savedProfile['firstName']} ${savedProfile['lastName']}',
+                },
+          'contacts': {
+            'email': 'test@example.com',
+            'emailVerified': false,
+            'phoneNumber': null,
+            'phoneVerified': false,
+          },
+          'statistics': {
+            'pendingCount': 0,
+            'awaitingProviderCount': 0,
+            'activeCount': 0,
+            'completedCount': 0,
+            'cancelledCount': 0,
+            'spending': [],
+            'testSpending': [],
+            'excludedPaymentCount': 0,
+          },
+          'documents': [],
+          'pendingServices': {
+            'items': [],
+            'limit': 5,
+            'hasMore': false,
+            'totalCount': 0,
+          },
+          'serviceHistory': {
+            'items': [],
+            'limit': 5,
+            'hasMore': false,
+            'totalCount': 0,
+          },
+        };
       case '/customers/me/profile':
         await pendingProfile?.future;
         status = options.method == 'PUT' ? profilePutStatus : profileStatus;
@@ -313,6 +356,7 @@ class MemoryMarketValues implements SecureKeyValueStore {
 }
 
 class Fixture {
+  Widget Function(Widget)? wrapApp;
   bool autoAvailability = false;
   final storage = MemorySession(), adapter = LocalAdapter();
   final marketValues = MemoryMarketValues();
@@ -351,7 +395,7 @@ class Fixture {
             () async => const GeoPoint(6.9271, 79.8612),
           ),
         ],
-        child: const CustomerApp(),
+        child: wrapApp?.call(const CustomerApp()) ?? const CustomerApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -770,7 +814,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
-      expect(find.text('Welcome, customer12'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      await tester.ensureVisible(find.text('Sign out'));
       await tester.tap(find.text('Sign out'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('customer-login-tab')), findsOneWidget);

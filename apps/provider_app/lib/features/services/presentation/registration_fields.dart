@@ -16,6 +16,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
     required this.values,
     required this.onChanged,
     this.allFields,
+    this.answers,
     this.enabled = true,
     this.compact = false,
     this.submissions = const [],
@@ -24,6 +25,7 @@ class RegistrationFields extends ConsumerStatefulWidget {
   final List<ProviderRequirementField> fields;
   final List<ProviderRequirementField>? allFields;
   final Map<String, dynamic> values;
+  final Map<String, dynamic>? answers;
   final VoidCallback onChanged;
   final bool enabled, compact;
   final List<Map> submissions;
@@ -125,16 +127,23 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      for (final field in widget.fields.where(
-        (f) => f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT',
-      ))
-        if (registrationFieldVisible(
-              field,
-              widget.values,
-              widget.allFields ?? widget.fields,
-            ) !=
+      for (final field
+          in (widget.fields
+              .where(
+                (f) =>
+                    f.status == 'ACTIVE' && f.scope == 'PROVIDER_REQUIREMENT',
+              )
+              .toList()
+            ..sort(
+              (a, b) => (a.displayOrder ?? 0).compareTo(b.displayOrder ?? 0),
+            )))
+        if (registrationFieldVisible(field, {
+              ...?widget.answers,
+              ...widget.values,
+            }, widget.allFields ?? widget.fields) !=
             false)
           Padding(
+            key: ValueKey('requirement-${field.fieldId}'),
             padding: EdgeInsets.only(bottom: widget.compact ? 8 : 16),
             child: buildField(field),
           ),
@@ -166,11 +175,10 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
     }
 
     final unsupported =
-        registrationFieldVisible(
-          field,
-          widget.values,
-          widget.allFields ?? widget.fields,
-        ) ==
+        registrationFieldVisible(field, {
+          ...?widget.answers,
+          ...widget.values,
+        }, widget.allFields ?? widget.fields) ==
         null;
     Widget control;
     if (unsupported) {
@@ -187,7 +195,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             child: Text(
               'Yes',
               style: TextStyle(
-                fontFamily: 'HomeInter',
+                fontFamily: 'PublicSans',
                 fontSize: 13,
                 color: registrationInk,
               ),
@@ -198,7 +206,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
             child: Text(
               'No',
               style: TextStyle(
-                fontFamily: 'HomeInter',
+                fontFamily: 'PublicSans',
                 fontSize: 13,
                 color: registrationInk,
               ),
@@ -447,12 +455,12 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
         key: ValueKey('dynamic-field-$key'),
         initialValue: value?.toString() ?? '',
         enabled: widget.enabled,
-        style: const TextStyle(fontSize: 12, fontFamily: 'HomeInter'),
+        style: const TextStyle(fontSize: 12, fontFamily: 'PublicSans'),
         maxLines: field.fieldType == 'TEXTAREA' ? 3 : 1,
-        maxLength: widget.compact && field.fieldType == 'TEXTAREA' ? 500 : null,
+
         decoration: const InputDecoration(
           counterStyle: TextStyle(
-            fontFamily: 'HomeInter',
+            fontFamily: 'PublicSans',
             fontSize: 11,
             color: registrationMuted,
           ),
@@ -481,7 +489,7 @@ class _FieldsState extends ConsumerState<RegistrationFields> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         registrationText(
-          '${field.label}${field.required && !widget.compact ? ' *' : ''}',
+          '${field.label}${field.required ? ' *' : ''}',
           widget.compact ? 13 : 12,
         ),
         if (field.description != null)

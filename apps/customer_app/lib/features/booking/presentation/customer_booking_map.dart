@@ -31,7 +31,11 @@ final customerMapBuilderProvider = Provider<Widget Function(CustomerMapState)>(
     return GoogleMap(
       initialCameraPosition: state.camera,
       onMapCreated: state.onCreated,
+      onCameraMoveStarted: state.onCameraMoveStarted,
+      onCameraMove: state.onCameraMove,
+      onCameraIdle: state.onCameraIdle,
       onTap: state.onSelect,
+      onLongPress: state.onSelect,
       markers: state.markers,
       circles: state.circles,
       polylines: state.polylines,
@@ -39,7 +43,10 @@ final customerMapBuilderProvider = Provider<Widget Function(CustomerMapState)>(
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       // Keep Google attribution above the draggable booking panel.
-      padding: EdgeInsets.only(bottom: state.bottomPadding),
+      padding: EdgeInsets.only(
+        top: state.topPadding,
+        bottom: state.bottomPadding,
+      ),
       gestureRecognizers: {
         Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
       },
@@ -56,6 +63,10 @@ class CustomerMapState {
     required this.circles,
     this.polylines = const {},
     this.bottomPadding = 0,
+    this.topPadding = 0,
+    this.onCameraMoveStarted,
+    this.onCameraIdle,
+    this.onCameraMove,
   });
   final CameraPosition camera;
   final ValueChanged<GoogleMapController> onCreated;
@@ -64,4 +75,8 @@ class CustomerMapState {
   final Set<Circle> circles;
   final Set<Polyline> polylines;
   final double bottomPadding;
+  final double topPadding;
+  final VoidCallback? onCameraMoveStarted;
+  final VoidCallback? onCameraIdle;
+  final ValueChanged<CameraPosition>? onCameraMove;
 }

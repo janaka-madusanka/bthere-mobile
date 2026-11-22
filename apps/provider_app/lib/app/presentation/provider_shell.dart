@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'provider_navigation_bar.dart';
+import '../../features/bookings/presentation/booking_offer_host.dart';
 
 /// Branch navigators retain their own widget and scroll state.
 class ProviderShell extends StatelessWidget {
@@ -19,7 +20,7 @@ class ProviderShell extends StatelessWidget {
           if (!didPop) navigationShell.goBranch(0, initialLocation: true);
         },
         child: Scaffold(
-          body: navigationShell,
+          body: BookingOfferHost(child: navigationShell),
           bottomNavigationBar: ProviderNavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onSelect: (index) =>

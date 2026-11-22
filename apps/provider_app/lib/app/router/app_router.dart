@@ -3,7 +3,8 @@ import 'package:flutter/widgets.dart';
 import '../presentation/provider_shell.dart';
 import '../../features/wallet/presentation/wallet_screen.dart';
 import '../presentation/provider_tabs.dart';
-import '../presentation/provider_placeholder_screen.dart';
+import '../../features/bookings/presentation/opportunities_screen.dart';
+import '../../features/messages/presentation/messages_screen.dart';
 import '../../features/home/presentation/provider_home_screen.dart';
 import '../../features/account/presentation/provider_account_screen.dart';
 
@@ -210,7 +211,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   path: tab.path,
                   builder: (_, _) => tab == ProviderTab.wallet
                       ? const WalletScreen()
-                      : ProviderPlaceholderScreen(tab: tab),
+                      : tab == ProviderTab.requests
+                      ? const OpportunitiesScreen()
+                      : const MessagesScreen(),
                 ),
               ],
             ),

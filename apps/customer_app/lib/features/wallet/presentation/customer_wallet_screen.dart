@@ -60,10 +60,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                         const Expanded(
                           child: Text(
                             'Payment history',
-                            style: TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: CustomerTypography.screen,
                           ),
                         ),
                       ],
@@ -77,11 +74,10 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         children: [
-                          const Text(
+                          Text(
                             'Your payments and wallet top-ups',
-                            style: TextStyle(
+                            style: CustomerTypography.body.copyWith(
                               color: CustomerColors.secondaryText,
-                              fontSize: 13,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -150,10 +146,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                   const Expanded(
                     child: Text(
                       'Payment methods',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: CustomerTypography.screen,
                     ),
                   ),
                   IconButton(
@@ -163,10 +156,9 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                   ),
                 ],
               ),
-              const Text(
+              Text(
                 'Your saved cards',
-                style: TextStyle(
-                  fontSize: 13,
+                style: CustomerTypography.body.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
               ),
@@ -188,7 +180,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(44),
-                  textStyle: const TextStyle(fontSize: 13),
+                  textStyle: CustomerTypography.card,
                 ),
                 onPressed: c.loading || c.working || !c.alive
                     ? null
@@ -197,20 +189,19 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                 label: const Text('Add new payment method'),
               ),
               const SizedBox(height: 12),
-              const Row(
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline,
                     size: 17,
                     color: CustomerColors.action,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Test cards only. No real card is linked or charged.',
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.secondaryText,
                       ),
                     ),
@@ -328,19 +319,16 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                               if (data.methods.any(
                                 (m) => m['type'] == 'CARD',
                               )) ...[
-                                const Text(
+                                Text(
                                   'Wallet',
-                                  style: TextStyle(
-                                    fontSize: 23,
-                                    fontWeight: FontWeight.w700,
+                                  style: CustomerTypography.screen.copyWith(
                                     color: CustomerColors.text,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                const Text(
+                                Text(
                                   'Manage your money',
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: CustomerTypography.compact.copyWith(
                                     color: CustomerColors.secondaryText,
                                   ),
                                 ),
@@ -387,10 +375,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                                         horizontal: 12,
                                         vertical: 8,
                                       ),
-                                      textStyle: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      textStyle: CustomerTypography.card,
                                       alignment: Alignment.centerLeft,
                                       side: const BorderSide(
                                         color: CustomerColors.border,
@@ -484,16 +469,18 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                 )
               : SvgPicture.asset(
                   'assets/icons/payment/$logo.svg',
+                  colorFilter: logo == 'visa'
+                      ? const ColorFilter.mode(
+                          Color(0xFF1434CB),
+                          BlendMode.srcIn,
+                        )
+                      : null,
                   semanticsLabel: logo,
                 ),
         ),
         title: Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: CustomerColors.text,
-          ),
+          style: CustomerTypography.card.copyWith(color: CustomerColors.text),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
@@ -501,8 +488,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
             method['status'] == 'VERIFIED_MOCK'
                 ? 'Test payment method'
                 : method['status'] as String,
-            style: const TextStyle(
-              fontSize: 12,
+            style: CustomerTypography.compact.copyWith(
               color: CustomerColors.secondaryText,
             ),
           ),
@@ -524,9 +510,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
       Expanded(
         child: Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+          style: CustomerTypography.section.copyWith(
             color: CustomerColors.text,
           ),
         ),
@@ -541,7 +525,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(action, style: const TextStyle(fontSize: 12)),
+            Text(action, style: CustomerTypography.compact),
             const SizedBox(width: 2),
             const Icon(Icons.chevron_right, size: 20),
           ],
@@ -562,14 +546,12 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (data.testFunds)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     'Test wallet · not real money',
-                    style: TextStyle(
+                    style: CustomerTypography.compactStrong.copyWith(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -579,9 +561,11 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  const Text(
+                  Text(
                     'Available balance',
-                    style: TextStyle(color: Colors.white, fontSize: 13),
+                    style: CustomerTypography.body.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                   OutlinedButton.icon(
                     key: const ValueKey('customer-wallet-add-money'),
@@ -606,7 +590,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                     icon: const Icon(Icons.add_circle, size: 18),
                     label: Text(
                       data.balance == null ? 'Open wallet' : 'Add money',
-                      style: const TextStyle(fontSize: 12),
+                      style: CustomerTypography.compact,
                     ),
                   ),
                 ],
@@ -618,11 +602,8 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                     _hidden
                         ? '••••••'
                         : walletMoney(data.balance?['available'] ?? 0),
-                    style: const TextStyle(
+                    style: CustomerTypography.screen.copyWith(
                       color: Colors.white,
-                      fontSize: 24,
-                      height: 1.15,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   IconButton(
@@ -646,9 +627,11 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                 ],
               ),
               if (data.balance == null)
-                const Text(
+                Text(
                   'Open your LKR wallet to get started.',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: CustomerTypography.compact.copyWith(
+                    color: Colors.white70,
+                  ),
                 ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 6),
@@ -664,9 +647,8 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                       children: [
                         Text(
                           field == 'reserved' ? 'Reserved' : 'Pending',
-                          style: const TextStyle(
+                          style: CustomerTypography.compact.copyWith(
                             color: Colors.white70,
-                            fontSize: 11,
                           ),
                         ),
                         const SizedBox(height: 3),
@@ -674,10 +656,8 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                           _hidden
                               ? '••••'
                               : walletMoney(data.balance?[field] ?? 0),
-                          style: const TextStyle(
+                          style: CustomerTypography.compactStrong.copyWith(
                             color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -703,6 +683,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
         'TOPUP' => 'Wallet top-up',
         'BOOKING_RESERVE' => 'Booking reservation',
         'WALLET_BOOKING_SETTLE' => 'Booking payment',
+        'PROVIDER_PENALTY' => 'Provider cancellation compensation',
         'WITHDRAWAL' => 'Withdrawal',
         _ => 'Wallet activity',
       };
@@ -750,21 +731,16 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
               size: 16,
             ),
           ),
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
+          title: Text(title, style: CustomerTypography.compactStrong),
           subtitle: Text(
             '$date${['MOCK', 'PAYHERE_SANDBOX'].contains(row['fundingMode']) ? ' · Test transaction' : ''}',
-            style: const TextStyle(fontSize: 10, height: 1.2),
+            style: CustomerTypography.micro,
           ),
           trailing: formatted == null
               ? null
               : Text(
                   _hidden ? '••••' : formatted,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  style: CustomerTypography.compactStrong.copyWith(
                     color: amount != null && amount > BigInt.zero
                         ? const Color(0xFF258048)
                         : CustomerColors.text,
@@ -833,19 +809,15 @@ class _EmptyWalletPanel extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: CustomerTypography.card.copyWith(
                         color: CustomerColors.text,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       message,
-                      style: const TextStyle(
+                      style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.secondaryText,
-                        fontSize: 12,
-                        height: 1.4,
                       ),
                     ),
                   ],

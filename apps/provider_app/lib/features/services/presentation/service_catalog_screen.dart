@@ -313,7 +313,7 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
             style: TextStyle(
               fontSize: 26 * scale,
               height: 32 / 26,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: servicesInk,
             ),
           ),
@@ -346,7 +346,7 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
                   controller: _search,
                   onChanged: (_) => setState(() {}),
                   style: TextStyle(
-                    fontFamily: 'HomeInter',
+                    fontFamily: 'PublicSans',
                     fontSize: 13 * scale,
                     height: 1.2,
                     letterSpacing: 0,
@@ -434,14 +434,14 @@ class _ServiceCatalogScreenState extends ConsumerState<ServiceCatalogScreen> {
     return Theme(
       data: Theme.of(context).copyWith(
         textTheme: Theme.of(context).textTheme.apply(
-          fontFamily: 'HomeInter',
+          fontFamily: 'PublicSans',
           bodyColor: servicesInk,
           displayColor: servicesInk,
         ),
       ),
       child: DefaultTextStyle(
         style: const TextStyle(
-          fontFamily: 'HomeInter',
+          fontFamily: 'PublicSans',
           fontSize: 14,
           color: servicesInk,
           letterSpacing: 0,

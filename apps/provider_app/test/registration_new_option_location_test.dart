@@ -96,6 +96,8 @@ void main() {
         );
         await tester.tap(find.text('Open option'));
         await tester.pumpAndSettle();
+        expect(find.text('Delivery mode'), findsNothing);
+        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
         expect(repository.areaLoads, registered ? [4] : isEmpty);
         if (registered) {
           expect(find.text('Retry loading locations'), findsOneWidget);

@@ -9,6 +9,48 @@ import 'package:provider_app/features/services/presentation/registration_option_
 import 'support/fake_schema_repository.dart';
 
 void main() {
+  for (final modes in <List<String>>[
+    [],
+    ['PROVIDER_TO_CUSTOMER', 'ONLINE'],
+  ]) {
+    testWidgets(
+      'location configuration never offers a provider mode selector: $modes',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: RegistrationOptionEditor(
+                option: ProviderSchemaOption(
+                  optionId: 12,
+                  code: 'CARE',
+                  name: 'Care',
+                  fields: [],
+                  deliveryModes: modes,
+                ),
+                service: const ProviderServiceType(
+                  id: 3,
+                  name: 'Care',
+                  status: 'ACTIVE',
+                ),
+                setup: parseProviderSchema(schemaJson(), 3).serviceSetup,
+                initial: const {},
+                loadSavedLocations: false,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Delivery mode'), findsNothing);
+        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+        expect(
+          find.textContaining('missing its location configuration'),
+          modes.isEmpty ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'changing a weekday preserves the saved times of other weekdays',
     (tester) async {

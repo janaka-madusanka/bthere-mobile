@@ -18,6 +18,23 @@ import 'service_first_test.dart' show ServiceFixture, pump;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('greeting and KPI placeholders preserve Unicode characters', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeGreeting(
+            username: 'Vishwa',
+            now: DateTime(2026, 10, 29, 21),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Vishwa \u{1F44B}'), findsOneWidget);
+    expect(find.text('\u2014'), findsNWidgets(4));
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('home uses catalog artwork and existing popular services', (
     tester,
   ) async {

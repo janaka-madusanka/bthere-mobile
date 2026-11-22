@@ -392,6 +392,11 @@ class CustomerAuthService {
           requiresAuth: true,
           options: options,
         ),
+        'DELETE' => client.delete<Object?>(
+          path,
+          requiresAuth: true,
+          options: options,
+        ),
         _ => throw ArgumentError('Unsupported booking request method'),
       };
     }

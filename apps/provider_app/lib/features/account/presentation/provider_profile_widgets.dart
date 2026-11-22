@@ -92,7 +92,7 @@ class _ProfileIdentity extends StatelessWidget {
                   name,
                   style: const TextStyle(
                     fontSize: 17.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -109,7 +109,7 @@ class _ProfileIdentity extends StatelessWidget {
                                     text: (rating as num).toStringAsFixed(1),
                                     style: const TextStyle(
                                       color: _ink,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   TextSpan(text: ' ($reviews reviews)'),
@@ -187,7 +187,7 @@ class _Heading extends StatelessWidget {
       header: true,
       child: Text(
         title,
-        style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
+        style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
       ),
     ),
   );
@@ -273,7 +273,7 @@ class _Metric extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontSize: 15.5,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
             Text(
@@ -383,7 +383,7 @@ class _ProfileSectionState extends State<_ProfileSection> {
                                     widget.title,
                                     style: const TextStyle(
                                       fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w700,
                                       letterSpacing: 0,
                                     ),
                                   ),
@@ -438,7 +438,7 @@ class _ProfileSectionState extends State<_ProfileSection> {
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
                 child: DefaultTextStyle(
                   style: const TextStyle(
-                    fontFamily: 'Nunito',
+                    fontFamily: 'PublicSans',
                     fontSize: 10,
                     height: 1.15,
                     color: _ink,
@@ -518,7 +518,7 @@ class _SupportTile extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 3),

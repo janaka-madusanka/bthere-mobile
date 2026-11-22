@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart';
 
 enum BThereBrandAsset {
-  carePromise('assets/branding/bthere_logo_care_promise.svg', 155, 77),
+  carePromise('assets/branding/bthere_logo_colored.svg', 240, 91),
   google('assets/branding/google_logo.svg', 25, 29),
   apple('assets/branding/apple_logo.svg', 25, 29);
 

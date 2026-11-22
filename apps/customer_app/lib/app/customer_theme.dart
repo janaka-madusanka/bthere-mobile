@@ -65,6 +65,21 @@ abstract final class CustomerTypography {
     height: 12 / 10,
     fontWeight: FontWeight.w500,
   );
+  static const compactStrong = TextStyle(
+    fontFamily: family,
+    fontSize: 12,
+    height: 16 / 12,
+    fontWeight: FontWeight.w600,
+  );
+
+  /// A deliberate display exception for the payment deadline, not a heading.
+  static const countdown = TextStyle(
+    fontFamily: family,
+    fontSize: 38,
+    height: 44 / 38,
+    fontWeight: FontWeight.w700,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 }
 
 abstract final class CustomerTheme {

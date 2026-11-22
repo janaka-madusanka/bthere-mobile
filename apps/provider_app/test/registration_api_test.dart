@@ -57,6 +57,54 @@ void main() {
     repository = RegistrationRepository(client);
   });
   tearDown(() => client.close(force: true));
+  test('all configured location groups survive loading and save to their own provider paths', () async {
+    final data = optionsSchema();
+    data['options'][0]['deliveryModes'] = [
+      'PROVIDER_TO_CUSTOMER',
+      'CUSTOMER_TO_PROVIDER',
+      'ONLINE',
+    ];
+    final option = parseProviderSchema(data, 3).options.first;
+    final prefix = '/providers/me/services/14/options/12/delivery-modes/';
+    adapter.responses['${prefix}PROVIDER_TO_CUSTOMER/service-areas'] = [
+      {
+        'locationName': 'Coverage',
+        'latitude': 6.9,
+        'longitude': 79.8,
+        'radiusKm': 10,
+      },
+    ];
+    adapter.responses['${prefix}CUSTOMER_TO_PROVIDER/service-areas'] = [
+      {
+        'locationName': 'Studio',
+        'latitude': 6.9,
+        'longitude': 79.8,
+        'radiusKm': null,
+        'capacity': 4,
+      },
+    ];
+    final loaded = await repository.loadOptionLocations(14, [option]);
+    expect(loaded, isA<Success<Map<String, dynamic>>>());
+    final draft = (loaded as Success<Map<String, dynamic>>).value['12'] as Map;
+    expect(draft['locationsByMode'], hasLength(2));
+    expect(
+      draft['locationsByMode']['CUSTOMER_TO_PROVIDER']['areas'][0]['capacity'],
+      4,
+    );
+    adapter.requests.clear();
+    expect(
+      await repository.saveOptionLocations(14, option, draft),
+      isA<Success<void>>(),
+    );
+    expect(adapter.requests.map((r) => r.path), [
+      '${prefix}PROVIDER_TO_CUSTOMER/service-areas',
+      '${prefix}CUSTOMER_TO_PROVIDER/service-areas',
+    ]);
+    expect(adapter.requests.every((r) => r.method == 'PUT'), isTrue);
+    expect((adapter.requests[0].data as List).single['radiusKm'], 10);
+    expect((adapter.requests[1].data as List).single['radiusKm'], isNull);
+    expect((adapter.requests[1].data as List).single['capacity'], 4);
+  });
   test('saved languages replace empty defaults and clean stale drafts', () {
     final server = {
       'languages': ['ENGLISH', 'SINHALA'],
@@ -225,7 +273,7 @@ void main() {
       };
       expect(
         validateRegistrationDraft(enriched, {12}, draft),
-        contains('supported delivery mode'),
+        contains('Add a location'),
       );
     },
   );
