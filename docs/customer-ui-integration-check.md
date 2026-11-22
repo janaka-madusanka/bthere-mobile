@@ -1,39 +1,5 @@
 # Customer UI integration check
 
-## PR validation update — 2026-11-04
-
-The final implementation is integrated into the normal Customer entry point.
-Booking cards open the redesigned full Details page directly; confirmation stays
-visible until the customer chooses an action. Card confirmation goes from the
-accepted-provider countdown to the documented hosted PayHere checkout. Cancelled,
-expired and unmatched recovery preserves the booking draft. Services, Booking,
-Details and Wallet use the updated presentation.
-
-The PR is based on `main` and excludes the older Provider integration, temporary
-PDF tools and shared-theme migration present in the local development history.
-The shared design-system change is limited to loading-button contrast and its
-regression test. Local configuration and generated build/screenshot files remain
-untracked. The removed runtime preview environment has not been restored; `tool/`
-contains standalone widget-rendering utilities only.
-
-Validation on the final main-based PR tree:
-
-- Customer app: **338 tests passed**.
-- Shared packages: **245 tests passed**.
-- Provider acceptance helper: **17 tests passed**.
-- Flutter analysis for `apps/customer_app` and `packages`: **no issues**.
-- Changed Dart files pass the formatting check.
-- Android debug APK build: **passed** on this main-based PR tree.
-- Services, Booking list and Details rendering/large-text checks: **3 passed**.
-- Provider comparison: **691 passed / 30 failed** on both untouched `main` and
-  the PR branch. All 30 failing test names match; there are no new failures.
-- Workspace-wide analysis has one pre-existing Provider `withOpacity` deprecation
-  in `service_catalog_visuals.dart`; the Customer/shared scope is clean.
-
-Live PayHere payment and iOS on-device checkout are not covered by these checks.
-The local Android debug builds and emulator UI checks are recorded in the handoff;
-PR-specific build results are listed in the pull request.
-
 Checked: 2026-11-03 (Asia/Colombo).
 
 The offline preview environment was subsequently removed at the user's request:
