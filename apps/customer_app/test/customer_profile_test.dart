@@ -45,7 +45,45 @@ Future<void> signIn(WidgetTester tester, Fixture f) async {
   await openCustomerAccount(tester);
 }
 
+class PendingProfileRepository extends CustomerProfileRepository {
+  PendingProfileRepository(super.auth);
+  final saves = <Completer<CustomerProfile>>[];
+  @override
+  Future<CustomerProfile?> load() async =>
+      CustomerProfile.fromJson(customerProfileJson());
+  @override
+  Future<CustomerProfile> save(CustomerProfileInput input) {
+    final pending = Completer<CustomerProfile>();
+    saves.add(pending);
+    return pending.future;
+  }
+}
+
 void main() {
+  test('old profile save cannot overwrite a later session or clear its saving state', () async {
+    final f = Fixture();
+    addTearDown(f.dispose);
+    await f.controller.login('test', 'password');
+    final repo = PendingProfileRepository(f.service);
+    final c = CustomerProfileController(repo, f.controller);
+    addTearDown(c.dispose);
+    await Future<void>.delayed(Duration.zero);
+    final first = c.save(input());
+    expect(c.saving, isTrue);
+    await f.controller.logout();
+    expect(c.saving, isFalse);
+    await f.controller.login('test', 'password');
+    await Future<void>.delayed(Duration.zero);
+    expect(c.stage, CustomerProfileStage.ready);
+    final second = c.save(input());
+    expect(c.saving, isTrue);
+    repo.saves[0].complete(CustomerProfile.fromJson(customerProfileJson()));
+    await first;
+    expect(c.saving, isTrue);
+    repo.saves[1].complete(CustomerProfile.fromJson(customerProfileJson()));
+    await second;
+    expect(c.saving, isFalse);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
     final loader = FontLoader('Public Sans')

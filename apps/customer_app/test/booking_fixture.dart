@@ -257,6 +257,43 @@ class BookingFixture extends DiscoveryFixture {
       final path = Uri.parse(request.path).path;
       Object? body;
       var status = 200;
+      if (path.startsWith('/customers/me/documents/')) {
+        final id = int.parse(path.split('/').last);
+        final item = (requirementBody as List).cast<Map>().firstWhere(
+          (row) => row['requirement']['requirementId'] == id,
+        );
+        final definition = item['requirement']['definition'] as Map;
+        final submission = item['submission'] as Map?;
+        final state = submission?['status'] ?? 'MISSING';
+        return ResponseBody.fromString(
+          jsonEncode({
+            'requirementId': id,
+            'code': definition['code'],
+            'name': definition['label'],
+            'fieldType': definition['fieldType'],
+            'required': definition['required'],
+            'blocksBooking': definition['blocksBooking'],
+            'status': state,
+            'actionRequired': [
+              'MISSING',
+              'REJECTED',
+              'EXPIRED',
+            ].contains(state),
+            'statusReason': state == 'MISSING' ? 'NOT_SUBMITTED' : state,
+            'upload': definition,
+            'fileKeys': [
+              for (final file in submission?['value']?['files'] ?? [])
+                file['key'],
+            ],
+            'expiresOn': submission?['expiresOn'],
+            'rejectionReason': submission?['rejectionReason'],
+          }),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
       switch (path) {
         case '/customers/me/bookings/70/confirm-completion':
           status = completionStatus;
@@ -544,6 +581,7 @@ class BookingFixture extends DiscoveryFixture {
           };
         case '/uploads/view-url':
           body = {
+            'key': request.uri.queryParameters['key'],
             'url': 'https://example.invalid/private-view',
             'expiresAt': '2030-01-01T00:10:00Z',
           };

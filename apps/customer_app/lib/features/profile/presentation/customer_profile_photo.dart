@@ -13,8 +13,12 @@ class CustomerProfilePhoto extends StatefulWidget {
     required this.enabled,
     required this.onPick,
     required this.onRemove,
+    this.previewBytes,
+    this.compact = false,
   });
   final String? url;
+  final Uint8List? previewBytes;
+  final bool compact;
   final bool uploading, enabled;
   final VoidCallback onPick, onRemove;
   @override
@@ -52,9 +56,15 @@ class _CustomerProfilePhotoState extends State<CustomerProfilePhoto> {
     });
   }
 
-  Widget get _placeholder =>
-      const Icon(Icons.person_rounded, size: 98, color: Color(0xFFB8C3DA));
+  Widget get _placeholder => Icon(
+    Icons.person_rounded,
+    size: 88,
+    color: widget.compact ? const Color(0xFF91D5D3) : const Color(0xFFB8C3DA),
+  );
   Widget _image() {
+    if (widget.previewBytes case final bytes?) {
+      return Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+    }
     final url = widget.url;
     final attempt = _attempt;
     if (url == null) return _placeholder;
@@ -98,15 +108,17 @@ class _CustomerProfilePhotoState extends State<CustomerProfilePhoto> {
       children: [
         Center(
           child: SizedBox(
-            width: 112,
-            height: 112,
+            width: widget.compact ? 116 : 112,
+            height: widget.compact ? 116 : 112,
             child: Stack(
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFFE8EDF5),
+                      color: widget.compact
+                          ? const Color(0xFFDDF7F6)
+                          : const Color(0xFFE8EDF5),
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: const [
                         BoxShadow(
@@ -155,20 +167,22 @@ class _CustomerProfilePhotoState extends State<CustomerProfilePhoto> {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          widget.url == null
-              ? 'Add a profile photo (optional)'
-              : 'Change your profile photo',
-          textAlign: TextAlign.center,
-          style: text.bodyMedium?.copyWith(color: const Color(0xFF687B83)),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'JPG, PNG or WebP · Up to 10 MB',
-          textAlign: TextAlign.center,
-          style: text.bodySmall?.copyWith(color: const Color(0xFF687B83)),
-        ),
+        if (!widget.compact) ...[
+          const SizedBox(height: 10),
+          Text(
+            widget.url == null
+                ? 'Add a profile photo (optional)'
+                : 'Change your profile photo',
+            textAlign: TextAlign.center,
+            style: text.bodyMedium?.copyWith(color: const Color(0xFF687B83)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'JPG, PNG or WebP · Up to 10 MB',
+            textAlign: TextAlign.center,
+            style: text.bodySmall?.copyWith(color: const Color(0xFF687B83)),
+          ),
+        ],
         if (widget.url != null)
           Center(
             child: TextButton(

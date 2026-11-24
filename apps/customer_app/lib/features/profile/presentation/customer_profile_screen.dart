@@ -10,9 +10,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../auth/application/customer_auth_controller.dart';
 import '../../auth/data/customer_auth_service.dart';
-import '../../auth/presentation/customer_brand_image.dart';
+
+import 'package:flutter_svg/flutter_svg.dart';
+
+import '../../../app/widgets/customer_top_bar.dart';
 import '../application/customer_profile_controller.dart';
 import '../data/customer_photo_upload.dart';
+import '../data/customer_profile_overview_repository.dart';
 import '../domain/customer_profile.dart';
 import 'customer_profile_photo.dart';
 
@@ -27,6 +31,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
   final _form = GlobalKey<FormState>();
   final _fields = <String, TextEditingController>{};
   String? _photo, _photoError;
+  Uint8List? _photoBytes;
   bool _initialized = false, _uploading = false;
   static const _labels = {
     'firstName': 'First name',
@@ -55,7 +60,14 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    if (_uploading) return;
+    final owner = ref.read(customerAuthControllerProvider).user?.id;
+    bool sameOwner() =>
+        mounted &&
+        owner != null &&
+        ref.read(customerAuthControllerProvider).user?.id == owner &&
+        ref.read(customerAuthControllerProvider).stage ==
+            CustomerAuthStage.authenticated;
+    if (_uploading || !sameOwner()) return;
     setState(() {
       _uploading = true;
       _photoError = null;
@@ -65,7 +77,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
       );
-      if (file == null || !mounted) return;
+      if (file == null || !sameOwner()) return;
       final length = await file.length();
       if (length != null && (length <= 0 || length > 10 * 1024 * 1024)) {
         throw const CustomerAuthFailure(
@@ -74,6 +86,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
       }
       final builder = BytesBuilder(copy: false);
       await for (final chunk in file.readAsByteStream()) {
+        if (!sameOwner()) return;
         if (builder.length + chunk.length > 10 * 1024 * 1024) {
           throw const CustomerAuthFailure(
             'Choose a profile photo no larger than 10 MB.',
@@ -82,19 +95,20 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         builder.add(chunk);
       }
       final bytes = builder.takeBytes();
-      if (!mounted) return;
+      if (!sameOwner()) return;
       final url = await uploadCustomerPhoto(
         ref.read(customerAuthServiceProvider),
         bytes,
         file.name,
       );
-      if (mounted) {
+      if (sameOwner()) {
         setState(() {
           _photo = url;
+          _photoBytes = bytes;
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (sameOwner()) {
         setState(
           () => _photoError = error is CustomerAuthFailure
               ? error.message
@@ -126,7 +140,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         final busy = controller.saving || _uploading || auth.busy;
         final editing = controller.profile?.profileCompleted == true;
         Future<void> save() async {
-          if (busy || !_form.currentState!.validate()) return;
+          final owner = auth.user?.id;
+          if (busy || owner == null || !_form.currentState!.validate()) return;
           FocusScope.of(context).unfocus();
           String text(String key) => _fields[key]!.text;
           await controller.save(
@@ -145,7 +160,9 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
           );
           if (context.mounted &&
               controller.stage == CustomerProfileStage.ready &&
-              controller.error == null) {
+              controller.error == null &&
+              auth.user?.id == owner) {
+            ref.invalidate(customerProfileOverviewProvider(owner));
             context.go(editing ? '/account' : '/market');
           }
         }
@@ -153,7 +170,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         Widget field(String name) => BThereTextField(
           key: ValueKey('customer-profile-$name'),
           label:
-              '${_labels[name]}${name == 'addressLine2' ? ' (optional)' : ''}',
+              '${_labels[name]}${!_required.contains(name) ? ' (optional)' : ''}',
           labelPlacement: BThereFieldLabelPlacement.above,
           controller: _fields[name],
           enabled: !busy,
@@ -233,7 +250,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
           textTheme: base.textTheme.copyWith(
             labelMedium: base.textTheme.labelMedium?.copyWith(
               fontSize: 12,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: const Color(0xFF0B3037),
             ),
           ),
@@ -246,12 +263,15 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
               color: const Color(0xFF8997A0),
               fontSize: 14,
             ),
-            prefixIconColor: const Color(0xFF687B83),
+            prefixIconColor: const Color(0xFF0F666B),
             filled: true,
             fillColor: const Color(0xCCFFFFFF),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE6EDF0)),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Color(0xFFD2E3EB),
+                width: 1.2,
+              ),
             ),
           ),
         );
@@ -260,132 +280,194 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
           child: PopScope(
             canPop: !busy,
             child: Scaffold(
-              body: BThereBrandedBackground(
-                child: SafeArea(
-                  child: Stack(
+              backgroundColor: const Color(0xFF008F95),
+              body: Column(
+                children: [
+                  Stack(
                     children: [
-                      SingleChildScrollView(
-                        key: const ValueKey('customer-profile-form'),
-                        padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 480),
-                            child: Form(
-                              key: _form,
-                              child: AutofillGroup(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    const Center(
-                                      child: BThereBrandImage(
-                                        asset: BThereBrandAsset.carePromise,
-                                        width: 155,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 28),
-                                    Semantics(
-                                      header: true,
-                                      child: Text(
-                                        editing
-                                            ? 'Edit your profile'
-                                            : 'Let’s get to know you',
-                                        key: const ValueKey(
-                                          'customer-profile-heading',
-                                        ),
-                                        textAlign: TextAlign.center,
-                                        style: base.textTheme.headlineMedium
-                                            ?.copyWith(
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF0B3037),
-                                              height: 1.2,
-                                            ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Complete your profile so we can\npersonalize your experience.',
-                                      textAlign: TextAlign.center,
-                                      style: base.textTheme.bodyLarge?.copyWith(
-                                        fontSize: 14,
-                                        height: 1.45,
-                                        color: const Color(0xFF687B83),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    CustomerProfilePhoto(
-                                      url: _photo,
-                                      uploading: _uploading,
-                                      enabled: !busy,
-                                      onPick: _pickPhoto,
-                                      onRemove: () => setState(() {
-                                        _photo = null;
-                                        _photoError = null;
-                                      }),
-                                    ),
-                                    if (_photoError case final error?)
-                                      BThereInlineError(error),
-                                    const SizedBox(height: 20),
-                                    pair('firstName', 'lastName'),
-                                    const SizedBox(height: 16),
-                                    field('addressLine1'),
-                                    const SizedBox(height: 16),
-                                    field('addressLine2'),
-                                    const SizedBox(height: 16),
-                                    pair('city', 'district'),
-                                    const SizedBox(height: 16),
-                                    pair('province', 'postalCode'),
-                                    const SizedBox(height: 16),
-                                    field('country'),
-                                    const SizedBox(height: 24),
-                                    if (controller.error case final error?) ...[
-                                      BThereInlineError(error),
-                                      const SizedBox(height: 16),
-                                    ],
-                                    if (auth.error case final error?) ...[
-                                      BThereInlineError(error),
-                                      const SizedBox(height: 16),
-                                    ],
-                                    BTherePrimaryButton(
-                                      key: const ValueKey(
-                                        'customer-profile-save',
-                                      ),
-                                      label: editing
-                                          ? 'Save changes'
-                                          : 'Save and continue',
-                                      loading: controller.saving,
-                                      onPressed: busy ? null : save,
-                                    ),
-                                  ],
+                      const Positioned.fill(child: CustomerHeaderBackground()),
+                      SafeArea(
+                        bottom: false,
+                        child: SizedBox(
+                          height: 76,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/branding/home_logo.svg',
+                                  width: 116,
+                                  height: 40,
+                                  semanticsLabel: 'BThere',
                                 ),
-                              ),
+                                const Text(
+                                  'when it matters.',
+                                  style: TextStyle(
+                                    fontFamily: CustomerTypography.family,
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
                       Positioned(
-                        right: 0,
-                        top: 0,
+                        right: 12,
+                        bottom: 14,
                         child: IconButton(
                           tooltip: editing ? 'Back to account' : 'Sign out',
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: .16,
+                            ),
+                            foregroundColor: Colors.white,
+                          ),
                           onPressed: busy
                               ? null
                               : editing
                               ? () => context.go('/account')
                               : auth.logout,
-                          icon: Icon(
-                            editing ? Icons.close : Icons.logout,
-                            size: 20,
-                            color: const Color(0xFF687B83),
-                          ),
+                          icon: Icon(editing ? Icons.close : Icons.logout),
                         ),
                       ),
                     ],
                   ),
-                ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(30),
+                      ),
+                      child: ColoredBox(
+                        color: const Color(0xFFF8F7FC),
+                        child: SafeArea(
+                          top: false,
+                          child: Stack(
+                            children: [
+                              SingleChildScrollView(
+                                key: const ValueKey('customer-profile-form'),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  20,
+                                  20,
+                                  28,
+                                ),
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                child: Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 480,
+                                    ),
+                                    child: Form(
+                                      key: _form,
+                                      child: AutofillGroup(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Semantics(
+                                              header: true,
+                                              child: Text(
+                                                editing
+                                                    ? 'Edit your profile'
+                                                    : 'Let’s get to know you',
+                                                key: const ValueKey(
+                                                  'customer-profile-heading',
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                style: base
+                                                    .textTheme
+                                                    .headlineMedium
+                                                    ?.copyWith(
+                                                      fontSize: 24,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: const Color(
+                                                        0xFF0B3037,
+                                                      ),
+                                                      height: 1.2,
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Complete your profile so we can\npersonalize your experience.',
+                                              textAlign: TextAlign.center,
+                                              style: base.textTheme.bodyLarge
+                                                  ?.copyWith(
+                                                    fontSize: 14,
+                                                    height: 1.45,
+                                                    color: const Color(
+                                                      0xFF687B83,
+                                                    ),
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            CustomerProfilePhoto(
+                                              url: _photo,
+                                              previewBytes: _photoBytes,
+                                              compact: true,
+                                              uploading: _uploading,
+                                              enabled: !busy,
+                                              onPick: _pickPhoto,
+                                              onRemove: () => setState(() {
+                                                _photo = null;
+                                                _photoBytes = null;
+                                                _photoError = null;
+                                              }),
+                                            ),
+                                            if (_photoError case final error?)
+                                              BThereInlineError(error),
+                                            const SizedBox(height: 20),
+                                            pair('firstName', 'lastName'),
+                                            const SizedBox(height: 16),
+                                            field('addressLine1'),
+                                            const SizedBox(height: 16),
+                                            field('addressLine2'),
+                                            const SizedBox(height: 16),
+                                            pair('city', 'district'),
+                                            const SizedBox(height: 16),
+                                            pair('province', 'postalCode'),
+                                            const SizedBox(height: 16),
+                                            field('country'),
+                                            const SizedBox(height: 24),
+                                            if (controller.error
+                                                case final error?) ...[
+                                              BThereInlineError(error),
+                                              const SizedBox(height: 16),
+                                            ],
+                                            if (auth.error
+                                                case final error?) ...[
+                                              BThereInlineError(error),
+                                              const SizedBox(height: 16),
+                                            ],
+                                            BTherePrimaryButton(
+                                              key: const ValueKey(
+                                                'customer-profile-save',
+                                              ),
+                                              label: editing
+                                                  ? 'Save changes'
+                                                  : 'Save and continue',
+                                              loading: controller.saving,
+                                              onPressed: busy ? null : save,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

@@ -15,8 +15,9 @@ import '../domain/booking_tracking.dart';
 import '../domain/booking_cancellation.dart';
 
 class CustomerBookingRepository {
-  CustomerBookingRepository(this.auth);
+  CustomerBookingRepository(this.auth, {this.onServerDate});
   final CustomerAuthService auth;
+  final void Function(String?)? onServerDate;
   Future<BookingCancellation> cancellationPreview(int jobId) async =>
       BookingCancellation.parse(
         await request(
@@ -336,6 +337,7 @@ class CustomerBookingRepository {
       headers: headers,
       safeRead: safeRead || method == 'GET',
     );
+    onServerDate?.call(response.headers.value('date'));
     if (kDebugMode &&
         method == 'GET' &&
         RegExp(r'^/customers/me/bookings/\d+/(providers|ratings)$')
@@ -344,7 +346,6 @@ class CustomerBookingRepository {
       debugPrint(
         'Booking details read: path=$path http=${response.statusCode}',
       );
-
     }
     if (kDebugMode &&
         (RegExp(
@@ -678,7 +679,14 @@ class CustomerBookingRepository {
       await request('GET', '/uploads/view-url?key=${Uri.encodeComponent(key)}'),
     );
     final url = safeImageUrl(raw['url']);
-    if (url == null) throw const FormatException('Invalid private view URL');
+    final expires = raw['expiresAt'];
+    if (url == null ||
+        raw['key'] != key ||
+        expires is! String ||
+        !RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(expires) ||
+        DateTime.tryParse(expires) == null) {
+      throw const FormatException('Invalid private view URL');
+    }
     return url;
   }
 

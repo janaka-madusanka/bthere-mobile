@@ -1,10 +1,81 @@
 import 'package:customer_app/app/customer_theme.dart';
 import 'package:customer_app/features/booking/presentation/booking_request_receipt.dart';
 import 'package:customer_app/features/booking/presentation/booking_provider_accepted.dart';
+import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'accepted screen keeps a long provider name compact and payment action reachable',
+    (tester) async {
+      for (final scale in [1.0, 2.0]) {
+        tester.view.physicalSize = Size(scale == 1 ? 390 : 320, 844);
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: CustomerTheme.light(),
+            home: Scaffold(
+              appBar: AppBar(title: const Text('Get a Service')),
+              body: LayoutBuilder(
+                builder: (context, bounds) => MediaQuery(
+                  data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: BookingProviderAccepted(
+                        serviceName: 'Hospital Care',
+                        provider: ProviderCandidate({
+                          'providerId': 1,
+                          'displayName': 'Nethmi Jayasinghe (TEST)',
+                          'averageRating': 5.0,
+                          'totalRatings': 2,
+                        }),
+                        deadline: '01:31',
+                        expired: false,
+                        busy: false,
+                        availableHeight: bounds.maxHeight,
+                        paymentAmount: 'Rs. 21,000.00',
+                        onContinue: () {},
+                        onCancel: () {},
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSize(
+                find.byKey(const ValueKey('accepted-provider-illustration')),
+              )
+              .height,
+          lessThanOrEqualTo(168),
+        );
+        if (scale == 1) {
+          expect(
+            tester
+                .getBottomLeft(
+                  find.byKey(const ValueKey('booking-accepted-continue')),
+                )
+                .dy,
+            lessThanOrEqualTo(844),
+          );
+        }
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('booking-accepted-continue')),
+        );
+        expect(find.text('Confirm and Pay').hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'accepted countdown warns at 30 seconds and retains expired style',
     (tester) async {

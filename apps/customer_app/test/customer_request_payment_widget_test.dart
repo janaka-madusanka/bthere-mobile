@@ -98,6 +98,15 @@ void main() {
       expect(find.text('Booking #70'), findsOneWidget);
       expect(find.text('Funds reserved'), findsWidgets);
       expect(find.text('Retry booking details'), findsNothing);
+      await tester.tap(find.byTooltip('Back').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Your booking is confirmed!'), findsNothing);
+      expect(find.text('Confirm and Pay'), findsNothing);
+      expect(find.text('Booking #70'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('customer-bottom-navigation')),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
     },
   );

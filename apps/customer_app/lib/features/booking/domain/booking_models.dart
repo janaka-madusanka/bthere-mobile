@@ -61,6 +61,18 @@ class BookingField {
   final List<Object?> options;
   final Map<String, dynamic>? condition;
   final List<String> fileTypes;
+  List<String> get supportedUploadTypes => [
+    for (final type in ['PDF', 'JPG', 'PNG', 'WEBP'])
+      if ((this.type != 'IMAGE_UPLOAD' || type != 'PDF') &&
+          (fileTypes.isEmpty || fileTypes.contains(type)))
+        type,
+  ];
+  List<String> get uploadExtensions => [
+    for (final type in supportedUploadTypes) ...[
+      type.toLowerCase(),
+      if (type == 'JPG') 'jpeg',
+    ],
+  ];
   static const types = {
     'TEXT',
     'TEXTAREA',

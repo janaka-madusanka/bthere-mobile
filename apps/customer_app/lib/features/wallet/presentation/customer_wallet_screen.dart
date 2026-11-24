@@ -295,7 +295,9 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (c.loading || c.working)
+                            if (c.loading && c.data == null)
+                              const _WalletLoadingSkeleton()
+                            else if (c.loading || c.working)
                               const LinearProgressIndicator(),
                             if (c.error != null)
                               _WalletMessage(
@@ -852,4 +854,45 @@ class _DashedPanelBorder extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _WalletLoadingSkeleton extends StatelessWidget {
+  const _WalletLoadingSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    Widget block(double height, {double? width}) => Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF1F3),
+        borderRadius: BorderRadius.circular(14),
+      ),
+    );
+    return Semantics(
+      label: 'Loading wallet',
+      child: ExcludeSemantics(
+        child: Column(
+          key: const ValueKey('wallet-loading-skeleton'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            block(26, width: 110),
+            const SizedBox(height: 8),
+            block(12, width: 160),
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: block(172)),
+            const SizedBox(height: 22),
+            block(18, width: 140),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: block(66)),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: block(46)),
+            const SizedBox(height: 22),
+            block(18, width: 145),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: block(62)),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -31,13 +31,31 @@ class _CustomerBookingStartCodeState
   Timer? timer;
   bool _copying = false;
   bool? _lastWindow;
-  bool get withinWindow =>
-      widget.scheduledStart != null &&
-      !ref
-          .read(customerClockProvider)()
-          .isBefore(
-            widget.scheduledStart!.subtract(const Duration(minutes: 30)),
-          );
+  DateTime? _nextWindowCheck;
+  bool get withinWindow => widget.scheduledStart == null
+      ? controller.windowAvailable == true
+      : !ref
+            .read(customerClockProvider)()
+            .isBefore(
+              widget.scheduledStart!.subtract(const Duration(minutes: 30)),
+            );
+
+  void _checkUnknownWindow({bool force = false}) {
+    if (!mounted ||
+        widget.scheduledStart != null ||
+        !controller.eligible ||
+        ModalRoute.of(context)?.isCurrent == false ||
+        !{
+          null,
+          AppLifecycleState.resumed,
+        }.contains(WidgetsBinding.instance.lifecycleState)) {
+      return;
+    }
+    final now = ref.read(customerClockProvider)();
+    if (!force && _nextWindowCheck?.isAfter(now) == true) return;
+    _nextWindowCheck = now.add(const Duration(minutes: 1));
+    unawaited(controller.checkWindow());
+  }
 
   Future<void> _copyCode() async {
     final value = controller.code;
@@ -202,6 +220,7 @@ class _CustomerBookingStartCodeState
       },
     );
     controller.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUnknownWindow());
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted ||
           !controller.alive ||
@@ -211,6 +230,7 @@ class _CustomerBookingStartCodeState
               AppLifecycleState.inactive) {
         return;
       }
+      _checkUnknownWindow();
       // The details progress card owns foreground status polling. This timer
       // only hides an expired revealed code; avoid duplicate history requests.
       if (controller.expiresAt != null || _lastWindow != withinWindow) {
@@ -228,12 +248,21 @@ class _CustomerBookingStartCodeState
   void didUpdateWidget(CustomerBookingStartCode old) {
     super.didUpdateWidget(old);
     controller.updateBooking(widget.booking);
+    if (old.scheduledStart != widget.scheduledStart ||
+        old.booking['startDatetime'] != widget.booking['startDatetime'] ||
+        old.booking['status'] != widget.booking['status']) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _checkUnknownWindow(force: true),
+      );
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
       controller.hide();
+    } else {
+      _checkUnknownWindow(force: true);
     }
   }
 

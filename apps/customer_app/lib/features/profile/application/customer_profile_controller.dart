@@ -50,10 +50,16 @@ class CustomerProfileController extends ChangeNotifier {
       _userId = null;
       profile = null;
       error = null;
+      saving = false;
       stage = CustomerProfileStage.idle;
       _notify();
     } else if (_userId != auth.user?.id) {
+      _epoch++;
       _userId = auth.user?.id;
+      profile = null;
+      error = null;
+      saving = false;
+      stage = CustomerProfileStage.idle;
       load();
     }
   }
@@ -117,8 +123,10 @@ class CustomerProfileController extends ChangeNotifier {
           : 'Unable to save your profile. Please try again.';
       await _checkSession(failure);
     } finally {
-      saving = false;
-      if (epoch == _epoch) _notify();
+      if (epoch == _epoch) {
+        saving = false;
+        _notify();
+      }
     }
   }
 

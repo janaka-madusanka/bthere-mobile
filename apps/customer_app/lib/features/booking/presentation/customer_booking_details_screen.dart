@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -9,6 +11,7 @@ import 'customer_booking_rating.dart';
 import 'customer_booking_providers.dart';
 import 'customer_tracking_status.dart';
 import 'customer_service_timer.dart';
+import 'customer_booking_auto_cancel.dart';
 import 'customer_booking_cancellation.dart';
 import 'booking_details_reference.dart';
 
@@ -138,6 +141,16 @@ class _CustomerBookingDetailsScreenState
                     }.contains(row['paymentStatus'])) {
                   _freshBooking = null;
                 }
+                if (_freshBooking != null &&
+                    row['status'] != _freshBooking!['status'] &&
+                    {
+                      'CANCELLED',
+                      'IN_PROGRESS',
+                      'AWAITING_COMPLETION_CONFIRMATION',
+                      'COMPLETED',
+                    }.contains(row['status'])) {
+                  _freshBooking = null;
+                }
                 final booking = _freshBooking ?? row;
                 if (_previousBookingStatus != null &&
                     _previousBookingStatus != 'COMPLETED' &&
@@ -145,7 +158,7 @@ class _CustomerBookingDetailsScreenState
                   _showRatingOnCompletion = true;
                 }
                 _previousBookingStatus = booking['status'] as String?;
-                final discovery = ref.read(customerDiscoveryProvider);
+                final discovery = ref.watch(customerDiscoveryProvider);
                 final serviceId = booking['serviceTypeId'] as int?;
                 final optionId = booking['optionId'] as int?;
                 final marketId =
@@ -202,6 +215,16 @@ class _CustomerBookingDetailsScreenState
                         CustomerBookingDetailsView(
                           booking: booking,
                           reviewSaved: _reviewSaved,
+                          onAutoCancelChanged: (latest) {
+                            if (mounted &&
+                                ref
+                                        .read(customerAuthControllerProvider)
+                                        .user
+                                        ?.id ==
+                                    owner) {
+                              setState(() => _freshBooking = latest);
+                            }
+                          },
                           scheduledStart: bookingScheduledInstant(
                             booking,
                             booking['marketTimezone'] as String? ??
@@ -514,12 +537,14 @@ class CustomerBookingDetailsView extends StatelessWidget {
     this.paymentRecovery,
     this.scheduledStart,
     this.reviewSaved = false,
+    this.onAutoCancelChanged,
   });
   final Map<String, dynamic> booking;
   final String? serviceName;
   final List<ProviderCandidate> providers;
   final Map<String, String> answerLabels;
   final VoidCallback onBookings;
+  final ValueChanged<Map<String, dynamic>>? onAutoCancelChanged;
   final Widget? startCode;
   final Widget? serviceProgress;
   final Widget? rating;
@@ -677,6 +702,10 @@ class CustomerBookingDetailsView extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 18),
+                CustomerBookingAutoCancel(
+                  booking: booking,
+                  onChanged: onAutoCancelChanged,
+                ),
                 CustomerServiceTimer(booking: booking),
                 ?paymentRecovery,
                 map,
@@ -744,38 +773,50 @@ class CustomerBookingDetailsView extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: ExpansionTile(
-                      key: const PageStorageKey('booking-patient-expansion'),
-                      iconColor: const Color(0xFF58627B),
-                      collapsedIconColor: const Color(0xFF58627B),
-                      tilePadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                      shape: const Border(),
-                      collapsedShape: const Border(),
-                      leading: const CircleAvatar(
-                        radius: 22,
-                        backgroundColor: CustomerColors.selection,
-                        child: Icon(
-                          Icons.people_outline_rounded,
-                          color: CustomerColors.action,
-                          size: 28,
+                    child: _AutoRevealDetailsExpansion(
+                      builder: (onExpanded) => ExpansionTile(
+                        onExpansionChanged: onExpanded,
+                        expansionAnimationStyle: const AnimationStyle(
+                          duration: Duration(milliseconds: 200),
                         ),
-                      ),
-                      title: Text(
-                        details.any(
-                              (e) => '${e.key}'.toUpperCase().startsWith('CG_'),
-                            )
-                            ? 'Patient details'
-                            : 'Your booking details',
-                        style: CustomerTypography.section.copyWith(
-                          color: const Color(0xFF101D42),
-                          fontWeight: FontWeight.w700,
+                        key: const PageStorageKey('booking-patient-expansion'),
+                        iconColor: const Color(0xFF58627B),
+                        collapsedIconColor: const Color(0xFF58627B),
+                        tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          14,
+                          0,
+                          14,
+                          14,
+                        ),
+                        shape: const Border(),
+                        collapsedShape: const Border(),
+                        leading: const CircleAvatar(
+                          radius: 22,
+                          backgroundColor: CustomerColors.selection,
+                          child: Icon(
+                            Icons.people_outline_rounded,
+                            color: CustomerColors.action,
+                            size: 28,
+                          ),
+                        ),
+                        title: Text(
+                          details.any(
+                                (e) =>
+                                    '${e.key}'.toUpperCase().startsWith('CG_'),
+                              )
+                              ? 'Patient details'
+                              : 'Your booking details',
+                          style: CustomerTypography.section.copyWith(
+                            color: const Color(0xFF101D42),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        children: _answerWidgets(details),
                       ),
-                      children: _answerWidgets(details),
                     ),
                   ),
                 if (!completed || reviewSaved) ?rating,
@@ -1140,4 +1181,63 @@ class _DetailsBadge extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Reveal newly expanded details after the tile finishes laying out. No outer
+/// scroll controller is required, so this also works in the booking UI lab.
+class _AutoRevealDetailsExpansion extends StatefulWidget {
+  const _AutoRevealDetailsExpansion({required this.builder});
+  final Widget Function(ValueChanged<bool>) builder;
+  @override
+  State<_AutoRevealDetailsExpansion> createState() =>
+      _AutoRevealDetailsExpansionState();
+}
+
+class _AutoRevealDetailsExpansionState
+    extends State<_AutoRevealDetailsExpansion> {
+  Timer? reveal;
+  bool isExpanded = false;
+  void changed(bool expanded) {
+    reveal?.cancel();
+    isExpanded = expanded;
+    if (!expanded) return;
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    reveal = Timer(
+      reducedMotion ? Duration.zero : const Duration(milliseconds: 220),
+      () {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isExpanded ||
+              !mounted ||
+              ModalRoute.of(context)?.isCurrent == false) {
+            return;
+          }
+          final scrollable = Scrollable.maybeOf(context);
+          final box = context.findRenderObject();
+          if (scrollable == null || box is! RenderBox || !box.hasSize) return;
+          final fits = box.size.height <= scrollable.position.viewportDimension;
+          Scrollable.ensureVisible(
+            context,
+            duration: reducedMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            alignment: fits ? 1 : 0,
+            alignmentPolicy: fits
+                ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+                : ScrollPositionAlignmentPolicy.explicit,
+          );
+        });
+        WidgetsBinding.instance.scheduleFrame();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    reveal?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(changed);
 }

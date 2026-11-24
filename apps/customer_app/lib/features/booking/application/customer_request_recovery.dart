@@ -1,4 +1,7 @@
 import 'package:flutter/foundation.dart';
+
+import '../../wallet/application/customer_wallet_controller.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/customer_auth_controller.dart';
@@ -25,6 +28,7 @@ final customerRequestRecoveryProvider =
             }
           },
           onChat: () => ref.read(customerChatInboxProvider)?.refresh(),
+          onAutoCancel: () => ref.invalidate(customerWalletProvider),
         );
         ref.onDispose(recovery.dispose);
         return recovery;
@@ -34,6 +38,7 @@ final customerRequestRecoveryProvider =
         customerBookingRepositoryProvider,
         customerMarketSelectionStoreProvider,
         customerChatInboxProvider,
+        customerWalletProvider,
       ],
     );
 
@@ -44,6 +49,7 @@ class CustomerRequestRecovery extends ChangeNotifier {
     this.selection, {
     this.onChange,
     this.onChat,
+    this.onAutoCancel,
   }) {
     auth.addListener(_identityChanged);
   }
@@ -52,6 +58,7 @@ class CustomerRequestRecovery extends ChangeNotifier {
   final CustomerMarketSelectionStore selection;
   final VoidCallback? onChange;
   final VoidCallback? onChat;
+  final VoidCallback? onAutoCancel;
   final requests = <int, Map<String, dynamic>>{};
   final _knownIds = <int>{};
   bool loading = false, _disposed = false;
@@ -260,6 +267,10 @@ class CustomerRequestRecovery extends ChangeNotifier {
             }
             if (event['userId'] != null && event['userId'] != owner) {
               throw const FormatException('Invalid event owner');
+            }
+            if ((event['eventType'] ?? event['type']) ==
+                'BOOKING_AUTO_CANCELLED') {
+              onAutoCancel?.call();
             }
             ids.add(requestId);
             _knownIds.add(requestId);

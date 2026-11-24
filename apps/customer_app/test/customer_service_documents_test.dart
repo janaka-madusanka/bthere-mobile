@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:bthere_network/bthere_network.dart';
 import 'package:customer_app/features/booking/domain/booking_models.dart';
+import 'package:customer_app/features/booking/data/customer_booking_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'booking_fixture.dart';
 import 'customer_booking_widget_test.dart' show openBooking, activeJourney;
-import 'customer_profile_overview_test.dart'
-    show overview, OverviewBackend, press;
+import 'customer_profile_overview_test.dart' show press;
 
 Map<String, dynamic> certificate(String status) {
   final row = requirementJson(
@@ -35,6 +35,107 @@ Map<String, dynamic> certificate(String status) {
 }
 
 void main() {
+  test(
+    'schema upload formats constrain picker and exclude PDF from images',
+    () {
+      final row = certificate('MISSING');
+      (row['requirement']['definition'] as Map)['allowedFileTypes'] = ['PDF'];
+      expect(CustomerRequirement.parse(row).field.uploadExtensions, ['pdf']);
+      final image = certificate('MISSING');
+      (image['requirement']['definition'] as Map).addAll(<String, Object?>{
+        'fieldType': 'IMAGE_UPLOAD',
+        'allowedFileTypes': [],
+      });
+      final field = CustomerRequirement.parse(image).field;
+      expect(field.supportedUploadTypes, ['JPG', 'PNG', 'WEBP']);
+      expect(field.uploadExtensions, contains('jpeg'));
+      expect(field.uploadExtensions, isNot(contains('pdf')));
+    },
+  );
+
+  test('private document view refreshes a signed URL and validates returned identity', () async {
+    final f = BookingFixture();
+    addTearDown(f.f.dispose);
+    f.install();
+    await f.f.service.login('test', 'password');
+    final repository = CustomerBookingRepository(f.f.service);
+    const key = 'customers/12/documents/a b+.pdf';
+    await repository.view(key);
+    await repository.view(key);
+    final reads = f.f.adapter.requests
+        .where((r) => r.path.startsWith('/uploads/view-url'))
+        .toList();
+    expect(reads.length, 2);
+    expect(reads.last.uri.queryParameters['key'], key);
+    final previous = f.f.adapter.extraHandler!;
+    f.f.adapter.extraHandler = (r) async {
+      if (r.path.startsWith('/uploads/view-url')) {
+        return ResponseBody.fromString(
+          jsonEncode({
+            'key': 'different-file',
+            'url': 'https://example.invalid/file',
+            'expiresAt': '2030-01-01T00:10:00Z',
+          }),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
+      return previous(r);
+    };
+    await expectLater(repository.view(key), throwsFormatException);
+  });
+
+  testWidgets(
+    'document sheet shows schema limits, rejection and optional expiry calendar',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      final row = certificate('REJECTED');
+      (row['requirement']['definition'] as Map).addAll(<String, Object?>{
+        'allowedFileTypes': ['PDF'],
+        'maximumFiles': 1,
+        'maximumFileSizeMb': 2,
+      });
+      f.requirementBody = [row];
+      f.eligibility = {'eligible': false, 'reasons': []};
+      await openBooking(tester, f);
+      await press(tester, find.text('Upload / resubmit'));
+      expect(
+        find.byKey(const ValueKey('document-review-status')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Allowed formats: PDF. Maximum 2 MB per file.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Upload document'),
+            )
+            .onPressed,
+        isNull,
+      );
+      final expiry = find.byKey(const ValueKey('document-expiry-date'));
+      expect(tester.widget<TextField>(expiry).readOnly, isTrue);
+      await press(tester, expiry);
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      await press(tester, find.text('OK'));
+      expect(tester.widget<TextField>(expiry).controller!.text, isNotEmpty);
+      await press(tester, find.byTooltip('Clear expiry date'));
+      expect(tester.widget<TextField>(expiry).controller!.text, isEmpty);
+      expect(
+        f.f.adapter.requests.where(
+          (r) =>
+              r.method == 'PUT' && r.path.endsWith('/requirement-submissions'),
+        ),
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'missing required document opens gate before filters and provider search',
     (tester) async {
@@ -135,43 +236,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets(
-    'Profile can discover never-submitted option documents by service scope',
-    (tester) async {
-      final backend = OverviewBackend();
-      backend.data['documents'] = [];
-      final f = await overview(tester, backend);
-      f.requirementBody = [certificate('MISSING')];
-      f.eligibility = {'eligible': false, 'reasons': []};
-      await press(
-        tester,
-        find.byKey(const ValueKey('profile-add-service-documents')),
-      );
-      await press(
-        tester,
-        find.byKey(const ValueKey('profile-document-service')),
-      );
-      await press(tester, find.text('Nursing').last);
-      await press(
-        tester,
-        find.byKey(const ValueKey('profile-document-option-3')),
-      );
-      await press(tester, find.text('Home Care').last);
-      expect(find.text('Service certificate'), findsOneWidget);
-      expect(find.text('Not submitted'), findsOneWidget);
-      final reads = f.f.adapter.requests
-          .where((r) => Uri.parse(r.path).path == '/customers/me/requirements')
-          .toList();
-      expect(reads.last.uri.queryParameters['serviceTypeId'], '3');
-      expect(reads.last.uri.queryParameters['optionId'], '12');
-      tester.view.physicalSize = const Size(320, 568);
-      tester.platformDispatcher.textScaleFactorTestValue = 2;
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+
   test('context denial still exposes document requirements; all blocked states remain blocked', () async {
     final f = BookingFixture();
     await f.start();
