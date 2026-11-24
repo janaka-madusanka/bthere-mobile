@@ -67,6 +67,31 @@ Future<void> settleImage(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'new profile photo previews locally instead of requesting the raw upload URL',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomerProfilePhoto(
+              url: 'https://example.invalid/private-upload.jpg',
+              previewBytes: photoBytes,
+              uploading: false,
+              enabled: true,
+              onPick: () {},
+              onRemove: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<MemoryImage>());
+      expect(find.textContaining('could not be displayed'), findsNothing);
+      debugNetworkImageHttpClientProvider = null;
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   late PhotoHttpClient client;
   setUp(() {
     client = PhotoHttpClient();

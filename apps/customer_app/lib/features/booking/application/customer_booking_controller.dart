@@ -22,8 +22,11 @@ import '../../wallet/data/customer_wallet_repository.dart'
     show walletMinorUnits;
 
 final customerBookingRepositoryProvider = Provider<CustomerBookingRepository>(
-  (ref) => CustomerBookingRepository(ref.watch(customerAuthServiceProvider)),
-  dependencies: [customerAuthServiceProvider],
+  (ref) => CustomerBookingRepository(
+    ref.watch(customerAuthServiceProvider),
+    onServerDate: ref.watch(customerBookingClockProvider).synchronize,
+  ),
+  dependencies: [customerAuthServiceProvider, customerBookingClockProvider],
 );
 final customerAutoAvailabilityEnabledProvider = Provider<bool>((ref) => true);
 final customerBookingProvider = Provider.autoDispose

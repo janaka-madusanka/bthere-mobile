@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 import 'booking_fixture.dart';
 import 'customer_auth_test.dart' show optionJson, tokens, account;
@@ -86,6 +85,34 @@ Future<void> advanceToServiceDetails(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'map continues under sheet corners while controls retain clearance',
+    (tester) async {
+      final f = BookingFixture();
+      addTearDown(f.f.dispose);
+      await openBooking(tester, f);
+      final surface = find.byKey(
+        const ValueKey('booking-details-sheet-surface'),
+      );
+      final map = find.byType(CustomerTestMap);
+      expect(
+        tester.getBottomLeft(map).dy,
+        closeTo(tester.getTopLeft(surface).dy + 24, 1),
+      );
+      expect(tester.widget<CustomerTestMap>(map).state.bottomPadding, 24);
+      expect(
+        tester.widget<Material>(surface).borderRadius,
+        const BorderRadius.vertical(top: Radius.circular(24)),
+      );
+      final control = find.byTooltip('Use current location');
+      expect(
+        tester.getBottomLeft(control).dy,
+        lessThanOrEqualTo(tester.getTopLeft(surface).dy),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'unmatched resend never flashes payment selection during submission',
     (tester) async {
@@ -691,8 +718,9 @@ void main() {
         find.byKey(const ValueKey('customer-bottom-navigation')),
         findsNothing,
       );
-      GoRouter.of(tester.element(find.text('Booking #70')))
-          .go('/opportunities');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Your booking is confirmed!'), findsNothing);
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Bookings'), findsOneWidget);

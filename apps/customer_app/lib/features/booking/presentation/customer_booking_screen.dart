@@ -112,7 +112,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       ref.read(customerBookingDetailsExtrasProvider(c.userId!))[jobId] = extras;
       ref.invalidate(customerBookingHistoryProvider(c.userId!));
     }
-    context.push('/bookings/$jobId', extra: extras);
+    context.go('/bookings/$jobId', extra: extras);
   }
 
   Future<bool> _bookingCard(

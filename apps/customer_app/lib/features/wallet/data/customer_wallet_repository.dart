@@ -181,7 +181,7 @@ class CustomerWalletRepository {
     return WalletPage(entries, page, data['last'] as bool);
   }
 
-  Future<WalletSnapshot> load() async {
+  Future<Map<String, dynamic>?> _balance() async {
     Map<String, dynamic>? balance;
     try {
       balance = object(await request('GET', '/me/wallets/LKR'));
@@ -198,12 +198,24 @@ class CustomerWalletRepository {
     } on WalletFailure catch (failure) {
       if (failure.status != 404) rethrow;
     }
-    final settings = object(await request('GET', '/me/payment-settings'));
+    return balance;
+  }
+
+  Future<WalletSnapshot> load() async {
+    // Independent read-only endpoints must not queue behind one another.
+    // Future.wait also observes every failure; no detached requests are left.
+    final initial = await Future.wait<Object?>([
+      _balance(),
+      request('GET', '/me/payment-settings'),
+      request('GET', '/me/payment-methods'),
+    ]);
+    final balance = initial[0] as Map<String, dynamic>?;
+    final settings = object(initial[1]);
     final capabilities = object(settings['capabilities']);
     if (capabilities.values.any((value) => value is! bool)) {
       throw const FormatException('Invalid wallet capabilities');
     }
-    final methods = rows(await request('GET', '/me/payment-methods'));
+    final methods = rows(initial[2]);
     for (final method in methods) {
       if (method['methodId'] is! int ||
           method['displayLabel'] is! String ||
@@ -212,10 +224,16 @@ class CustomerWalletRepository {
         throw const FormatException('Invalid method');
       }
     }
-    final page = balance == null ? WalletPage([], 0, true) : await history(0);
-    final reconciliation = balance == null
+    final ledger = balance == null
         ? null
-        : object(await request('GET', '/me/wallets/LKR/reconciliation'));
+        : await Future.wait<Object?>([
+            history(0),
+            request('GET', '/me/wallets/LKR/reconciliation'),
+          ]);
+    final page = ledger == null
+        ? WalletPage([], 0, true)
+        : ledger[0] as WalletPage;
+    final reconciliation = ledger == null ? null : object(ledger[1]);
     if (reconciliation != null &&
         (reconciliation['walletId'] != balance!['walletId'] ||
             reconciliation['balanced'] is! bool)) {

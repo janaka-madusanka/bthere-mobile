@@ -70,7 +70,7 @@ class _CustomerBookingCancellationState
         isScrollControlled: true,
         useSafeArea: true,
         showDragHandle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFAF9FC),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
@@ -132,7 +132,9 @@ class _CustomerBookingCancellationState
                 child: Text(
                   receipt == null
                       ? 'Cancel booking'
-                      : data!['cancelledBy'] == 'PROVIDER'
+                      : data!['cancelledBy'] == 'SYSTEM'
+                      ? 'Booking cancelled automatically'
+                      : data['cancelledBy'] == 'PROVIDER'
                       ? 'Your provider cancelled this booking'
                       : 'Booking cancelled',
                   style: CustomerTypography.card.copyWith(
@@ -206,7 +208,7 @@ class _CustomerBookingCancellationState
             if (data!['refundTierName'] is String)
               _receiptRow('Refund policy', data['refundTierName'] as String),
             if (data['reason'] is String)
-              _receiptRow('Reason', data['reason'] as String),
+              _receiptRow('Reason', cancellationReason(data['reason'])),
             if (data['note'] is String &&
                 (data['note'] as String).trim().isNotEmpty)
               _receiptRow('Your note', data['note'] as String),
@@ -398,6 +400,158 @@ class _CancellationReview extends StatefulWidget {
   State<_CancellationReview> createState() => _CancellationReviewState();
 }
 
+class _RefundPreview extends StatefulWidget {
+  const _RefundPreview({required this.preview});
+  final BookingCancellation preview;
+  @override
+  State<_RefundPreview> createState() => _RefundPreviewState();
+}
+
+class _RefundPreviewState extends State<_RefundPreview> {
+  bool expanded = false;
+
+  Widget amount(String label, String value, {bool strong = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: LayoutBuilder(
+      builder: (context, bounds) {
+        final style = strong
+            ? CustomerTypography.card
+            : CustomerTypography.body;
+        final left = Text(label, style: style);
+        final right = Text(value, style: style);
+        if (bounds.maxWidth < 280 ||
+            MediaQuery.textScalerOf(context).scale(14) > 20) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [left, const SizedBox(height: 4), right],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 12),
+            Flexible(child: right),
+          ],
+        );
+      },
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = widget.preview;
+    return Material(
+      color: const Color(0xFFFFEEDD),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Semantics(
+            expanded: expanded,
+            child: InkWell(
+              key: const ValueKey('cancellation-refund-toggle'),
+              onTap: () => setState(() => expanded = !expanded),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/navigation/wallet.svg',
+                      width: 28,
+                      height: 28,
+                      colorFilter: const ColorFilter.mode(
+                        Color(0xFFBD700E),
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Refund preview',
+                            style: CustomerTypography.section.copyWith(
+                              color: const Color(0xFF10152F),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            preview.refund == 0
+                                ? 'No refund under this cancellation policy'
+                                : "${preview.money('refundAmount')} to your wallet",
+                            style: CustomerTypography.body,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: const Color(0xFF101D42),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (expanded)
+            Padding(
+              key: const ValueKey('cancellation-refund-breakdown'),
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (preview.data['retainedAmount'] != null)
+                    amount('Retained amount', preview.money('retainedAmount')),
+                  amount('Cancellation fee', preview.money('cancellationFee')),
+                  const Divider(height: 20, color: Color(0xFFE0CFBD)),
+                  amount(
+                    'Refund amount',
+                    preview.money('refundAmount'),
+                    strong: true,
+                  ),
+                  if (preview.data['refundTierName'] is String) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      "Refund policy: ${preview.data['refundTierName']}",
+                      style: CustomerTypography.compact,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFFD77913),
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          preview.refund == 0
+                              ? 'No refund will be credited for this cancellation.'
+                              : 'Any applicable refund goes to your BThere Wallet, including payments made by card.',
+                          style: CustomerTypography.compact,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CancellationReviewState extends State<_CancellationReview> {
   bool closing = false;
   final form = GlobalKey<FormState>();
@@ -410,106 +564,29 @@ class _CancellationReviewState extends State<_CancellationReview> {
     super.dispose();
   }
 
-  Future<String?> _chooseReason() => showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.white,
-    showDragHandle: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) => SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Cancellation reason',
-              style: CustomerTypography.section,
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Choose the reason that best describes your situation.',
-              style: CustomerTypography.compact,
-            ),
-            const SizedBox(height: 16),
-            for (final label in [
-              'Plans changed',
-              'Booked by mistake',
-              'Service no longer needed',
-              'Other',
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Material(
-                  color: label == selectedReason
-                      ? CustomerColors.selection
-                      : const Color(0xFFF7FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () => Navigator.pop(sheetContext, label),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 16,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: label == selectedReason
-                                  ? CustomerTypography.card
-                                  : CustomerTypography.body,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Icon(
-                            label == selectedReason
-                                ? Icons.check_circle_rounded
-                                : Icons.radio_button_unchecked_rounded,
-                            color: label == selectedReason
-                                ? CustomerColors.action
-                                : CustomerColors.muted,
-                            size: 22,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     final preview = widget.preview;
     final keep = FilledButton(
       onPressed: closing ? null : () => Navigator.pop(context),
       style: FilledButton.styleFrom(
-        backgroundColor: CustomerColors.action,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFD9F4F3),
+        foregroundColor: const Color(0xFF007F80),
         textStyle: CustomerTypography.card.copyWith(
           fontWeight: FontWeight.w700,
         ),
         minimumSize: const Size.fromHeight(48),
       ),
-      child: const Text('Keep booking'),
+      child: const Text('Keep Booking'),
     );
     final cancel = FilledButton(
       key: const ValueKey('confirm-paid-cancellation'),
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFFFEDEE),
-        foregroundColor: const Color(0xFFB45158),
-        textStyle: CustomerTypography.card,
+        backgroundColor: const Color(0xFFFF3D3D),
+        foregroundColor: Colors.white,
+        textStyle: CustomerTypography.card.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
         minimumSize: const Size.fromHeight(48),
       ),
       onPressed: closing
@@ -561,7 +638,16 @@ class _CancellationReviewState extends State<_CancellationReview> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Cancel Booking', style: CustomerTypography.screen),
+                      Text(
+                        'Cancel Booking',
+                        style: TextStyle(
+                          fontFamily: CustomerTypography.family,
+                          fontSize: 24,
+                          height: 1.25,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF10152F),
+                        ),
+                      ),
                       SizedBox(height: 4),
                       Text(
                         'Tell us why you want to cancel this booking.',
@@ -577,40 +663,14 @@ class _CancellationReviewState extends State<_CancellationReview> {
               initialValue: selectedReason,
               validator: (value) =>
                   value == null ? 'Select a cancellation reason.' : null,
-              builder: (field) => InkWell(
-                key: const ValueKey('cancellation-reason'),
-                borderRadius: BorderRadius.circular(14),
-                onTap: closing
-                    ? null
-                    : () async {
-                        final value = await _chooseReason();
-                        if (!mounted || value == null) return;
-                        field.didChange(value);
-                        setState(() => selectedReason = value);
-                      },
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: 'Cancellation reason',
-                    errorText: field.errorText,
-                    filled: true,
-                    fillColor: const Color(0xFFF7FAFC),
-                    prefixIcon: const Icon(
-                      Icons.list_alt_rounded,
-                      color: CustomerColors.action,
-                    ),
-                    suffixIcon: const Icon(
-                      Icons.expand_more_rounded,
-                      color: CustomerColors.action,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    selectedReason ?? 'Select a reason',
-                    style: CustomerTypography.body,
-                  ),
-                ),
+              builder: (field) => _CancellationReasonDropdown(
+                value: selectedReason,
+                error: field.errorText,
+                enabled: !closing,
+                onChanged: (value) {
+                  field.didChange(value);
+                  setState(() => selectedReason = value);
+                },
               ),
             ),
             if (selectedReason == 'Other') ...[
@@ -627,74 +687,23 @@ class _CancellationReviewState extends State<_CancellationReview> {
             const SizedBox(height: 16),
             TextFormField(
               controller: note,
-              maxLength: 1000,
+              maxLength: 250,
               minLines: 3,
               maxLines: 4,
               decoration: const InputDecoration(
                 hintText: 'Add a note (optional)',
+                hintStyle: CustomerTypography.body,
+                filled: true,
+                fillColor: Colors.transparent,
+                contentPadding: EdgeInsets.all(16),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderSide: BorderSide(color: Color(0xFFD9D8E5), width: 1.2),
+                ),
               ),
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FAF9),
-                border: Border.all(color: const Color(0xFFD5EEEB)),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.account_balance_wallet_outlined,
-                    color: CustomerColors.action,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Refund preview',
-                          style: CustomerTypography.compactStrong.copyWith(
-                            color: CustomerColors.secondaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          "${preview.money('refundAmount')} back to your wallet",
-                          style: CustomerTypography.card.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        if (preview.data['retainedAmount'] != null)
-                          Text(
-                            "${preview.money('retainedAmount')} retained",
-                            style: CustomerTypography.compact,
-                          ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Cancellation fee: ${preview.money('cancellationFee')}",
-                          style: CustomerTypography.compact,
-                        ),
-                        const SizedBox(height: 4),
-                        if (preview.data['refundTierName'] is String)
-                          Text(
-                            "Refund policy: ${preview.data['refundTierName']}",
-                            style: CustomerTypography.compact,
-                          ),
-                        const Divider(height: 20, color: Color(0xFFD5EEEB)),
-                        const Text(
-                          'Any applicable refund goes to your BThere Wallet, including payments made by card.',
-                          style: CustomerTypography.compact,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _RefundPreview(preview: preview),
             const SizedBox(height: 22),
             LayoutBuilder(
               builder: (context, bounds) =>
@@ -718,3 +727,202 @@ class _CancellationReviewState extends State<_CancellationReview> {
     );
   }
 }
+
+/// Anchored overlay leaves the sheet's intrinsic height unchanged.
+class _CancellationReasonDropdown extends StatefulWidget {
+  const _CancellationReasonDropdown({
+    required this.value,
+    required this.error,
+    required this.enabled,
+    required this.onChanged,
+  });
+  final String? value, error;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+  @override
+  State<_CancellationReasonDropdown> createState() =>
+      _CancellationReasonDropdownState();
+}
+
+class _CancellationReasonDropdownState
+    extends State<_CancellationReasonDropdown> {
+  final portal = OverlayPortalController();
+  final link = LayerLink();
+  final anchor = GlobalKey();
+  void close() {
+    portal.hide();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => OverlayPortal(
+    controller: portal,
+    overlayChildBuilder: (context) {
+      final box = anchor.currentContext!.findRenderObject()! as RenderBox;
+      final media = MediaQuery.of(context);
+      final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+      final height =
+          (media.size.height -
+                  media.viewInsets.bottom -
+                  media.padding.bottom -
+                  bottom -
+                  16)
+              .clamp(0.0, 280.0);
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: close,
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            width: box.size.width,
+            child: CompositedTransformFollower(
+              link: link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 8),
+              child: Material(
+                key: const ValueKey('cancellation-reason-menu'),
+                color: Colors.white,
+                elevation: 3,
+                shadowColor: const Color(0x260B3037),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: Color(0xFFE6EBEF)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: height),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final label in [
+                          'Plans changed',
+                          'Booked by mistake',
+                          'Service no longer needed',
+                          'Other',
+                        ])
+                          Material(
+                            color: widget.value == label
+                                ? const Color(0xFFEAF8F6)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                close();
+                                widget.onChanged(label);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        label,
+                                        style: CustomerTypography.body,
+                                      ),
+                                    ),
+                                    if (widget.value == label) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.check_rounded,
+                                        color: CustomerColors.action,
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+    child: CompositedTransformTarget(
+      link: link,
+      key: anchor,
+      child: Semantics(
+        expanded: portal.isShowing,
+        child: InkWell(
+          key: const ValueKey('cancellation-reason'),
+          borderRadius: BorderRadius.circular(14),
+          onTap: !widget.enabled
+              ? null
+              : () {
+                  if (portal.isShowing) {
+                    close();
+                  } else {
+                    portal.show();
+                    setState(() {});
+                  }
+                },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              errorText: widget.error,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFD9D8E5),
+                  width: 1.2,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.value ?? 'Select a reason',
+                    style: CustomerTypography.body,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  portal.isShowing
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  color: const Color(0xFF101D42),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+String cancellationReason(Object? reason) => switch (reason) {
+  'PROVIDER_DID_NOT_START' => 'The provider did not start the service in time.',
+  'NOT_STARTED_IN_SERVICE_WINDOW' =>
+    'The service was not started before its service window closed.',
+  _ => reason is String ? reason : '',
+};

@@ -1,4 +1,5 @@
 import '../../../app/customer_theme.dart';
+import '../../../app/widgets/customer_home_skeleton.dart';
 import '../../booking/presentation/customer_payment_requests.dart';
 
 import 'package:flutter/material.dart';
@@ -66,128 +67,145 @@ class CustomerHomeScreen extends ConsumerWidget {
                                 constraints: const BoxConstraints(
                                   maxWidth: 800,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          greeting,
-                                          style: CustomerTypography.compact
-                                              .copyWith(color: catalogMuted),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          name == null || name.isEmpty
-                                              ? 'Welcome!'
-                                              : name,
-                                          style: CustomerTypography.screen
-                                              .copyWith(color: catalogInk),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 18),
-                                    _ServiceHero(onTap: () => _browse(context)),
-                                    const SizedBox(height: 15),
-                                    _SectionHeading(
-                                      title: 'Explore Services',
-                                      onViewAll: () => _browse(context),
-                                    ),
-                                    const SizedBox(height: 9),
-                                    if (discovery.serviceStage !=
-                                            DiscoveryStage.ready ||
-                                        discovery.services.isEmpty)
-                                      CatalogStatus(
-                                        loading:
-                                            discovery.serviceStage ==
-                                                DiscoveryStage.loading ||
-                                            discovery.serviceStage ==
-                                                DiscoveryStage.idle,
-                                        failed:
-                                            discovery.serviceStage ==
-                                            DiscoveryStage.failure,
-                                        empty: discovery.services.isEmpty,
-                                        retry: discovery.loadServices,
-                                      )
-                                    else
-                                      _ServiceGrid(
-                                        services: discovery.services
-                                            .take(8)
-                                            .toList(),
-                                        onTap: (service) =>
-                                            _browse(context, service.id),
-                                      ),
-                                    const SizedBox(height: 18),
-                                    _SectionHeading(
-                                      title: 'Recent Services',
-                                      onViewAll: () =>
-                                          context.push('/bookings'),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const CustomerPaymentRequests(),
-                                    const CustomerRecentBookings(),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      padding: const EdgeInsets.only(
-                                        left: 15,
-                                        right: 8,
-                                        top: 12,
-                                        bottom: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEDF9FD),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Row(
+                                child:
+                                    discovery.serviceStage ==
+                                            DiscoveryStage.loading ||
+                                        discovery.serviceStage ==
+                                            DiscoveryStage.idle
+                                    ? const CustomerHomeSkeleton()
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          const Icon(
-                                            Icons.calendar_month_rounded,
-                                            color: Color(0xFF0AA6DD),
-                                            size: 34,
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                greeting,
+                                                style: CustomerTypography
+                                                    .compact
+                                                    .copyWith(
+                                                      color: catalogMuted,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                name == null || name.isEmpty
+                                                    ? 'Welcome!'
+                                                    : name,
+                                                style: CustomerTypography.screen
+                                                    .copyWith(
+                                                      color: catalogInk,
+                                                    ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                          const SizedBox(height: 18),
+                                          _ServiceHero(
+                                            onTap: () => _browse(context),
+                                          ),
+                                          const SizedBox(height: 15),
+                                          _SectionHeading(
+                                            title: 'Explore Services',
+                                            onViewAll: () => _browse(context),
+                                          ),
+                                          const SizedBox(height: 9),
+                                          if (discovery.serviceStage !=
+                                                  DiscoveryStage.ready ||
+                                              discovery.services.isEmpty)
+                                            CatalogStatus(
+                                              loading:
+                                                  discovery.serviceStage ==
+                                                      DiscoveryStage.loading ||
+                                                  discovery.serviceStage ==
+                                                      DiscoveryStage.idle,
+                                              failed:
+                                                  discovery.serviceStage ==
+                                                  DiscoveryStage.failure,
+                                              empty: discovery.services.isEmpty,
+                                              retry: discovery.loadServices,
+                                            )
+                                          else
+                                            _ServiceGrid(
+                                              services: discovery.services
+                                                  .take(8)
+                                                  .toList(),
+                                              onTap: (service) =>
+                                                  _browse(context, service.id),
+                                            ),
+                                          const SizedBox(height: 18),
+                                          _SectionHeading(
+                                            title: 'Recent Services',
+                                            onViewAll: () =>
+                                                context.push('/bookings'),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const CustomerPaymentRequests(),
+                                          const CustomerRecentBookings(),
+                                          const SizedBox(height: 16),
+                                          Container(
+                                            padding: const EdgeInsets.only(
+                                              left: 15,
+                                              right: 8,
+                                              top: 12,
+                                              bottom: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFEDF9FD),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Row(
                                               children: [
-                                                Text(
-                                                  'Need help regularly?',
-                                                  style: CustomerTypography.card
-                                                      .copyWith(
-                                                        color: catalogInk,
-                                                      ),
+                                                const Icon(
+                                                  Icons.calendar_month_rounded,
+                                                  color: Color(0xFF0AA6DD),
+                                                  size: 34,
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Recurring services are coming soon.',
-                                                  style: CustomerTypography
-                                                      .compact
-                                                      .copyWith(
-                                                        color: catalogMuted,
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        'Need help regularly?',
+                                                        style: CustomerTypography
+                                                            .card
+                                                            .copyWith(
+                                                              color: catalogInk,
+                                                            ),
                                                       ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Recurring services are coming soon.',
+                                                        style: CustomerTypography
+                                                            .compact
+                                                            .copyWith(
+                                                              color:
+                                                                  catalogMuted,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 82,
+                                                  height: 70,
+                                                  child: Transform.rotate(
+                                                    angle: .12,
+                                                    child: const CareBee(
+                                                      sleeping: true,
+                                                    ),
+                                                  ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                          SizedBox(
-                                            width: 82,
-                                            height: 70,
-                                            child: Transform.rotate(
-                                              angle: .12,
-                                              child: const CareBee(
-                                                sleeping: true,
-                                              ),
-                                            ),
-                                          ),
                                         ],
                                       ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                           ),

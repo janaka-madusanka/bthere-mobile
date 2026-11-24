@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/customer_theme.dart';
+import '../domain/customer_document.dart';
 import '../../auth/application/customer_auth_controller.dart';
 import '../../booking/application/customer_booking_controller.dart';
 import '../../booking/domain/booking_models.dart';
@@ -25,6 +26,7 @@ class ProfileDocumentSheet extends ConsumerStatefulWidget {
 
 class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
   CustomerRequirement? requirement;
+  Map<String, dynamic>? currentDocument;
   final files = <Map<String, String>>[];
   final expiry = TextEditingController();
   bool busy = false, loading = true, uncertain = false;
@@ -46,14 +48,6 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
     super.dispose();
   }
 
-  String get query {
-    final services = widget.document['services'] as List;
-    final scope = services.where((s) => s['serviceTypeId'] is int).firstOrNull;
-    return scope == null
-        ? ''
-        : '?serviceTypeId=${scope['serviceTypeId']}${scope['optionId'] is int ? '&optionId=${scope['optionId']}' : ''}';
-  }
-
   Future<void> load() async {
     if (!mounted || !alive) return;
     setState(() {
@@ -61,19 +55,47 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
       error = null;
     });
     try {
-      final raw = await ref
-          .read(customerBookingRepositoryProvider)
-          .request('GET', '/customers/me/requirements$query');
-      if (!mounted || !alive) return;
-      final result = (raw as List)
-          .map(CustomerRequirement.parse)
-          .where((r) => r.field.id == widget.document['requirementId'])
-          .first;
-      if (!result.field.upload) {
-        throw const FormatException('Not an upload requirement');
+      final repository = ref.read(customerBookingRepositoryProvider);
+      Object? raw;
+      try {
+        raw = await repository.request(
+          'GET',
+          '/customers/me/documents/${widget.document['requirementId']}',
+        );
+      } on BookingProblem catch (e) {
+        if (e.status != 404 && e.status != 405) rethrow;
+        // Both endpoints return the same document contract. Some server
+        // versions expose the catalogue before the individual GET route.
+        Object? catalogue;
+        try {
+          catalogue = await repository.request(
+            'GET',
+            '/customers/me/documents',
+          );
+        } on BookingProblem catch (listError) {
+          if (listError.status != 404 && listError.status != 405) rethrow;
+          final overview = await repository.request(
+            'GET',
+            '/customers/me/profile-overview?recentLimit=2',
+          );
+          if (overview is! Map) rethrow;
+          catalogue = overview['documents'];
+        }
+        if (catalogue is! List) rethrow;
+        raw = catalogue.whereType<Map>().firstWhere(
+          (item) => item['requirementId'] == widget.document['requirementId'],
+        );
       }
+      if (!alive) return;
+      final item = Map<String, dynamic>.from(raw as Map);
+      if (item['requirementId'] != widget.document['requirementId']) {
+        throw const FormatException('Document mismatch');
+      }
+      final result = documentRequirement(item);
+      currentDocument = item;
       setState(() {
         requirement = result;
+        uncertain = false;
         files.clear();
         final value = result.value;
         if (value is Map && value['files'] is List) {
@@ -83,20 +105,53 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
         }
         expiry.text = result.expires ?? '';
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint(
+        'Document details: requirement=${widget.document['requirementId']} error=${e.runtimeType} status=${e is BookingProblem ? e.status : '-'}',
+      );
       if (mounted && alive) {
-        setState(() => error = 'Document requirements could not be loaded.');
+        setState(
+          () => error = e is BookingProblem
+              ? 'Document could not be loaded${e.status == null ? '' : ' (HTTP ${e.status})'}. Please retry.'
+              : 'Document information could not be read. Please retry.',
+        );
       }
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  bool get underReview => requirement?.status == 'PENDING';
+  bool get readOnly => currentDocument?['actionRequired'] != true;
+
+  Future<void> chooseExpiry() async {
+    if (!alive || busy || uncertain || readOnly) return;
+    final today = DateUtils.dateOnly(
+      DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30)),
+    );
+    final saved = DateTime.tryParse(expiry.text);
+    final initial = saved != null && !saved.isBefore(today) ? saved : today;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: today,
+      lastDate: DateTime(today.year + 100, 12, 31),
+      helpText: 'Document expiry date',
+    );
+    if (selected != null && alive) {
+      setState(() => expiry.text = selected.toIso8601String().substring(0, 10));
+    }
+  }
 
   Future<void> pick() async {
-    if (!alive || busy || underReview || requirement == null) return;
+    if (!alive || busy || readOnly || requirement == null) return;
     final field = requirement!.field;
+    if (field.uploadExtensions.isEmpty) {
+      setState(
+        () => error =
+            'This document type is not supported. Please contact support.',
+      );
+      return;
+    }
     if (files.length >= (field.maxFiles ?? 100)) {
       setState(() => error = 'Remove a file before adding another.');
       return;
@@ -108,7 +163,7 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        allowedExtensions: field.uploadExtensions,
       );
       if (file == null || !alive) return;
       final limit = field.maxMb.clamp(1, 100) * 1024 * 1024;
@@ -128,7 +183,15 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
       final key = await ref
           .read(customerBookingRepositoryProvider)
           .upload(field, bytes.takeBytes(), file.name);
-      if (alive) setState(() => files.add({'key': key}));
+      if (alive && !files.any((file) => file['key'] == key)) {
+        setState(
+          () => files.add({
+            'key': key,
+            'name': file.name,
+            'size': '${length ?? 0}',
+          }),
+        );
+      }
     } catch (_) {
       if (mounted && alive) {
         setState(
@@ -141,7 +204,7 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
   }
 
   Future<void> save() async {
-    if (!alive || busy || uncertain || underReview || requirement == null) {
+    if (!alive || busy || uncertain || readOnly || requirement == null) {
       return;
     }
     final value = {
@@ -150,7 +213,9 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
     final issue = requirement!.field.validate(value, reusable: true);
     final date = expiry.text.trim();
     final parsed = date.isEmpty ? null : DateTime.tryParse(date);
-    final today = DateUtils.dateOnly(DateTime.now());
+    final today = DateUtils.dateOnly(
+      DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30)),
+    );
     if (issue != null ||
         files.isEmpty ||
         (date.isNotEmpty &&
@@ -196,13 +261,28 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
 
   Future<void> _viewFile(String key) async {
     if (!alive || busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
+      // Obtain a fresh signed URL for every attempt; never reuse upload URLs.
       final url = await ref.read(customerBookingRepositoryProvider).view(key);
-      if (mounted && alive) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!alive) return;
+      final uri = Uri.parse(url);
+      var opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      if (!opened && alive) {
+        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
+      if (!opened) throw StateError('No document viewer available');
     } catch (_) {
-      if (alive) setState(() => error = 'Document could not be opened.');
+      if (alive) {
+        setState(
+          () => error = 'Document could not be opened. Check your connection and try again.',
+        );
+      }
+    } finally {
+      if (alive) setState(() => busy = false);
     }
   }
 
@@ -269,39 +349,64 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
               ),
             ),
           if (requirement != null) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FAF9),
-                borderRadius: BorderRadius.circular(14),
+            _DocumentReviewStatus(requirement: requirement!),
+            if (documentReason(currentDocument!) case final message?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(message, style: CustomerTypography.compact),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'File requirements',
-                    style: CustomerTypography.compactStrong.copyWith(
-                      color: CustomerColors.action,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Allowed formats: ${requirement!.field.fileTypes.isEmpty ? 'Supported document files' : requirement!.field.fileTypes.join(', ')}. Maximum ${requirement!.field.maxMb} MB per file.',
-                    style: CustomerTypography.compact,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    underReview
+            const SizedBox(height: 12),
+            _UploadTips(field: requirement!.field),
+            const SizedBox(height: 8),
+            Text(
+              readOnly
+                  ? (requirement!.status == 'PENDING'
                         ? 'Under review. Booking is available after the required approval.'
-                        : 'Replacing documents may require a new review.',
-                    style: CustomerTypography.compact.copyWith(
-                      color: CustomerColors.secondaryText,
-                    ),
-                  ),
-                ],
+                        : 'This document is saved and reused for all its services.')
+                  : 'Replacing documents may require a new review.',
+              style: CustomerTypography.compact.copyWith(
+                color: CustomerColors.secondaryText,
               ),
             ),
             const SizedBox(height: 18),
+            CustomPaint(
+              painter: const _UploadBorder(),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF8FAFE),
+                  foregroundColor: CustomerColors.action,
+                  minimumSize: const Size.fromHeight(72),
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                onPressed:
+                    busy ||
+                        uncertain ||
+                        readOnly ||
+                        files.length >= (requirement!.field.maxFiles ?? 20)
+                    ? null
+                    : pick,
+                icon: const Icon(Icons.cloud_upload_outlined, size: 28),
+                label: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Upload document',
+                      style: CustomerTypography.card,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${requirement!.field.supportedUploadTypes.join(', ')} - Up to ${requirement!.field.maxMb} MB',
+                      style: CustomerTypography.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
               'Your documents${requirement!.field.maxFiles == null ? '' : ' (${files.length}/${requirement!.field.maxFiles})'}',
               style: CustomerTypography.card,
@@ -342,18 +447,36 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
                         onPressed: busy
                             ? null
                             : () => _viewFile(files[i]['key']!),
-                        child: Text(
-                          'View document ${i + 1}',
-                          style: CustomerTypography.compactStrong,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              files[i]['name'] ?? 'View document ${i + 1}',
+                              style: CustomerTypography.compactStrong,
+                            ),
+                            if (files[i]['size'] != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '${((int.tryParse(files[i]['size']!) ?? 0) / (1024 * 1024)).toStringAsFixed(1)} MB',
+                                style: CustomerTypography.compact.copyWith(
+                                  color: CustomerColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
                     IconButton(
                       tooltip: 'Remove document',
-                      onPressed: busy || uncertain || underReview
+                      onPressed: busy || uncertain || readOnly
                           ? null
                           : () => setState(() => files.removeAt(i)),
-                      icon: const Icon(Icons.close_rounded, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFE9ED),
+                        foregroundColor: CustomerColors.error,
+                      ),
+                      icon: const Icon(Icons.close_rounded, size: 18),
                     ),
                   ],
                 ),
@@ -368,27 +491,25 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
                   ),
                 ),
               ),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFF1FBFA),
-                foregroundColor: CustomerColors.action,
-                minimumSize: const Size.fromHeight(48),
-                side: const BorderSide(color: Color(0xFFB6E3DF)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
-              ),
-              onPressed: busy || uncertain || underReview ? null : pick,
-              icon: const Icon(Icons.add_circle_outline, size: 20),
-              label: const Text('Upload document'),
-            ),
             const SizedBox(height: 18),
             TextField(
+              key: const ValueKey('document-expiry-date'),
               controller: expiry,
-              enabled: !busy && !uncertain && !underReview,
+              readOnly: true,
+              onTap: chooseExpiry,
+              enabled: !busy && !uncertain && !readOnly,
               decoration: InputDecoration(
                 labelText: 'Expiry date (optional)',
                 hintText: 'YYYY-MM-DD',
+                suffixIcon: expiry.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear expiry date',
+                        onPressed: busy || uncertain || readOnly
+                            ? null
+                            : () => setState(expiry.clear),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
                 prefixIcon: const Icon(
                   Icons.calendar_today_outlined,
                   color: CustomerColors.action,
@@ -408,10 +529,10 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(28),
                 ),
               ),
-              onPressed: busy || uncertain || underReview ? null : save,
+              onPressed: busy || uncertain || readOnly ? null : save,
               child: Text(busy ? 'Please wait...' : 'Submit documents'),
             ),
           ],
@@ -430,6 +551,12 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
               onPressed: load,
               child: const Text('Retry requirements'),
             ),
+          if (uncertain)
+            TextButton.icon(
+              onPressed: busy ? null : load,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reload document status'),
+            ),
           const SizedBox(height: 6),
           TextButton(
             onPressed: busy ? null : () => Navigator.pop(context),
@@ -439,4 +566,183 @@ class _ProfileDocumentSheetState extends ConsumerState<ProfileDocumentSheet> {
       ),
     );
   }
+}
+
+class _DocumentReviewStatus extends StatelessWidget {
+  const _DocumentReviewStatus({required this.requirement});
+  final CustomerRequirement requirement;
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, fill, icon) = switch (requirement.status) {
+      'APPROVED' => (
+        'Approved',
+        CustomerColors.success,
+        const Color(0xFFE7F7EE),
+        Icons.verified_outlined,
+      ),
+      'PROVIDED' => (
+        'Submitted',
+        CustomerColors.action,
+        CustomerColors.selection,
+        Icons.task_alt_rounded,
+      ),
+      'PENDING' => (
+        'Under review',
+        CustomerColors.warning,
+        const Color(0xFFFFF4DF),
+        Icons.schedule_rounded,
+      ),
+      'REJECTED' => (
+        'Rejected - please resubmit',
+        CustomerColors.error,
+        const Color(0xFFFFECEF),
+        Icons.error_outline_rounded,
+      ),
+      'EXPIRED' => (
+        'Expired - please resubmit',
+        CustomerColors.error,
+        const Color(0xFFFFECEF),
+        Icons.event_busy_outlined,
+      ),
+      _ => (
+        'Not submitted',
+        CustomerColors.secondaryText,
+        const Color(0xFFF0F4F6),
+        Icons.upload_file_outlined,
+      ),
+    };
+    return Container(
+      key: const ValueKey('document-review-status'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: CustomerTypography.card.copyWith(color: color),
+                ),
+                if (requirement.rejection?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    requirement.rejection!,
+                    style: CustomerTypography.compact,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UploadTips extends StatelessWidget {
+  const _UploadTips({required this.field});
+  final BookingField field;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFFE7F8F8), Color(0xFFDDF4F2)],
+      ),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.lightbulb_outline,
+                    color: CustomerColors.action,
+                    size: 23,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Upload tips', style: CustomerTypography.card),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              for (final tip in [
+                'Use a clear and readable document',
+                'Make sure all edges are visible',
+                'Allowed formats: ${field.supportedUploadTypes.join(', ')}. Maximum ${field.maxMb} MB per file.',
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFF42AEA8),
+                        size: 15,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(tip, style: CustomerTypography.compact),
+                      ),
+                    ],
+                  ),
+                ),
+              Text(
+                '${field.minFiles}-${field.maxFiles ?? 20} files. Documents are private.',
+                style: CustomerTypography.compact,
+              ),
+            ],
+          ),
+        ),
+        if (MediaQuery.sizeOf(context).width > 350 &&
+            MediaQuery.textScalerOf(context).scale(14) < 20)
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Image.asset(
+              'assets/illustrations/documents/document_upload_tips.png',
+              width: 82,
+              height: 82,
+              fit: BoxFit.contain,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _UploadBorder extends CustomPainter {
+  const _UploadBorder();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(13)),
+      );
+    final paint = Paint()
+      ..color = const Color(0xFF9CDDD9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (final metric in path.computeMetrics()) {
+      for (double distance = 0; distance < metric.length; distance += 10) {
+        canvas.drawPath(metric.extractPath(distance, distance + 6), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_UploadBorder oldDelegate) => false;
 }

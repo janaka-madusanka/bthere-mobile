@@ -7,6 +7,7 @@ import 'package:customer_app/features/discovery/presentation/customer_discovery_
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'customer_auth_test.dart'
     show Fixture, marketJson, optionJson, serviceJson;
@@ -14,6 +15,77 @@ import 'customer_discovery_test.dart'
     show DiscoveryFixture, marketEntry, continueMarket, waitForState;
 
 void main() {
+  testWidgets(
+    'services and expanded options use skeletons until their reads finish',
+    (tester) async {
+      final f = Fixture();
+      addTearDown(f.dispose);
+      await marketEntry(tester, f);
+      await continueMarket(tester);
+      await tester.tap(find.byKey(const ValueKey('customer-nav-services')));
+      await tester.pumpAndSettle();
+      final discovery = ProviderScope.containerOf(
+        tester.element(find.byKey(const ValueKey('customer-service-search'))),
+      ).read(customerDiscoveryProvider);
+      final servicesGate = Completer<void>();
+      f.adapter.pendingServices[1] = servicesGate;
+      final load = discovery.loadServices();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('services-loading-skeleton')),
+        findsOneWidget,
+      );
+      servicesGate.complete();
+      await tester.pumpAndSettle();
+      await load;
+      expect(
+        find.byKey(const ValueKey('services-loading-skeleton')),
+        findsNothing,
+      );
+      final optionsGate = Completer<void>();
+      f.adapter.pendingOptions['1/3'] = optionsGate;
+      await tester.tap(find.byKey(const ValueKey('customer-category-3')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('service-options-loading-skeleton')),
+        findsOneWidget,
+      );
+      optionsGate.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('service-options-loading-skeleton')),
+        findsNothing,
+      );
+      expect(find.text('Home Care'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'service list keeps names and restrictions while descriptions stay in details',
+    (tester) async {
+      final f = Fixture();
+      addTearDown(f.dispose);
+      f.adapter.serviceBodies[1] = [serviceJson(status: 'CHECK_OPTION')];
+      f.adapter.optionBodies['1/3'] = [optionJson(access: 'PENDING_REVIEW')];
+      await marketEntry(tester, f);
+      await continueMarket(tester);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('customer-service-3')),
+      );
+      await tester.tap(find.byKey(const ValueKey('customer-service-3')));
+      await tester.pumpAndSettle();
+      expect(find.text('Home nursing services'), findsNothing);
+      expect(find.text('Care at your location'), findsNothing);
+      expect(find.text('Check options'), findsNothing);
+      expect(find.text('Pending review'), findsOneWidget);
+      expect(find.text('Home Care'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('customer-option-12')),
+      );
+      await tester.tap(find.byKey(const ValueKey('customer-option-12')));
+      await tester.pumpAndSettle();
+      expect(find.text('Care at your location'), findsOneWidget);
+    },
+  );
   for (final hasIcon in [true, false]) {
     testWidgets(
       'option row uses ${hasIcon ? 'its icon' : 'a fallback'} instead of the cover image',
@@ -249,7 +321,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('customer-service-4')));
       await tester.pumpAndSettle();
-      expect(find.text('Get a Service'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('customer-services-title')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('customer-option-12')), findsOneWidget);
       expect(
         f.adapter.requests.where((r) => r.path.contains('/3/options')),

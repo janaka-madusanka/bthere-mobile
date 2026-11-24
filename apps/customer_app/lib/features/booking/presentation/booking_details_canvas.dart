@@ -255,6 +255,7 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
         final inlineFooter = keyboardOpen && bounds.maxHeight < 300;
         _syncKeyboard(keyboardOpen, bounds.maxHeight, keyboardSize);
         _measureContent(bounds.maxHeight);
+        final cornerOverlap = keyboardOpen ? 0.0 : 24.0;
         return Stack(
           children: [
             const Positioned.fill(child: ColoredBox(color: Color(0xFFE9F6F4))),
@@ -280,6 +281,7 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                     topPadding: c.context?.route == true
                         ? MediaQuery.paddingOf(context).top + 120
                         : 0,
+                    bottomPadding: cornerOverlap,
                     label: c.context?.route == true
                         ? 'Pickup'
                         : 'Service location',
@@ -309,13 +311,14 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                         ? _normalViewportHeight *
                               (1 - (_sizeBeforeKeyboard ?? _maxSize))
                         : bounds.maxHeight *
-                              (1 -
-                                  (_sheet.isAttached
-                                      ? _sheet.size
-                                      : _initialSize.clamp(
-                                          _minSize,
-                                          _maxSize,
-                                        ))),
+                                  (1 -
+                                      (_sheet.isAttached
+                                          ? _sheet.size
+                                          : _initialSize.clamp(
+                                              _minSize,
+                                              _maxSize,
+                                            ))) +
+                              cornerOverlap,
                   ),
                 ),
               ),
@@ -503,11 +506,14 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                 builder: (context, scroll) {
                   _scroll = scroll;
                   return Material(
+                    key: const ValueKey('booking-details-sheet-surface'),
                     color: catalogPaper,
-                    elevation: 12,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 6,
+                    shadowColor: const Color(0x260B3037),
                     borderRadius: keyboardOpen
                         ? BorderRadius.zero
-                        : const BorderRadius.vertical(top: Radius.circular(30)),
+                        : const BorderRadius.vertical(top: Radius.circular(24)),
                     clipBehavior: Clip.antiAlias,
                     child: SafeArea(
                       top: keyboardOpen,

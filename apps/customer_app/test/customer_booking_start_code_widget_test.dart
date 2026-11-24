@@ -139,7 +139,7 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
   });
-  for (final minutes in <int?>[31, null]) {
+  for (final minutes in <int?>[31]) {
     testWidgets(
       'start card hidden when start is $minutes minutes away or unknown',
       (tester) async {
@@ -162,4 +162,24 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
   });
+  for (final serverStatus in [200, 409]) {
+    testWidgets(
+      'unknown schedule trusts server window ($serverStatus) without revealing digits',
+      (tester) async {
+        await details(
+          tester,
+          minutesUntilStart: null,
+          codeStatus: serverStatus,
+        );
+        expect(
+          find.byKey(const ValueKey('booking-start-code-section')),
+          serverStatus == 200 ? findsOneWidget : findsNothing,
+        );
+        expect(find.byTooltip('Copy start code'), findsNothing);
+        expect(find.byTooltip('Hide code'), findsNothing);
+        if (serverStatus == 200) expect(find.text('Show code'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 }

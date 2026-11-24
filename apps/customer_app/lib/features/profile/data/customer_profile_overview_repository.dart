@@ -41,13 +41,14 @@ class ContactProblem implements Exception {
 }
 
 class CustomerProfileOverviewRepository {
+  static const recentLimit = 2;
   CustomerProfileOverviewRepository(this.booking);
   final CustomerBookingRepository booking;
   Future<Map<String, dynamic>> overview() async {
     final value = object(
       await booking.request(
         'GET',
-        '/customers/me/profile-overview?recentLimit=5',
+        '/customers/me/profile-overview?recentLimit=$recentLimit',
       ),
     );
     final contacts = object(value['contacts']);

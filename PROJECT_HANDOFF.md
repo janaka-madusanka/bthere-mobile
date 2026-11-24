@@ -1246,3 +1246,107 @@ Ready header review pass 1 (2026-11-19): user selected Header (service image, bo
 - Excluded tracked historical temporary PDF tools and generated test failure images from the new history. No local configuration, credentials or build output included; proposed source scan found no private keys/tokens.
 - Fresh review-branch checks: Customer 573 passed; Provider 790 passed/40 failed; isolated development comparison 779 passed/the exact same 40 failures (no new failure names). Baseline needed a valid Customer manifest for dependency resolution because development contains duplicate YAML keys. Shared design system 24 passed; helper 30 passed; both app analyses clean.
 - See docs/customer-development-integration-validation.md for scope, limitations and Provider failure names. The new PR supersedes #6 and targets development; do not merge automatically.
+
+### Customer START card ? missing schedule metadata fallback
+- During manual testing, user reported confirmed/funded Booking #38 scheduled 22 Nov 23:45 had no START card after the 23:15 opening boundary. No live API response or verification digits were read by the assistant.
+- Found an unconditional hide when scheduledStart could not be resolved (e.g. missing market/timezone metadata). Unknown schedules now use the owned START-code GET as the authoritative availability check, discard digits, and only offer Show code when the server accepts the window. Known schedules retain the local 30-minute boundary. No active-market/timezone guessing.
+- Unknown-window checks are bounded to once per minute while the screen/app are visible, plus open/resume/relevant booking changes; not every one-second UI tick. Explicit Show code still revalidates the booking and fetches the code. Account/status revisions discard stale results.
+- 50 controller/widget/accessibility tests passed, including GET-only availability, hidden digits, server409, no premature known-schedule display and logout races. Provider responsive UI changes remain intact and uncommitted. Customer must hot restart and reopen #38 to verify actual server behavior.
+
+### 2026-11-23 - Ready scheduled-start countdown
+- Production BookingStatusSummary now shows Starts in HH:mm:ss and refreshes only the small status summary each second while Ready and visible/foreground. Recomputes from the scheduled instant, including on app resume; no extra API calls.
+- At zero shows Scheduled start time reached; does not change booking status or start service. Missing/ambiguous schedule still hides countdown instead of guessing timezone.
+- 21 booking reference/UI lab tests passed, including ticking, resume, deadline, narrow/enlarged layouts and lifecycle states. Customer Flutter analysis clean; git diff --check clean. Existing Provider responsive and Customer START changes preserved.
+
+### 2026-11-23 - Live Ready countdown investigation
+- Rebuilt/reinstalled Customer on emulator-5554; restart alone was still using an older installed APK. Inspected owned Booking #38 via normal UI, no business writes.
+- Confirmed live history response: startDatetime=2026-11-22T23:40:00, no offset, marketId=null, timezone/marketTimezone absent. Countdown cannot be computed safely; do not infer from device or current selected market. Backend needs UTC/offset start or booking timezone (and preferably marketId).
+- Fixed separate cold-start defect: bookingScheduledInstant now initializes IANA data via MarketTime.location rather than relying on previously opening booking context. Details watches discovery metadata to rebuild if the matching booking market arrives later.
+- 22 tests passed including independent cold-start timezone test; analysis clean. Temporary schedule diagnostic removed from source. No guessed timezone fallback introduced.
+
+### 2026-11-23 - Deployed UTC schedule contract connected
+- Read user-supplied provider-lateness guide. Server now provides startDatetimeUtc/expectedEndDatetimeUtc and marketTimezone, plus startAtUtc/endAtUtc for lists. Current scope completes the previously blocked Ready countdown; late banners/refund hints/Provider lateness UI remain separate follow-up work.
+- bookingScheduledInstant prioritizes validated explicit-offset UTC fields (startDatetimeUtc/startAtUtc), then legacy market-local fields using authoritative marketTimezone. Shared production countdown and START card receive the resolved instant. No active-market/device-timezone guesses.
+- Added dedicated booking display clock, synchronized from booking API HTTP Date and advanced using monotonic elapsed time. Ready countdown uses it; auth/session clock and business state are unchanged.
+- 47 relevant reference/lab/START/UTC/clock tests passed; analysis clean and diff whitespace checks clean. Emulator-5554 was disconnected when live run was attempted; on-device verification still required. Run scripts/run-customer.ps1 -DeviceId emulator-5554 after starting emulator.
+
+### 2026-11-23 - Cancellation sheet reference styling
+- Updated production paid-booking cancellation sheet to pale lavender-white surface, clean outlined reason selector, 250-character optional note, mint Keep Booking and red Cancel Booking actions.
+- Added collapsed peach refund preview with shared navigation wallet SVG; expansion shows backend retained amount (when supplied), cancellation fee, refund amount and policy. Keeps expectedRefundAmount confirmation/409 behavior unchanged. No unconfirmed 24-hour refund promise.
+- 11 cancellation controller/widget tests passed including expand/collapse with no writes, reason validation, existing successful cancellation/receipt behavior, 320px/2x font and keyboard scrolling. Customer analysis clean. Existing unrelated work preserved.
+
+- Cancellation reason follow-up: replaced the separate reason bottom sheet with an anchored DropdownButtonFormField matching the outlined field. Kept reason validation/Other details behavior. All 11 cancellation tests pass, including no second BottomSheet assertion; analysis clean.
+
+- Reason dropdown surface follow-up: white menu/field, transparent focus/surface tint, subtle mint hover/press and lighter shadow scoped to this dropdown. Unfocuses note keyboard before opening. Three cancellation widget tests pass; analysis clean.
+
+- Reason dropdown geometry follow-up: replaced overlay menu with an inline expanding list below the still-visible trigger. Menu exactly follows field width; options have 20px combined inset, selected mint row/check and wrapping labels. Selection collapses list and retains FormField validation/Other. All 11 cancellation tests pass; extra 320px/2x reason selection/keyboard test passes, analysis clean.
+
+- Dropdown stability follow-up: moved reason choices into a width-matched CompositedTransformFollower/OverlayPortal below the trigger so opening never changes sheet intrinsic height/position. Available-height bounded scrolling; outside tap dismisses without selecting. 11 cancellation tests pass including unchanged sheet rectangle, width/spacing, large text and selection. Analysis clean.
+
+- Zero-refund copy: preview summary says No refund under this cancellation policy instead of LKR 0.00 to your wallet; expanded information explicitly says no wallet credit. Backend amounts/fees unchanged. Four widget tests pass including zero refund; analysis clean.
+
+- Patient-details auto reveal: after expansion finishes layout, smoothly scrolls the nearest details viewport to reveal new content. Fits short cards at the bottom; aligns oversized cards to their beginning. Cancels delayed work on collapse/disposal and respects reduced motion. 48 reference/accessibility/lab tests pass including visible expanded patient text and actual scroll movement at 1x/2x font; analysis clean.
+
+- Ready overdue timer: replaced Scheduled start time reached with red Not started / HH:mm:ss overdue, increasing each second using the server-corrected UTC schedule clock. Ready status remains unchanged; timer hidden on started/closed states. 48 reference/accessibility/lab tests pass, including zero boundary, overdue seconds increasing and red clock icon; analysis clean.
+
+- Overdue UI refinement: compact pale-red bordered card with clock circle, Not started yet label, bold tabular duration and separate overdue caption. Ready badge retained, timer behavior unchanged. 48 screen/lab/accessibility tests plus enlarged 320px/72-hour card check passed.
+
+- Customer Services tab consistency: reused CustomerTopBar from Home/Bookings, matching light page background/16px gutters, Services title/count, back action and white search field. Softened category borders/shadows and strengthened category title weight; API-driven icon/content/access and expand/search/booking navigation preserved. 87 discovery/options/booking widget tests pass including narrow large-text cases; analysis clean.
+
+- Filter/map sheet corner correction: map extends 24px beneath rounded sheet top rather than ending at its tangent, removing mismatched backing colour in corner cutouts. Consistent 24px radius, lower shadow/no surface tint. New map bottomPadding reserves overlap for Google attribution, controls and route framing; keyboard-fullscreen sheet still square/no overlap. 57 booking widget tests pass including geometry/clearance check; analysis clean.
+
+- Wallet loading improvement: replaced five sequential reads with parallel balance/settings/method reads followed by parallel history/reconciliation for an existing wallet. Missing-wallet behavior, validation, reconciliation and gated financial actions preserved; no stale balance cache or business writes added. First load now shows a static wallet-shaped skeleton instead of a lone progress bar/blank body. 17 wallet tests pass including gated parallel-read/skeleton verification, account races, failures and large-text actions; analysis clean. Actual backend latency has not been benchmarked live.
+
+- Bookings tab loading: card-shaped initial skeleton, explicit retained data during refresh/reload, and lazily built booking tiles rather than eager construction of all backend history rows. Existing filter/navigation/payment semantics preserved. 57 booking widget tests and three dedicated gated-load/refresh/lazy-200-row/narrow skeleton tests pass; analysis clean. Backend history still unpaginated; no server latency claim.
+
+- Profile service preview reduction: request recentLimit=2 and cap Pending services/Service history to two rows each defensively. Pending View all also appears when totalCount or returned items exceed the cap, even if hasMore is false; existing full-list/history navigation remains. Eight overview tests pass including oversized response cap and query limit; analysis clean.
+
+- Post-confirmation details navigation: confirmation/recovered-payment View booking details now uses go to the nested /bookings/:jobId route, with the booking list as its declarative parent. Removes completed checkout/accepted screens from Back history. Existing card-pushed details still return to their originating list. 71 booking/recovery/list tests pass including toolbar Back and Android Back after confirmation; analysis clean. URLs and booking extras retained.
+
+- Provider-accepted screen compact sizing: illustration capped at 168px/20% viewport, avatar 52px, 18px provider name, 22px heading/amount, 30px countdown, tighter padding and spacing. Long names wrap without truncation; payment target remains 48px and urgency/expiry rules unchanged. 18 receipt/payment widget tests pass including 390px default CTA visibility and 320px/2x text; analysis clean.
+
+- Services tab text cleanup: removed instruction subtitle and category/option descriptions from the browsing list; retained backend descriptions in the option details sheet and search indexing. Hid redundant category CHECK_OPTION hint while preserving pending/restricted/rejected/requirements states. Slightly smaller icons and stronger option names keep rows compact. 32 discovery/options tests pass including description-in-details and pending-review visibility; analysis clean.
+
+- Services skeleton loading: static category placeholders for initial/reload catalog reads and compact option rows while expanded category options fetch. Accessible loading semantics, no animation overhead or fake zero category count. Existing errors/retry/empty/booking behavior preserved. 33 discovery/options tests pass including gated response swaps; analysis clean.
+
+### 2026-11-24 - Profile/document updated contract alignment
+- Compared supplied full frontend reference with current profile, photo and reusable requirement flows; no live uploads or submissions performed.
+- Requirement upload picker now follows configured formats, including IMAGE_UPLOAD PDF exclusion; schema limits/status/rejection/privacy are clear in the sheet. Maximum file count disables adding; local picked filenames shown. Optional expiry uses a calendar with clear action. Uncertain saves offer authoritative reload before any further submit; PENDING remains read-only and eligibility is never inferred from upload.
+- Private view GET validates returned key and explicit-offset expiry metadata, obtains a fresh signed URL on every view and persists only object keys. Photo upload remains separate/public-image route; edit form previews the new image from local bytes until profile save returns the public display URL.
+- Profile optional address labels clarified; successful edit invalidates overview. Photo awaits check current account; profile controller advances identity epochs and ignores old-save completion across session changes. PROVIDED documents shown as Submitted, not verified.
+- 106 profile/photo/overview/documents/booking model tests passed, including schema types/limits, signed-view ownership, calendar, review gate, full replacement fields, local photo and logout/relogin save race. Flutter analysis clean, diff whitespace clean. Changes uncommitted; existing Customer/Provider UI work preserved. Manual photo save/reopen, private PDF upload, review approval and eligibility checks remain for user testing.
+
+- Edit Profile reference layout: teal branded header with existing white logo/tagline and circular close action; rounded light branded form beneath, compact mint photo/camera area, stronger labels and pale blue input borders. Existing responsive paired fields, all optional values, photo actions, owner guards and full-replacement save retained. Country remains editable since no authoritative country list API is documented. 24 profile/photo tests pass across phone sizes, keyboard, larger text and save flows; analysis clean.
+
+### 2026-11-24 — reusable My documents flow
+- User confirmed new documents endpoints are deployed. Replaced profile service/option selector with overview.documents auto-list; action-required items first, deduplicated only by requirementId.
+- Document sheet GET /customers/me/documents/{requirementId}; uses authoritative actionRequired/statusReason/upload/fileKeys, preserves old evidence when definitions change. Pending/approved/provided are read-only; missing/rejected/expired allow explicit upload/resubmit. One requirement submission reused across services.
+- Private document upload and key-only submission retained; max 10 MB, schema limits, fresh signed viewing URLs, Sri Lanka expiry date.
+- Removed obsolete ServiceDocumentsScreen selector, kept booking eligibility gate widgets.
+- Validation: Flutter analysis clean; 41 profile/document/photo tests passed; git diff --check clean (line-ending warnings only). No live uploads or submission writes; manual test pending.
+
+### 2026-11-24 — Customer booking auto-cancel integration
+- User confirmed supplied auto-cancel contract is deployed. Customer Booking Details now derives countdown/hold/overdue states from backend autoCancelAt/autoCancelHold, using server-corrected UTC clock. No client cancellation/refund mutations or hard-coded grace period.
+- Foreground details refresh history every 15 seconds while waiting; pause in background, refresh on resume, retain UI on errors. Snapshot updates show authoritative started/cancelled states; old/started/no-show/unpaid/missing-deadline states hide auto-cancel notices.
+- Automatic cancellation summary uses server SYSTEM/automatic cancellation and REFUNDED amount, offers Book again. Full receipt parser supports SYSTEM and no-show actors; readable system reason text. Durable BOOKING_AUTO_CANCELLED events also invalidate wallet.
+- New tests cover state matrix, offsets, holds, deadline boundary without local cancellation, validated system refund, polling into cancellation with no POST, and 320px/2x font. Existing Customer/Provider uncommitted work preserved. Live end-to-end auto-cancel/refund not performed.
+- Validation completed: 97 Customer booking/payment/reference/timer/cancellation tests pass; Flutter analysis clean; diff whitespace clean. Manual test needs a new booking (pre-cutoff bookings such as #38 deliberately have no auto-cancel). Provider-specific countdown/start-race UI was not changed in this Customer app task.
+
+- Home loading skeleton: static greeting/banner/service-grid/recent-card placeholders during idle/loading service catalog, with existing top bar/footer retained. Recent bookings now show matching card skeleton on first read and retain previous content on refresh/reload. Gated catalog/history tests pass including 320px/2x text and authoritative data swap; 16 existing service-option tests also pass. No business/API behavior changed.
+
+### 2026-11-24 — Customer launcher icon and startup splash
+- Copied supplied App Icon.svg, colored logo SVG and splash reference PNG into assets/branding as bthere_app_icon.svg, bthere_splash_logo.svg, bthere_splash_reference.png. Auth logo and Provider branding unchanged.
+- Added reproducible Flutter SVG rendering tool: from apps/customer_app, flutter test tool/generate_branding_assets.dart. Generates legacy Android icon densities, safe-inset adaptive foregrounds, Android splash densities, all iOS AppIcon sizes (RGB, no alpha), and retina LaunchImage logo assets.
+- Android pre-12 white centered launch background; API31+ explicit white splash and padded wordmark within system mask, day/night styles. iOS centered 240x91 logo constraints. Flutter startup session/profile/market waits use centered SVG on white, preserving existing failure Retry/Sign out and routing, with no artificial delay.
+- 48 auth/profile/home tests pass; Flutter analysis clean; native XML parsed and Android/iOS PNG sizes validated. iOS build unavailable on Windows. Native branding requires stop/rebuild/run, not hot reload. Android debug build validation in progress.
+- Android branding validation completed: flutter build apk --debug --no-pub with customer.local.json passed. Built build/app/outputs/flutter-apk/app-debug.apk. Existing Kotlin plugin migration warnings remain non-fatal.
+- Launcher spacing refinement: adaptive foreground content reduced from 86 dp to 74 dp within its 108 dp canvas so the masked 72 dp launcher icon has balanced padding, matching legacy/iOS mark proportions. Original supplied SVG/colours retained. Branding generation and Android debug build pass; updating emulator with adb install -r preserves app data.
+
+
+### Customer development PR validation ? 2026-11-24
+- Review branch: feature/customer-ui-profile-polish, isolated worktree .worktrees/customer-polish-pr, based on origin/development 70c490f. Provider responsive changes remain uncommitted in the original workspace and are excluded from this PR.
+- Fresh isolated Customer validation: flutter analyze --no-pub clean; full flutter test --no-pub 609 passed. Fixed missing ProviderScope access in plain/legacy booking details without auto-cancel metadata, found by the full suite.
+- Commit groups: booking lifecycle/loading performance; reusable documents/profile editing; native branding; validation notes. Source scan found no new private keys/cloud credentials; local config, logs, build output and SDK files excluded.
+- Known live dependency: document detail/list endpoints returned HTTP 404 during manual testing; fresh overview fallback also returned an unreadable/incomplete document contract. Backend investigation is pending; contract-fixture tests passing does not verify live private document viewing. Keep this visible during review/retest.
+- Auto-cancel tests simulate server status/refund transitions; no live booking cancellation or refund was initiated. iOS icons/launch resources checked structurally; iOS compilation not available on Windows.
+- Fresh isolated Android validation: flutter build apk --debug --no-pub with the existing ignored Customer config passed; existing Java/Kotlin deprecation/migration warnings only.

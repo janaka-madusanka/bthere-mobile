@@ -180,4 +180,48 @@ void main() {
       expect(c.code, isNull);
     },
   );
+  test(
+    'availability GET validates window but never reveals or stores digits',
+    () async {
+      await Future.wait([c.checkWindow(), c.checkWindow()]);
+      expect(c.windowAvailable, isTrue);
+      expect(c.code, isNull);
+      expect(c.expiresAt, isNull);
+      final calls = f.f.adapter.requests
+          .where((r) => r.path.contains('verification-codes'))
+          .toList();
+      expect(calls, hasLength(1));
+      expect(calls.single.method, 'GET');
+    },
+  );
+  test(
+    'availability denied before service window keeps the card unavailable',
+    () async {
+      status = 409;
+      await c.checkWindow();
+      expect(c.windowAvailable, isFalse);
+      expect(c.code, isNull);
+    },
+  );
+  test('late availability response cannot survive sign out', () async {
+    final wait = Completer<ResponseBody>();
+    f.f.adapter.extraHandler = (r) async =>
+        r.path.endsWith('/70/verification-codes') ? await wait.future : null;
+    final pending = c.checkWindow();
+    await Future<void>.delayed(Duration.zero);
+    await f.f.controller.logout();
+    wait.complete(
+      ResponseBody.fromString(
+        jsonEncode(response),
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      ),
+    );
+    await pending;
+    expect(c.alive, isFalse);
+    expect(c.code, isNull);
+    expect(c.windowAvailable, isFalse);
+  });
 }

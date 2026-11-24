@@ -14,7 +14,13 @@ class BookingCancellation {
   }) {
     final value = object(raw);
     if (value['jobId'] != jobId ||
-        !{'CUSTOMER', 'PROVIDER'}.contains(value['cancelledBy']) ||
+        !{
+          'CUSTOMER',
+          'PROVIDER',
+          'SYSTEM',
+          'CUSTOMER_NO_SHOW',
+          'NO_SHOW_REJECTED',
+        }.contains(value['cancelledBy']) ||
         value['refundDestination'] != 'WALLET') {
       throw const FormatException('Invalid cancellation identity');
     }

@@ -444,7 +444,7 @@ class _CustomerRequestPaymentScreenState
               onConfirmWallet: () {},
               onHome: home,
               onBookingDetails: row['jobId'] is int
-                  ? () => context.push('/bookings/${row['jobId']}')
+                  ? () => context.go('/bookings/${row['jobId']}')
                   : null,
             );
           }

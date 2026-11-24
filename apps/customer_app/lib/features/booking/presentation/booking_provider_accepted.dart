@@ -60,9 +60,13 @@ class BookingProviderAccepted extends StatelessWidget {
           Text(
             'We found a provider!',
             textAlign: TextAlign.center,
-            style: CustomerTypography.screen.copyWith(color: _ink),
+            style: CustomerTypography.screen.copyWith(
+              color: _ink,
+              fontSize: 22,
+              height: 1.25,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Text(
             'A provider has accepted your request.',
             textAlign: TextAlign.center,
@@ -70,20 +74,21 @@ class BookingProviderAccepted extends StatelessWidget {
               color: CustomerColors.secondaryText,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Image.asset(
             'assets/illustrations/booking/provider_accepted.png',
-            height: math.min(260, availableHeight * .29),
+            key: const ValueKey('accepted-provider-illustration'),
+            height: math.min(168, availableHeight * .20),
             fit: BoxFit.contain,
             semanticLabel: 'Happy bee holding a provider badge',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFDCEFF0)),
               boxShadow: const [
                 BoxShadow(
@@ -101,8 +106,8 @@ class BookingProviderAccepted extends StatelessWidget {
                   children: [
                     ClipOval(
                       child: SizedBox(
-                        width: 84,
-                        height: 84,
+                        width: 52,
+                        height: 52,
                         child: provider?.photo == null
                             ? _avatarFallback
                             : Image.network(
@@ -112,15 +117,16 @@ class BookingProviderAccepted extends StatelessWidget {
                               ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             provider?.name ?? 'Your provider',
-                            style: CustomerTypography.screen.copyWith(
+                            style: CustomerTypography.section.copyWith(
                               color: _ink,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 5),
@@ -174,14 +180,14 @@ class BookingProviderAccepted extends StatelessWidget {
                   ],
                 ),
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: 10),
                   child: Divider(height: 1, color: Color(0xFFE8F1F2)),
                 ),
                 Container(
                   key: const ValueKey('accepted-payment-countdown'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 18,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
                     color: expired
@@ -198,8 +204,8 @@ class BookingProviderAccepted extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 48,
-                            height: 48,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               color: _urgent
                                   ? const Color(0xFFFFE5AD)
@@ -208,7 +214,7 @@ class BookingProviderAccepted extends StatelessWidget {
                             ),
                             child: Icon(
                               Icons.schedule_rounded,
-                              size: 32,
+                              size: 24,
                               color: expired
                                   ? const Color(0xFFB74C59)
                                   : _urgent
@@ -233,6 +239,8 @@ class BookingProviderAccepted extends StatelessWidget {
                                     deadline!,
                                     style: CustomerTypography.countdown
                                         .copyWith(
+                                          fontSize: 30,
+                                          height: 1.15,
                                           color: expired
                                               ? const Color(0xFFB74C59)
                                               : _urgent
@@ -308,8 +316,10 @@ class BookingProviderAccepted extends StatelessWidget {
                               const SizedBox(height: 3),
                               Text(
                                 paymentAmount!,
-                                style: CustomerTypography.screen.copyWith(
+                                style: CustomerTypography.section.copyWith(
                                   color: _ink,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -420,7 +430,7 @@ class BookingProviderAccepted extends StatelessWidget {
     child: Icon(
       Icons.person_outline_rounded,
       color: CustomerColors.action,
-      size: 32,
+      size: 26,
     ),
   );
 }
