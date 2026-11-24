@@ -29,6 +29,33 @@ CustomerWalletController walletController(WidgetTester tester) =>
 
 void main() {
   testWidgets(
+    'wallet loads independent reads concurrently and shows skeleton until verified',
+    (tester) async {
+      final f = WalletFixture();
+      addTearDown(f.f.dispose);
+      f.pendingWallet = Completer<void>();
+      f.walletReadStarted = Completer<void>();
+      await openWallet(tester, f);
+      expect(
+        find.byKey(const ValueKey('wallet-loading-skeleton')),
+        findsOneWidget,
+      );
+      expect(f.walletReadStarted!.isCompleted, isTrue);
+      for (final path in ['/me/payment-settings', '/me/payment-methods']) {
+        expect(f.f.adapter.requests.any((r) => r.path == path), isTrue);
+      }
+      expect(walletController(tester).data, isNull);
+      f.pendingWallet!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('wallet-loading-skeleton')),
+        findsNothing,
+      );
+      expect(walletController(tester).data?.balanced, isTrue);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
     'booking card chooser uses the selected real method ID without inventing expiry or default metadata',
     (tester) async {
       final f = WalletFixture();

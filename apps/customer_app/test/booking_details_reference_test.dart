@@ -17,6 +17,122 @@ import 'customer_live_tracking_test.dart' show liveTrackingJson, timestamp;
 
 void main() {
   testWidgets(
+    'overdue card stays readable on a narrow screen with enlarged text',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            customerClockProvider.overrideWithValue(
+              () => DateTime.utc(2026, 11, 23),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: MediaQuery(
+                  data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: BookingStatusSummary(
+                      status: 'CONFIRMED',
+                      start: DateTime.utc(2026, 11, 20),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('72:00:00'), findsOneWidget);
+      expect(find.text('Not started yet'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'Ready countdown ticks, resumes from deadline and never starts service',
+    (tester) async {
+      var now = DateTime.utc(2026, 11, 23, 10);
+      final start = now.add(const Duration(hours: 1, seconds: 1));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [customerClockProvider.overrideWithValue(() => now)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: BookingStatusSummary(status: 'CONFIRMED', start: start),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Starts in 01:00:01'), findsOneWidget);
+      now = now.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Starts in 01:00:00'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      now = start.subtract(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Starts in 01:00:00'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(find.text('Starts in 00:00:02'), findsOneWidget);
+      now = start;
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('00:00:00'), findsOneWidget);
+      expect(find.text('Ready'), findsOneWidget);
+      expect(find.text('Not started yet'), findsOneWidget);
+      expect(find.text('overdue'), findsOneWidget);
+      expect(find.text('In progress'), findsNothing);
+      now = start.add(const Duration(minutes: 5));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.textContaining('Starts in -'), findsNothing);
+      expect(find.text('00:05:00'), findsOneWidget);
+      now = now.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('00:05:01'), findsOneWidget);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.access_time_rounded)).color,
+        const Color(0xFFC44444),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('countdown is hidden without a start or after service starts', (
+    tester,
+  ) async {
+    for (final status in [
+      'CONFIRMED',
+      'IN_PROGRESS',
+      'COMPLETED',
+      'CANCELLED',
+    ]) {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: BookingStatusSummary(
+                status: status,
+                start: status == 'CONFIRMED' ? null : DateTime.utc(2099),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('booking-start-countdown')),
+        findsNothing,
+      );
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
     'header keeps identity and state readable at narrow widths and enlarged text',
     (tester) async {
       for (final width in [320.0, 560.0]) {
@@ -55,7 +171,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Booking #7001'), findsOneWidget);
           expect(find.text('Ready'), findsOneWidget);
-          expect(find.text('Starts in 4 hr 23 min'), findsOneWidget);
+          expect(find.text('Starts in 04:23:00'), findsOneWidget);
           expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
           expect(find.byIcon(Icons.access_time_rounded), findsOneWidget);
           final header = tester.getRect(
@@ -210,13 +326,24 @@ void main() {
         await tester.pumpAndSettle();
         expect(markers, 1);
         expect(find.text('Ready'), findsOneWidget);
-        expect(find.text('Starts in 4 hr 23 min'), findsOneWidget);
+        expect(find.text('Starts in 04:23:00'), findsOneWidget);
         expect(find.text('Partially paid'), findsNothing);
         expect(find.text('Janaka'), findsNothing);
-        await tester.ensureVisible(find.text('Patient details'));
+        final titleContext = tester.element(find.text('Patient details'));
+        await Scrollable.ensureVisible(titleContext, alignment: 1);
+        await tester.pumpAndSettle();
+        final position = Scrollable.of(titleContext).position;
+        final beforeExpand = position.pixels;
         await tester.tap(find.text('Patient details'));
         await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 240));
+        await tester.pumpAndSettle();
         expect(find.text('Janaka'), findsOneWidget);
+        expect(position.pixels, greaterThan(beforeExpand));
+        expect(
+          tester.getBottomLeft(find.text('Janaka')).dy,
+          lessThanOrEqualTo(tester.getBottomLeft(find.byType(Scaffold)).dy),
+        );
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();

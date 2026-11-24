@@ -54,6 +54,7 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
     this.radiusKm = 10,
     this.destination,
     this.topPadding = 0,
+    this.bottomPadding = 0,
     this.candidates = const [],
     this.enabled = true,
     this.label = 'Service location',
@@ -72,6 +73,7 @@ class BookingLocationPicker extends ConsumerStatefulWidget {
   final GeoPoint? point;
   final GeoPoint? destination;
   final double topPadding;
+  final double bottomPadding;
   final ValueChanged<GeoPoint> onChanged;
   final double radiusKm;
   final List<ProviderCandidate> candidates;
@@ -275,7 +277,9 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
         if (mounted) _projectRipple();
       });
     }
-    if (old.height != widget.height || old.topPadding != widget.topPadding) {
+    if (old.height != widget.height ||
+        old.topPadding != widget.topPadding ||
+        old.bottomPadding != widget.bottomPadding) {
       _scheduleRouteFit();
     }
   }
@@ -517,6 +521,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                 ref.watch(customerMapBuilderProvider)(
                   CustomerMapState(
                     camera: camera,
+                    bottomPadding: widget.bottomPadding,
                     topPadding: destination == null
                         ? 0
                         : widget.topPadding.clamp(
@@ -677,7 +682,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                 ),
                 if (route != null && widget.height > 150)
                   Positioned(
-                    bottom: 12,
+                    bottom: 12 + widget.bottomPadding,
                     left: 12,
                     right: 64,
                     child: Align(
@@ -728,7 +733,7 @@ class _BookingLocationPickerState extends ConsumerState<BookingLocationPicker> {
                   Positioned(
                     top: widget.mapOnly ? null : 8,
                     bottom: widget.mapOnly
-                        ? (widget.height < 72 ? 0 : 12)
+                        ? (widget.height < 72 ? 0 : 12) + widget.bottomPadding
                         : null,
                     right: 8,
                     child: Material(

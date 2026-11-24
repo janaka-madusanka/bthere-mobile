@@ -1,3 +1,4 @@
+import '../../../app/widgets/customer_home_skeleton.dart';
 import 'customer_booking_details_screen.dart';
 import '../../discovery/presentation/customer_bottom_navigation.dart';
 import '../../../app/widgets/customer_top_bar.dart';
@@ -51,12 +52,12 @@ class CustomerBookingsScreen extends ConsumerWidget {
             if (asOpportunities) const CustomerTopBar(),
             Expanded(
               child: history == null
-                  ? const BThereLoadingState(label: 'Loading bookings')
+                  ? const CustomerBookingsSkeleton()
                   : history.when(
                       skipLoadingOnReload: true,
+                      skipLoadingOnRefresh: true,
                       skipError: history.hasValue,
-                      loading: () =>
-                          const BThereLoadingState(label: 'Loading bookings'),
+                      loading: () => const CustomerBookingsSkeleton(),
                       error: (_, _) => BThereStateView(
                         title: 'Unable to load bookings',
                         message: 'Please try again.',
@@ -122,140 +123,139 @@ class _CustomerOpportunitiesBodyState extends State<CustomerOpportunitiesBody> {
     final rows = widget.bookings
         .where((b) => _filter == 'All' || _group(b['status']) == _filter)
         .toList();
-    return RefreshIndicator(
-      onRefresh: widget.onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(18, 22, 18, 24),
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  'Bookings',
-                  style: CustomerTypography.screen.copyWith(
-                    color: const Color(0xFF101D42),
-                  ),
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                'Bookings',
+                style: CustomerTypography.screen.copyWith(
+                  color: const Color(0xFF101D42),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3F4F3),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  '${widget.bookings.length}',
-                  style: CustomerTypography.card.copyWith(
-                    color: CustomerColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Keep track of your care, all in one place.',
-            style: CustomerTypography.body.copyWith(
-              color: CustomerColors.secondaryText,
             ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F4F3),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                '${widget.bookings.length}',
+                style: CustomerTypography.card.copyWith(
+                  color: CustomerColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Keep track of your care, all in one place.',
+          style: CustomerTypography.body.copyWith(
+            color: CustomerColors.secondaryText,
           ),
-          const SizedBox(height: 22),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final filter in [
-                  'All',
-                  'Active',
-                  'Completed',
-                  'Cancelled',
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(filter),
-                      avatar: filter == 'All'
-                          ? null
-                          : Icon(
-                              switch (filter) {
-                                'Active' => Icons.play_circle_outline_rounded,
-                                'Completed' => Icons.check_rounded,
-                                _ => Icons.cancel_outlined,
-                              },
-                              size: 16,
-                              color: _filter == filter
-                                  ? Colors.white
-                                  : const Color(0xFF101D42),
-                            ),
-                      selected: _filter == filter,
-                      onSelected: (_) => setState(() => _filter = filter),
-                      selectedColor: CustomerColors.action,
-                      showCheckmark: false,
-                      backgroundColor: Colors.white,
-                      side: BorderSide.none,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 6,
-                      ),
-                      labelStyle: CustomerTypography.compactStrong.copyWith(
-                        color: _filter == filter
-                            ? Colors.white
-                            : const Color(0xFF101D42),
-                      ),
+        ),
+        const SizedBox(height: 22),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final filter in ['All', 'Active', 'Completed', 'Cancelled'])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(filter),
+                    avatar: filter == 'All'
+                        ? null
+                        : Icon(
+                            switch (filter) {
+                              'Active' => Icons.play_circle_outline_rounded,
+                              'Completed' => Icons.check_rounded,
+                              _ => Icons.cancel_outlined,
+                            },
+                            size: 16,
+                            color: _filter == filter
+                                ? Colors.white
+                                : const Color(0xFF101D42),
+                          ),
+                    selected: _filter == filter,
+                    onSelected: (_) => setState(() => _filter = filter),
+                    selectedColor: CustomerColors.action,
+                    showCheckmark: false,
+                    backgroundColor: Colors.white,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 6,
+                    ),
+                    labelStyle: CustomerTypography.compactStrong.copyWith(
+                      color: _filter == filter
+                          ? Colors.white
+                          : const Color(0xFF101D42),
                     ),
                   ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 20),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.event_note_outlined,
+                  size: 48,
+                  color: CustomerColors.action,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  widget.bookings.isEmpty
+                      ? 'No bookings yet.'
+                      : 'No ${_filter.toLowerCase()} bookings.',
+                  style: CustomerTypography.card.copyWith(
+                    color: CustomerColors.text,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your service bookings will appear here.',
+                  textAlign: TextAlign.center,
+                  style: CustomerTypography.compact.copyWith(
+                    color: CustomerColors.secondaryText,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          if (rows.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 20),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.event_note_outlined,
-                    size: 48,
-                    color: CustomerColors.action,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    widget.bookings.isEmpty
-                        ? 'No bookings yet.'
-                        : 'No ${_filter.toLowerCase()} bookings.',
-                    style: CustomerTypography.card.copyWith(
-                      color: CustomerColors.text,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your service bookings will appear here.',
-                    textAlign: TextAlign.center,
-                    style: CustomerTypography.compact.copyWith(
-                      color: CustomerColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          for (final booking in rows)
-            BookingSummaryTile(
-              booking: booking,
-              name:
-                  widget.serviceNames[booking['serviceTypeId']] ??
-                  'Service booking',
-              onTap: () => widget.onOpen(booking),
-            ),
-        ],
+      ],
+    );
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(18, 22, 18, 24),
+        itemCount: rows.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) return header;
+          final booking = rows[index - 1];
+          return BookingSummaryTile(
+            booking: booking,
+            name:
+                widget.serviceNames[booking['serviceTypeId']] ??
+                'Service booking',
+            onTap: () => widget.onOpen(booking),
+          );
+        },
       ),
     );
   }
@@ -270,13 +270,9 @@ class CustomerRecentBookings extends ConsumerWidget {
     if (id == null) return const SizedBox.shrink();
     final history = ref.watch(customerBookingHistoryProvider(id));
     return history.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8),
-        child: BThereLoadingState(
-          label: 'Loading recent bookings',
-          compact: true,
-        ),
-      ),
+      skipLoadingOnRefresh: true,
+      skipLoadingOnReload: true,
+      loading: () => const CustomerRecentBookingsSkeleton(),
       error: (_, _) => TextButton(
         onPressed: () => ref.invalidate(customerBookingHistoryProvider(id)),
         child: const Text('Unable to load recent bookings · Retry'),
@@ -676,6 +672,87 @@ class _BookingStatusBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class CustomerBookingsSkeleton extends StatelessWidget {
+  const CustomerBookingsSkeleton({super.key});
+  @override
+  Widget build(BuildContext context) {
+    Widget block(double height, {double? width}) => Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F0F1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+    return Semantics(
+      label: 'Loading bookings',
+      liveRegion: true,
+      child: ExcludeSemantics(
+        child: ListView(
+          key: const ValueKey('bookings-loading-skeleton'),
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 24),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: block(26, width: 145),
+                  ),
+                ),
+                block(32, width: 38),
+              ],
+            ),
+            const SizedBox(height: 10),
+            block(14),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                for (var i = 0; i < 4; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
+                      child: block(38),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            for (var i = 0; i < 4; i++)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: CustomerColors.border),
+                ),
+                child: Row(
+                  children: [
+                    block(56, width: 48),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          block(16),
+                          const SizedBox(height: 10),
+                          block(12, width: 76),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    block(26, width: 72),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

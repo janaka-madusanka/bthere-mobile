@@ -1,4 +1,5 @@
 import '../../../app/customer_theme.dart';
+import '../../../app/widgets/customer_top_bar.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,46 +100,16 @@ class _CustomerServicesScreenState
             selected: CustomerNavigationTab.services,
           ),
           body: SafeArea(
+            top: false,
             bottom: false,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 10, 48, 12),
-                  child: Row(
-                    children: [
-                      Semantics(
-                        label: 'Back to home',
-                        child: IconButton(
-                          key: const ValueKey('customer-services-back'),
-                          onPressed: () => context.canPop()
-                              ? context.pop()
-                              : context.go('/home'),
-                          icon: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Get a Service',
-                          textAlign: TextAlign.center,
-                          style: CustomerTypography.section.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                const CustomerTopBar(),
                 Expanded(
                   child: Container(
                     clipBehavior: Clip.antiAlias,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(28),
-                      ),
+                      color: CustomerColors.background,
                     ),
                     child: ListenableBuilder(
                       listenable: controller,
@@ -193,7 +164,7 @@ class _CustomerServicesScreenState
                           onRefresh: controller.loadServices,
                           child: SingleChildScrollView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
                             child: Center(
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
@@ -203,20 +174,66 @@ class _CustomerServicesScreenState
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    Text(
-                                      'Choose a service category',
-                                      style: CustomerTypography.screen.copyWith(
-                                        color: catalogInk,
-                                      ),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          key: const ValueKey(
+                                            'customer-services-back',
+                                          ),
+                                          tooltip: 'Back to home',
+                                          onPressed: () => context.canPop()
+                                              ? context.pop()
+                                              : context.go('/home'),
+                                          icon: const Icon(
+                                            Icons.arrow_back_rounded,
+                                          ),
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor:
+                                                CustomerColors.action,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            'Services',
+                                            key: const ValueKey(
+                                              'customer-services-title',
+                                            ),
+                                            style: CustomerTypography.screen
+                                                .copyWith(
+                                                  color: const Color(
+                                                    0xFF101D42,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 9,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE1F4F2),
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            controller.serviceStage ==
+                                                    DiscoveryStage.ready
+                                                ? '${controller.services.length}'
+                                                : '\u2014',
+                                            style: CustomerTypography.section
+                                                .copyWith(
+                                                  color: CustomerColors.primary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Choose a category to explore available services.',
-                                      style: CustomerTypography.body.copyWith(
-                                        color: catalogMuted,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 14),
                                     TextField(
                                       key: const ValueKey(
                                         'customer-service-search',
@@ -226,7 +243,7 @@ class _CustomerServicesScreenState
                                       decoration: InputDecoration(
                                         hintText: 'Search services',
                                         filled: true,
-                                        fillColor: const Color(0xFFF8FCFC),
+                                        fillColor: Colors.white,
                                         prefixIcon: const Icon(
                                           Icons.search_rounded,
                                           color: catalogTeal,
@@ -261,7 +278,12 @@ class _CustomerServicesScreenState
                                       ),
                                     ),
                                     const SizedBox(height: 18),
-                                    if (controller.serviceStage !=
+                                    if (controller.serviceStage ==
+                                            DiscoveryStage.idle ||
+                                        controller.serviceStage ==
+                                            DiscoveryStage.loading)
+                                      const _ServicesLoadingSkeleton()
+                                    else if (controller.serviceStage !=
                                             DiscoveryStage.ready ||
                                         controller.services.isEmpty)
                                       CatalogStatus(
@@ -367,10 +389,12 @@ class _ServiceAccordion extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Colors.white,
+    elevation: 1,
+    shadowColor: const Color(0x100F666B),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
       side: BorderSide(
-        color: expanded ? const Color(0xFF63C2BE) : const Color(0xFFBCDDE0),
+        color: expanded ? const Color(0xFF8BCFC7) : const Color(0xFFE1EBEF),
         width: expanded ? 1.2 : 1,
       ),
     ),
@@ -403,7 +427,7 @@ class _ServiceAccordion extends StatelessWidget {
                     CatalogIcon(
                       appearance: appearance,
                       url: service.iconUrl,
-                      size: 46,
+                      size: 42,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -413,26 +437,14 @@ class _ServiceAccordion extends StatelessWidget {
                           Text(
                             service.name,
                             style: CustomerTypography.section.copyWith(
-                              color: catalogInk,
+                              color: const Color(0xFF101D42),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          if (service.description?.trim().isNotEmpty ??
-                              false) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              service.description!,
-                              maxLines:
-                                  MediaQuery.textScalerOf(context).scale(12) >
-                                      16
-                                  ? null
-                                  : 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: CustomerTypography.compact.copyWith(
-                                color: catalogMuted,
-                              ),
-                            ),
-                          ],
-                          if (service.accessStatus != 'ELIGIBLE')
+                          if (!{
+                            'ELIGIBLE',
+                            'CHECK_OPTION',
+                          }.contains(service.accessStatus))
                             CatalogAccess(service: service),
                         ],
                       ),
@@ -495,8 +507,11 @@ class _ServiceAccordion extends StatelessWidget {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child:
-                              state.stage != DiscoveryStage.ready ||
-                                  state.options.isEmpty
+                              state.stage == DiscoveryStage.idle ||
+                                  state.stage == DiscoveryStage.loading
+                              ? const _ServicesLoadingSkeleton(options: true)
+                              : state.stage != DiscoveryStage.ready ||
+                                    state.options.isEmpty
                               ? CatalogStatus(
                                   options: true,
                                   loading:
@@ -545,7 +560,7 @@ class _ServiceAccordion extends StatelessWidget {
                                                 url: state
                                                     .options[index]
                                                     .iconUrl,
-                                                size: 38,
+                                                size: 34,
                                               ),
                                               const SizedBox(width: 11),
                                               Expanded(
@@ -558,37 +573,13 @@ class _ServiceAccordion extends StatelessWidget {
                                                       style: CustomerTypography
                                                           .card
                                                           .copyWith(
-                                                            color: catalogInk,
+                                                            color: const Color(
+                                                              0xFF101D42,
+                                                            ),
+                                                            fontWeight:
+                                                                FontWeight.w700,
                                                           ),
                                                     ),
-                                                    if (state
-                                                            .options[index]
-                                                            .description
-                                                            ?.trim()
-                                                            .isNotEmpty ??
-                                                        false) ...[
-                                                      const SizedBox(height: 3),
-                                                      Text(
-                                                        state
-                                                            .options[index]
-                                                            .description!,
-                                                        maxLines:
-                                                            MediaQuery.textScalerOf(
-                                                                  context,
-                                                                ).scale(12) >
-                                                                16
-                                                            ? null
-                                                            : 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: CustomerTypography
-                                                            .compact
-                                                            .copyWith(
-                                                              color:
-                                                                  catalogMuted,
-                                                            ),
-                                                      ),
-                                                    ],
                                                     if (state
                                                             .options[index]
                                                             .access
@@ -624,4 +615,66 @@ class _ServiceAccordion extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Static placeholders avoid extra animation work while catalog reads run.
+class _ServicesLoadingSkeleton extends StatelessWidget {
+  const _ServicesLoadingSkeleton({this.options = false});
+  final bool options;
+  @override
+  Widget build(BuildContext context) {
+    Widget block(double height, {double? width}) => Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6F0F1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+    return Semantics(
+      label: options ? 'Loading service options' : 'Loading services',
+      liveRegion: true,
+      child: ExcludeSemantics(
+        child: Column(
+          key: ValueKey(
+            options
+                ? 'service-options-loading-skeleton'
+                : 'services-loading-skeleton',
+          ),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < (options ? 3 : 4); i++)
+              Container(
+                margin: EdgeInsets.only(bottom: options ? 0 : 10),
+                padding: EdgeInsets.all(options ? 12 : 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(options ? 0 : 18),
+                  border: options
+                      ? null
+                      : Border.all(color: const Color(0xFFE1EBEF)),
+                ),
+                child: Row(
+                  children: [
+                    block(options ? 34 : 42, width: options ? 34 : 42),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: i.isEven ? .65 : .48,
+                          child: block(options ? 14 : 18),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    block(20, width: 20),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

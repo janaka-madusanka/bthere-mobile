@@ -137,20 +137,22 @@ final customerRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: '/bookings',
           builder: (_, _) => const CustomerBookingsScreen(),
+          routes: [
+            GoRoute(
+              path: ':jobId',
+              builder: (_, state) => CustomerBookingDetailsScreen(
+                jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
+                extras: state.extra is BookingDetailsExtras
+                    ? state.extra as BookingDetailsExtras
+                    : null,
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/opportunities',
           builder: (_, _) =>
               const CustomerBookingsScreen(asOpportunities: true),
-        ),
-        GoRoute(
-          path: '/bookings/:jobId',
-          builder: (_, state) => CustomerBookingDetailsScreen(
-            jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
-            extras: state.extra is BookingDetailsExtras
-                ? state.extra as BookingDetailsExtras
-                : null,
-          ),
         ),
         GoRoute(
           path: '/booking/:service/:option',

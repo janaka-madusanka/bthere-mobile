@@ -3,6 +3,7 @@ import 'package:bthere_session/bthere_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'customer_config.dart';
+import 'customer_booking_clock.dart';
 
 final customerConfigProvider = Provider<CustomerConfig?>(
   (ref) => null,
@@ -10,6 +11,10 @@ final customerConfigProvider = Provider<CustomerConfig?>(
 );
 final customerClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
+);
+final customerBookingClockProvider = Provider<CustomerBookingClock>(
+  (ref) => CustomerBookingClock(ref.watch(customerClockProvider)),
+  dependencies: [customerClockProvider],
 );
 final customerSessionStorageProvider = Provider<SessionStorage>(
   (ref) => const SecureSessionStorage(store: FlutterSecureKeyValueStore()),

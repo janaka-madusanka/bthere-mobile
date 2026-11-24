@@ -52,7 +52,10 @@ void main() {
         findsNothing,
       );
       expect(find.text('Ready'), findsOneWidget);
-      expect(find.text('Starts in 4 hr 23 min'), findsOneWidget);
+      expect(
+        find.textContaining(RegExp(r'^Starts in 04:2[23]:[0-5][0-9]$')),
+        findsOneWidget,
+      );
       expect(find.byType(BookingLabMap), findsOneWidget);
       expect(find.text('Nimal Perera'), findsOneWidget);
       expect(
@@ -78,7 +81,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('ui-lab-scene-ready-code')));
       await tester.pumpAndSettle();
-      expect(find.text('Starts in 23 min'), findsOneWidget);
+      expect(
+        find.textContaining(RegExp(r'^Starts in 00:2[23]:[0-5][0-9]$')),
+        findsOneWidget,
+      );
       final show = find.byKey(const ValueKey('booking-start-code-action'));
       await tester.ensureVisible(show);
       await tester.tap(show);

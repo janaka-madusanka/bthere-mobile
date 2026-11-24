@@ -27,6 +27,9 @@ class CustomerBookingStartController extends ChangeNotifier {
   String? _code, error;
   DateTime? expiresAt;
   bool busy = false, _reading = false, _disposed = false, _identityLost = false;
+  bool? windowAvailable;
+  bool _checkingWindow = false;
+  int _windowRevision = 0;
   bool get alive =>
       !_disposed &&
       !_identityLost &&
@@ -50,6 +53,8 @@ class CustomerBookingStartController extends ChangeNotifier {
   void _identityChanged() {
     if (!alive) {
       _identityLost = true;
+      _windowRevision++;
+      windowAvailable = false;
       _code = null;
       expiresAt = null;
       _notify();
@@ -58,8 +63,15 @@ class CustomerBookingStartController extends ChangeNotifier {
 
   void updateBooking(Map<String, dynamic> value) {
     if (!alive || value['jobId'] != jobId) return;
+    if (value['startDatetime'] != booking['startDatetime'] ||
+        value['status'] != booking['status'] ||
+        value['paymentStatus'] != booking['paymentStatus']) {
+      _windowRevision++;
+      windowAvailable = null;
+    }
     booking = value;
     if (!eligible) {
+      windowAvailable = false;
       _code = null;
       expiresAt = null;
       error = null;
@@ -72,6 +84,30 @@ class CustomerBookingStartController extends ChangeNotifier {
     expiresAt = null;
     error = null;
     _notify();
+  }
+
+  /// Missing timezone metadata must not permanently hide a valid START code.
+  /// The server checks the service window; do not guess from the active market.
+  /// Discard the returned digits until the customer explicitly chooses Show code.
+  Future<void> checkWindow() async {
+    if (!eligible || busy || _reading || _checkingWindow) return;
+    _checkingWindow = true;
+    final revision = _windowRevision;
+    try {
+      final result = await repository.startCode(jobId);
+      if (!alive || !eligible || revision != _windowRevision) return;
+      windowAvailable = DateTime.parse(result['expiresAt'] as String)
+          .isAfter(now());
+    } catch (failure) {
+      if (!alive || revision != _windowRevision) return;
+      if (failure is BookingProblem &&
+          {403, 404, 409}.contains(failure.status)) {
+        windowAvailable = false;
+      }
+    } finally {
+      _checkingWindow = false;
+      if (alive && revision == _windowRevision) _notify();
+    }
   }
 
   Future<bool> _refreshBooking() async {
@@ -107,6 +143,7 @@ class CustomerBookingStartController extends ChangeNotifier {
           'The start code has expired. Please check availability again.',
         );
       }
+      windowAvailable = true;
       _code = result['code'] as String;
       expiresAt = expiry;
     } catch (failure) {

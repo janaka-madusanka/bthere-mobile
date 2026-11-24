@@ -339,7 +339,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('customer-service-4')));
       await tester.pumpAndSettle();
-      expect(find.text('Get a Service'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('customer-services-title')),
+        findsOneWidget,
+      );
       expect(find.text('Home Care'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const ValueKey('customer-service-search')),
@@ -364,7 +367,9 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const ValueKey('customer-account-market')),
       );
-      await tester.ensureVisible(find.byKey(const ValueKey('customer-account-market')));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('customer-account-market')),
+      );
       await tester.tap(find.byKey(const ValueKey('customer-account-market')));
       await tester.pumpAndSettle();
       expect(find.text('Where do you need care?'), findsOneWidget);

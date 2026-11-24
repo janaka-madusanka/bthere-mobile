@@ -164,15 +164,26 @@ class BookingDetailsHeaderBackground extends StatelessWidget {
 }
 
 DateTime? bookingScheduledInstant(Map<String, dynamic> booking, String? zone) {
-  final raw = booking['startDatetime'] ?? booking['requestedPickupTime'];
+  for (final key in ['startDatetimeUtc', 'startAtUtc']) {
+    final utc = booking[key];
+    if (utc is String && RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(utc)) {
+      final instant = DateTime.tryParse(utc);
+      if (instant != null) return instant.toUtc();
+    }
+  }
+  final raw =
+      booking['startDatetime'] ??
+      booking['requestedPickupTime'] ??
+      booking['startAt'];
   if (raw is! String) return null;
   final value = DateTime.tryParse(raw);
   if (value == null) return null;
   if (RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(raw)) return value.toUtc();
-  if (zone == null) return null;
+  final marketZone = booking['marketTimezone'] as String? ?? zone;
+  if (marketZone == null) return null;
   try {
     return tz.TZDateTime(
-      tz.getLocation(zone),
+      MarketTime.location(marketZone),
       value.year,
       value.month,
       value.day,
@@ -193,13 +204,17 @@ class BookingStatusSummary extends ConsumerStatefulWidget {
   ConsumerState<BookingStatusSummary> createState() => _StatusState();
 }
 
-class _StatusState extends ConsumerState<BookingStatusSummary> {
+class _StatusState extends ConsumerState<BookingStatusSummary>
+    with WidgetsBindingObserver {
   Timer? timer;
   @override
   void initState() {
     super.initState();
-    timer = Timer.periodic(const Duration(minutes: 1), (_) {
+    WidgetsBinding.instance.addObserver(this);
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted &&
+          widget.status == 'CONFIRMED' &&
+          widget.start != null &&
           ModalRoute.of(context)?.isCurrent != false &&
           (WidgetsBinding.instance.lifecycleState == null ||
               WidgetsBinding.instance.lifecycleState ==
@@ -210,7 +225,13 @@ class _StatusState extends ConsumerState<BookingStatusSummary> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     timer?.cancel();
     super.dispose();
   }
@@ -239,18 +260,22 @@ class _StatusState extends ConsumerState<BookingStatusSummary> {
       _ => 'Status unavailable',
     };
     final difference = widget.start?.difference(
-      ref.read(customerClockProvider)(),
+      ref.read(customerBookingClockProvider).now(),
     );
-    final minutes = difference == null
+    // Recompute from the deadline; never decrement a stored counter, so resume
+    // and delayed frames cannot make the countdown drift.
+    final seconds = difference == null
         ? null
-        : (difference.inSeconds / 60).ceil();
-    final countdown = minutes == null
+        : (difference.inMilliseconds / 1000).ceil();
+    String digits(int value) => value.toString().padLeft(2, '0');
+    final overdue = seconds != null && seconds <= 0;
+    String durationText(int value) =>
+        '${digits(value ~/ 3600)}:${digits(value ~/ 60 % 60)}:${digits(value % 60)}';
+    final countdown = seconds == null
         ? null
-        : minutes <= 0
-        ? 'Scheduled start reached'
-        : minutes >= 60
-        ? 'Starts in ${minutes ~/ 60} hr ${minutes % 60} min'
-        : 'Starts in $minutes min';
+        : seconds <= 0
+        ? 'Not started \u00b7 ${durationText(seconds.abs())} overdue'
+        : 'Starts in ${durationText(seconds)}';
     final color = status == 'PAYMENT_FAILED'
         ? const Color(0xFFF04452)
         : failed
@@ -292,11 +317,85 @@ class _StatusState extends ConsumerState<BookingStatusSummary> {
     if (status != 'CONFIRMED' || countdown == null) {
       return Align(alignment: Alignment.centerLeft, child: badge);
     }
+    if (overdue) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          badge,
+          const SizedBox(height: 10),
+          Container(
+            key: const ValueKey('booking-start-countdown'),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF2F2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFFDEDE)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFE3E3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.access_time_rounded,
+                    color: CustomerColors.error,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Not started yet',
+                        style: CustomerTypography.compactStrong.copyWith(
+                          color: const Color(0xFF934343),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Wrap(
+                        spacing: 7,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            durationText(seconds.abs()),
+                            style: CustomerTypography.section.copyWith(
+                              color: CustomerColors.error,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 22,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            'overdue',
+                            style: CustomerTypography.compact.copyWith(
+                              color: const Color(0xFF934343),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     final span = TextSpan(
       style: CustomerTypography.compact.copyWith(
         color: CustomerColors.secondaryText,
       ),
-      children: minutes != null && minutes > 0
+      children: seconds != null && seconds > 0
           ? [
               const TextSpan(text: 'Starts in '),
               TextSpan(
@@ -306,7 +405,15 @@ class _StatusState extends ConsumerState<BookingStatusSummary> {
                 ),
               ),
             ]
-          : [TextSpan(text: countdown)],
+          : [
+              TextSpan(
+                text: countdown,
+                style: CustomerTypography.card.copyWith(
+                  color: CustomerColors.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
     );
     final scaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
@@ -325,10 +432,10 @@ class _StatusState extends ConsumerState<BookingStatusSummary> {
     timeMeasure.dispose();
     final time = Row(
       children: [
-        const ExcludeSemantics(
+        ExcludeSemantics(
           child: Icon(
             Icons.access_time_rounded,
-            color: CustomerColors.action,
+            color: overdue ? CustomerColors.error : CustomerColors.action,
             size: 20,
           ),
         ),
