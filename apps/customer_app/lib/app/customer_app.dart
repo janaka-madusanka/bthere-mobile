@@ -1,5 +1,6 @@
 import '../features/profile/presentation/customer_profile_overview_screen.dart';
 import 'customer_theme.dart';
+import 'widgets/customer_startup_splash.dart';
 import '../features/booking/presentation/customer_request_payment_screen.dart';
 import '../features/booking/presentation/customer_notification_host.dart';
 
@@ -222,49 +223,44 @@ class _StartupScreen extends ConsumerWidget {
     final auth = ref.watch(customerAuthControllerProvider);
     final profile = ref.watch(customerProfileControllerProvider);
     final discovery = ref.watch(customerDiscoveryProvider);
-    if (auth.stage == CustomerAuthStage.authenticated) {
-      return ListenableBuilder(
-        listenable: Listenable.merge([profile, auth, discovery]),
-        builder: (context, _) => _Page(
-          child: profile.stage == CustomerProfileStage.failure
-              ? BThereStateView(
-                  title: 'Unable to load your profile',
-                  message: auth.error ?? profile.error,
-                  action: Column(
-                    children: [
-                      BThereButton(
-                        label: 'Retry profile',
-                        onPressed: auth.busy ? null : profile.load,
-                      ),
-                      TextButton(
-                        onPressed: auth.busy ? null : auth.logout,
-                        child: const Text('Sign out'),
-                      ),
-                    ],
-                  ),
-                )
-              : BThereLoadingState(
-                  label: profile.stage == CustomerProfileStage.ready
-                      ? 'Loading your market'
-                      : 'Loading your profile',
-                ),
-        ),
-      );
-    }
     return ListenableBuilder(
-      listenable: auth,
-      builder: (context, _) => _Page(
-        child: auth.stage == CustomerAuthStage.failure
-            ? BThereStateView(
-                title: 'Unable to restore your session',
-                message: auth.error,
-                action: BThereButton(
-                  label: 'Retry',
-                  onPressed: auth.busy ? null : auth.restore,
-                ),
-              )
-            : const BThereLoadingState(label: 'Starting B there Customer'),
-      ),
+      listenable: Listenable.merge([profile, auth, discovery]),
+      builder: (context, _) {
+        if (auth.stage == CustomerAuthStage.authenticated &&
+            profile.stage == CustomerProfileStage.failure) {
+          return _Page(
+            child: BThereStateView(
+              title: 'Unable to load your profile',
+              message: auth.error ?? profile.error,
+              action: Column(
+                children: [
+                  BThereButton(
+                    label: 'Retry profile',
+                    onPressed: auth.busy ? null : profile.load,
+                  ),
+                  TextButton(
+                    onPressed: auth.busy ? null : auth.logout,
+                    child: const Text('Sign out'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        if (auth.stage == CustomerAuthStage.failure) {
+          return _Page(
+            child: BThereStateView(
+              title: 'Unable to restore your session',
+              message: auth.error,
+              action: BThereButton(
+                label: 'Retry',
+                onPressed: auth.busy ? null : auth.restore,
+              ),
+            ),
+          );
+        }
+        return const CustomerStartupSplash();
+      },
     );
   }
 }
