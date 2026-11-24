@@ -23,7 +23,23 @@ class OverviewBackend {
       Object? body;
       var code = 200;
       if (path == '/customers/me/profile-overview') {
-        body = data;
+        body = {
+          ...data,
+          'documents': [
+            for (final item in data['documents'] as List)
+              {
+                ...item as Map,
+                'actionRequired': [
+                  'MISSING',
+                  'REJECTED',
+                  'EXPIRED',
+                ].contains(item['status']),
+                'statusReason': item['status'] == 'MISSING'
+                    ? 'NOT_SUBMITTED'
+                    : item['status'],
+              },
+          ],
+        };
         code = status;
       } else if (path.endsWith('/contacts/email/otp')) {
         otpWrites++;
@@ -106,6 +122,44 @@ Future<void> press(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets(
+    'profile limits both service previews to two and requests a small overview',
+    (tester) async {
+      final backend = OverviewBackend();
+      for (final section in ['pendingServices', 'serviceHistory']) {
+        final list = backend.data[section] as Map;
+        final template = Map<String, dynamic>.from(
+          (list['items'] as List).first as Map,
+        );
+        list['items'] = [
+          for (var i = 1; i <= 5; i++)
+            {
+              ...template,
+              'serviceName': '$section service $i',
+              'optionName': '$section service $i',
+            },
+        ];
+        list['hasMore'] = false;
+        list['totalCount'] = 5;
+      }
+      final f = await overview(tester, backend);
+      for (final section in ['pendingServices', 'serviceHistory']) {
+        expect(find.text('$section service 1'), findsOneWidget);
+        expect(find.text('$section service 2'), findsOneWidget);
+        expect(find.text('$section service 3'), findsNothing);
+      }
+      expect(find.text('View all'), findsNWidgets(2));
+      expect(
+        f.f.adapter.requests
+            .where((r) => r.path.contains('/profile-overview'))
+            .last
+            .uri
+            .queryParameters['recentLimit'],
+        '2',
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'overview shows backend identity, separate real/test spending and verification without writes',
     (tester) async {
@@ -204,6 +258,65 @@ void main() {
     },
   );
   testWidgets(
+    'document details recover from fresh overview when document routes return 404',
+    (tester) async {
+      final backend = OverviewBackend();
+      final f = await overview(tester, backend);
+      final original = f.f.adapter.extraHandler!;
+      f.f.adapter.extraHandler = (r) async {
+        final path = Uri.parse(r.path).path;
+        if (path == '/customers/me/documents' ||
+            path.startsWith('/customers/me/documents/')) {
+          return ResponseBody.fromString(
+            jsonEncode({'detail': 'Not found'}),
+            404,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          );
+        }
+        if (path == '/customers/me/profile-overview') {
+          final response = await original(r);
+          return ResponseBody.fromString(
+            jsonEncode({
+              ...backend.data,
+              'documents': [
+                {
+                  ...(backend.data['documents'] as List).first as Map,
+                  'actionRequired': false,
+                  'status': 'PENDING',
+                  'statusReason': 'IN_REVIEW',
+                  'required': true,
+                  'blocksBooking': true,
+                  'fieldType': 'DOCUMENT_UPLOAD',
+                  'code': 'CERTIFICATE',
+                  'fileKeys': ['customers/12/documents/current.pdf'],
+                  'upload': {
+                    'minimumFiles': 1,
+                    'maximumFiles': 2,
+                    'maximumFileSizeMb': 10,
+                    'allowedFileTypes': ['PDF'],
+                  },
+                },
+              ],
+            }),
+            response!.statusCode,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          );
+        }
+        return original(r);
+      };
+      await press(tester, find.text('Upload again').first);
+      expect(find.text('View document 1'), findsOneWidget);
+      expect(find.text('Under review'), findsWidgets);
+      expect(find.textContaining('could not be loaded'), findsNothing);
+      expect(f.f.adapter.requests.where((r) => r.method == 'PUT'), isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
     'document resubmission uses requirement ID and requires explicit submit',
     (tester) async {
       final backend = OverviewBackend();
@@ -220,7 +333,14 @@ void main() {
           },
         ),
       ];
-      await press(tester, find.text('Upload / resubmit').first);
+      expect(find.text('Add service documents'), findsNothing);
+      await press(tester, find.text('Upload again').first);
+      expect(
+        f.f.adapter.requests.any(
+          (r) => r.path.endsWith('/customers/me/documents/7'),
+        ),
+        isTrue,
+      );
       expect(find.text('View document 1'), findsOneWidget);
       expect(
         f.f.adapter.requests.where(

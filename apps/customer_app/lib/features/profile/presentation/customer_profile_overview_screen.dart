@@ -15,7 +15,7 @@ import '../data/customer_profile_overview_repository.dart';
 import 'profile_contact_sheet.dart';
 import 'profile_document_sheet.dart';
 import 'profile_requests_screen.dart';
-import 'service_documents_screen.dart';
+import '../domain/customer_document.dart';
 
 class CustomerProfileOverviewScreen extends ConsumerStatefulWidget {
   const CustomerProfileOverviewScreen({super.key});
@@ -145,7 +145,7 @@ class _CustomerProfileOverviewScreenState
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FE),
       builder: (_) => ProfileDocumentSheet(owner: owner, document: data),
     );
     if (mounted) refresh();
@@ -350,46 +350,23 @@ class _CustomerProfileOverviewScreenState
                                 ]),
                                 title('My documents'),
                                 const Padding(
-                                  padding: EdgeInsets.only(bottom: 10),
+                                  padding: EdgeInsets.only(bottom: 12),
                                   child: Text(
-                                    'Required for selected services',
+                                    'Upload and manage your personal documents',
                                     style: CustomerTypography.body,
                                   ),
                                 ),
-                                OutlinedButton.icon(
-                                  key: const ValueKey(
-                                    'profile-add-service-documents',
-                                  ),
-                                  onPressed: () async {
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ServiceDocumentsScreen(),
-                                      ),
-                                    );
-                                    if (mounted) refresh();
-                                  },
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  label: const Text('Add service documents'),
-                                ),
-                                const SizedBox(height: 10),
-                                panel([
-                                  if ((data['documents'] as List).isEmpty)
-                                    const Text(
-                                      'No documents submitted yet.',
-                                      style: CustomerTypography.body,
-                                    ),
-                                  for (final raw
-                                      in data['documents'] as List) ...[
-                                    _document(
-                                      Map<String, dynamic>.from(raw as Map),
-                                    ),
-                                    const SizedBox(height: 10),
-                                  ],
-                                ]),
+                                _documents(data['documents'] as List),
                                 title(
                                   'Pending services',
-                                  all: pending['hasMore'] == true
+                                  all:
+                                      pending['hasMore'] == true ||
+                                          (pending['totalCount'] as int) >
+                                              CustomerProfileOverviewRepository
+                                                  .recentLimit ||
+                                          (pending['items'] as List).length >
+                                              CustomerProfileOverviewRepository
+                                                  .recentLimit
                                       ? () => Navigator.of(context).push(
                                           MaterialPageRoute(
                                             builder: (_) =>
@@ -404,7 +381,11 @@ class _CustomerProfileOverviewScreenState
                                       'No pending services.',
                                       style: CustomerTypography.body,
                                     ),
-                                  for (final row in pending['items'] as List)
+                                  for (final row
+                                      in (pending['items'] as List).take(
+                                        CustomerProfileOverviewRepository
+                                            .recentLimit,
+                                      ))
                                     _service(
                                       Map<String, dynamic>.from(row as Map),
                                     ),
@@ -419,7 +400,11 @@ class _CustomerProfileOverviewScreenState
                                       'No service history yet.',
                                       style: CustomerTypography.body,
                                     ),
-                                  for (final row in history['items'] as List)
+                                  for (final row
+                                      in (history['items'] as List).take(
+                                        CustomerProfileOverviewRepository
+                                            .recentLimit,
+                                      ))
                                     _service(
                                       Map<String, dynamic>.from(row as Map),
                                     ),
@@ -742,6 +727,11 @@ class _CustomerProfileOverviewScreenState
         const Color(0xFF009C69),
         const Color(0xFFE1F8ED),
       ),
+      'PROVIDED' when document => (
+        'Saved',
+        CustomerColors.action,
+        CustomerColors.selection,
+      ),
       'APPROVED' when document => (
         'Verified',
         const Color(0xFF009C69),
@@ -796,51 +786,140 @@ class _CustomerProfileOverviewScreenState
     );
   }
 
+  Widget _documents(List raw) {
+    final documents = _sortedDocuments(raw);
+    final missing = documents
+        .where(
+          (d) =>
+              d['status'] == 'MISSING' &&
+              (d['fileKeys'] as List? ?? []).isEmpty,
+        )
+        .toList();
+    final uploaded = documents.where((d) => !missing.contains(d)).toList();
+    Widget rows(List<Map<String, dynamic>> items) => Column(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const Divider(height: 1, color: Color(0xFFEBEEF5)),
+          _document(items[i]),
+        ],
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (documents.isEmpty)
+          const Text(
+            'No documents are required right now.',
+            style: CustomerTypography.body,
+          ),
+        if (documents.isNotEmpty && missing.isEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFAF7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: CustomerColors.action,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'All documents uploaded',
+                    style: CustomerTypography.compactStrong.copyWith(
+                      color: CustomerColors.action,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (missing.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: rows(missing),
+          ),
+        if (uploaded.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Uploaded documents',
+              style: CustomerTypography.body.copyWith(
+                color: _muted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          panel([rows(uploaded)]),
+        ],
+      ],
+    );
+  }
+
   Widget _document(Map<String, dynamic> d) => LayoutBuilder(
     builder: (context, bounds) {
       final narrow =
           bounds.maxWidth < 300 ||
           MediaQuery.textScalerOf(context).scale(14) > 20;
+      final needsUpload = d['actionRequired'] == true;
+      final unsubmitted =
+          d['status'] == 'MISSING' && (d['fileKeys'] as List? ?? []).isEmpty;
       final actions = Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _statusBadge(d['status'] as String, document: true),
-          if (d['reviewedAt'] is String)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                bookingDisplayTime(context, d['reviewedAt'] as String),
-                style: CustomerTypography.compact.copyWith(color: _muted),
-              ),
+          if (!unsubmitted) ...[
+            _statusBadge(d['status'] as String, document: true),
+            const SizedBox(height: 4),
+          ],
+          OutlinedButton.icon(
+            icon: Icon(
+              needsUpload
+                  ? Icons.file_upload_outlined
+                  : Icons.visibility_outlined,
+              size: 15,
             ),
-          const SizedBox(height: 5),
-          OutlinedButton(
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(70, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: const Size(0, 30),
+              visualDensity: VisualDensity.compact,
+              foregroundColor: CustomerColors.action,
+              side: const BorderSide(color: Color(0xFF9FDFDE)),
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             ),
             onPressed: () => document(d),
-            child: Text(
-              {'MISSING', 'REJECTED', 'EXPIRED'}.contains(d['status'])
-                  ? 'Upload / resubmit'
-                  : 'View documents',
+            label: Text(
+              d['actionRequired'] == true
+                  ? (d['statusReason'] == 'NOT_SUBMITTED'
+                        ? 'Upload'
+                        : 'Upload again')
+                  : 'View',
               style: CustomerTypography.compactStrong,
             ),
           ),
         ],
       );
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFFEEF1F6))),
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _bubble(
-              Icons.description_outlined,
-              CustomerColors.action,
-              size: 36,
+            Container(
+              width: 34,
+              height: 36,
+              decoration: BoxDecoration(
+                color: CustomerColors.selection,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(
+                unsubmitted ? Icons.badge_outlined : Icons.description_outlined,
+                color: CustomerColors.action,
+                size: 21,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -866,14 +945,24 @@ class _CustomerProfileOverviewScreenState
                         .join(', '),
                     style: CustomerTypography.compact.copyWith(color: _muted),
                   ),
+                  if (d['reviewedAt'] is String)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Reviewed: ${bookingDisplayTime(context, d['reviewedAt'] as String)}',
+                        style: CustomerTypography.compact.copyWith(
+                          color: _muted,
+                        ),
+                      ),
+                    ),
                   if (d['expiresOn'] is String)
                     Text(
                       'Expires: ${d['expiresOn']}',
                       style: CustomerTypography.compact.copyWith(color: _muted),
                     ),
-                  if (d['rejectionReason'] is String)
+                  if (documentReason(d) != null)
                     Text(
-                      d['rejectionReason'] as String,
+                      documentReason(d)!,
                       style: CustomerTypography.compact.copyWith(
                         color: CustomerColors.error,
                       ),
@@ -882,10 +971,7 @@ class _CustomerProfileOverviewScreenState
                 ],
               ),
             ),
-            if (!narrow) ...[
-              const SizedBox(width: 10),
-              Flexible(child: actions),
-            ],
+            if (!narrow) ...[const SizedBox(width: 10), actions],
           ],
         ),
       );
@@ -975,4 +1061,18 @@ class _CustomerProfileOverviewScreenState
       ),
     ),
   );
+}
+
+List<Map<String, dynamic>> _sortedDocuments(List raw) {
+  final unique = <int, Map<String, dynamic>>{};
+  for (final item in raw) {
+    final row = Map<String, dynamic>.from(item as Map);
+    unique.putIfAbsent(row['requirementId'] as int, () => row);
+  }
+  return [
+    for (final needed in [true, false])
+      ...unique.values.where(
+        (row) => (row['actionRequired'] == true) == needed,
+      ),
+  ];
 }

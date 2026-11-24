@@ -87,6 +87,7 @@ flutter:
     - assets/illustrations/get_a_service.png
     - assets/illustrations/payment/
     - assets/illustrations/booking/
+    - assets/illustrations/documents/
     - assets/icons/navigation/
     - assets/branding/
     - assets/animations/
