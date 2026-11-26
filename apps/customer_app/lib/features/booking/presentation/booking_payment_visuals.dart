@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../app/customer_theme.dart';
@@ -14,13 +15,17 @@ class BookingPaymentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFF007E83),
+    backgroundColor: Colors.white,
     appBar: AppBar(
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
+      backgroundColor: Colors.white,
+      foregroundColor: CustomerColors.text,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
       title: Text(
         'Get a Service',
-        style: CustomerTypography.section.copyWith(color: Colors.white),
+        style: CustomerTypography.section.copyWith(color: CustomerColors.text),
       ),
       leading: IconButton(
         tooltip: 'Back',
