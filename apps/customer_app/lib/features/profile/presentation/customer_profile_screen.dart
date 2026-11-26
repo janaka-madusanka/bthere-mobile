@@ -13,7 +13,8 @@ import '../../auth/data/customer_auth_service.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../app/widgets/customer_top_bar.dart';
+import 'package:flutter/services.dart';
+
 import '../application/customer_profile_controller.dart';
 import '../data/customer_photo_upload.dart';
 import '../data/customer_profile_overview_repository.dart';
@@ -280,60 +281,59 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
           child: PopScope(
             canPop: !busy,
             child: Scaffold(
-              backgroundColor: const Color(0xFF008F95),
+              backgroundColor: Colors.white,
               body: Column(
                 children: [
-                  Stack(
-                    children: [
-                      const Positioned.fill(child: CustomerHeaderBackground()),
-                      SafeArea(
+                  AnnotatedRegion<SystemUiOverlayStyle>(
+                    value: SystemUiOverlayStyle.dark.copyWith(
+                      statusBarColor: Colors.transparent,
+                      statusBarIconBrightness: Brightness.dark,
+                      statusBarBrightness: Brightness.light,
+                    ),
+                    child: ColoredBox(
+                      key: const ValueKey('customer-edit-profile-header'),
+                      color: Colors.white,
+                      child: SafeArea(
                         bottom: false,
-                        child: SizedBox(
-                          height: 76,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/branding/home_logo.svg',
-                                  width: 116,
-                                  height: 40,
-                                  semanticsLabel: 'BThere',
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 8, 14, 12),
+                          child: Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/branding/bthere_splash_logo.svg',
+                                width: 112,
+                                height: 42,
+                                semanticsLabel: 'BThere',
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                tooltip: editing
+                                    ? 'Back to account'
+                                    : 'Sign out',
+                                constraints: const BoxConstraints(
+                                  minWidth: 48,
+                                  minHeight: 48,
                                 ),
-                                const Text(
-                                  'when it matters.',
-                                  style: TextStyle(
-                                    fontFamily: CustomerTypography.family,
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    letterSpacing: 1,
-                                  ),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF0F5F6),
+                                  foregroundColor: CustomerColors.text,
                                 ),
-                              ],
-                            ),
+                                onPressed: busy
+                                    ? null
+                                    : editing
+                                    ? () => context.go('/account')
+                                    : auth.logout,
+                                icon: Icon(
+                                  editing
+                                      ? Icons.close_rounded
+                                      : Icons.logout_rounded,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Positioned(
-                        right: 12,
-                        bottom: 14,
-                        child: IconButton(
-                          tooltip: editing ? 'Back to account' : 'Sign out',
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: .16,
-                            ),
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: busy
-                              ? null
-                              : editing
-                              ? () => context.go('/account')
-                              : auth.logout,
-                          icon: Icon(editing ? Icons.close : Icons.logout),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   Expanded(
                     child: ClipRRect(
