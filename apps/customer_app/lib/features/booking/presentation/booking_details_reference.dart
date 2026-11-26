@@ -22,75 +22,56 @@ class BookingDetailsIdentity extends StatelessWidget {
   final Object? jobId;
   final DateTime? start;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, bounds) {
-      final spacious =
-          bounds.maxWidth >= 420 &&
-          MediaQuery.textScalerOf(context).scale(14) <= 19;
-      final statusLine = BookingStatusSummary(status: status, start: start);
-      final inlineFailure =
-          status == 'PAYMENT_FAILED' &&
-          bounds.maxWidth >= 300 &&
-          MediaQuery.textScalerOf(context).scale(14) <= 19;
-      return Column(
-        key: const ValueKey('booking-details-header'),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => Column(
+    key: const ValueKey('booking-details-header'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      key: const ValueKey('booking-service-name'),
-                      style: CustomerTypography.screen.copyWith(
-                        color: const Color(0xFF101D42),
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Container(
-                      key: const ValueKey('booking-id-chip'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F3F9),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(
-                        'Booking #$jobId',
-                        style: CustomerTypography.compactStrong.copyWith(
-                          color: const Color(0xFF68718B),
-                        ),
-                      ),
-                    ),
-                    if (spacious && !inlineFailure) ...[
-                      const SizedBox(height: 12),
-                      statusLine,
-                    ],
-                  ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  key: const ValueKey('booking-service-name'),
+                  style: CustomerTypography.screen.copyWith(
+                    color: const Color(0xFF101D42),
+                  ),
                 ),
-              ),
-              if (inlineFailure) ...[
-                const SizedBox(width: 12),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: bounds.maxWidth * .46),
-                  child: statusLine,
+                const SizedBox(height: 7),
+                Container(
+                  key: const ValueKey('booking-id-chip'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F3F9),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    'Booking #$jobId',
+                    style: CustomerTypography.compactStrong.copyWith(
+                      color: const Color(0xFF68718B),
+                    ),
+                  ),
                 ),
               ],
-            ],
+            ),
           ),
-          if (!spacious && !inlineFailure) ...[
-            const SizedBox(height: 14),
-            statusLine,
-          ],
+          const SizedBox(width: 10),
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: BookingStatusSummary(status: status, showCountdown: false),
+            ),
+          ),
         ],
-      );
-    },
+      ),
+      BookingStatusSummary(status: status, start: start, showBadge: false),
+    ],
   );
 }
 
@@ -116,51 +97,7 @@ String bookingReferenceSchedule(
 class BookingDetailsHeaderBackground extends StatelessWidget {
   const BookingDetailsHeaderBackground({super.key});
   @override
-  Widget build(BuildContext context) => ClipRect(
-    child: Stack(
-      children: [
-        const Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF00646A),
-                  Color(0xFF00AAA9),
-                  Color(0xFF00666B),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: -80,
-          top: -100,
-          width: 250,
-          height: 220,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .09),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-        Positioned(
-          right: -55,
-          bottom: -110,
-          width: 230,
-          height: 230,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .07),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => const ColoredBox(color: Colors.white);
 }
 
 DateTime? bookingScheduledInstant(Map<String, dynamic> booking, String? zone) {
@@ -197,7 +134,14 @@ DateTime? bookingScheduledInstant(Map<String, dynamic> booking, String? zone) {
 }
 
 class BookingStatusSummary extends ConsumerStatefulWidget {
-  const BookingStatusSummary({super.key, required this.status, this.start});
+  const BookingStatusSummary({
+    super.key,
+    required this.status,
+    this.start,
+    this.showBadge = true,
+    this.showCountdown = true,
+  });
+  final bool showBadge, showCountdown;
   final String status;
   final DateTime? start;
   @override
@@ -314,14 +258,16 @@ class _StatusState extends ConsumerState<BookingStatusSummary>
         ],
       ),
     );
+    if (!widget.showCountdown) return badge;
     if (status != 'CONFIRMED' || countdown == null) {
+      if (!widget.showBadge) return const SizedBox.shrink();
       return Align(alignment: Alignment.centerLeft, child: badge);
     }
     if (overdue) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          badge,
+          if (widget.showBadge) badge,
           const SizedBox(height: 10),
           Container(
             key: const ValueKey('booking-start-countdown'),
@@ -448,6 +394,9 @@ class _StatusState extends ConsumerState<BookingStatusSummary>
         ),
       ],
     );
+    if (!widget.showBadge) {
+      return Padding(padding: const EdgeInsets.only(top: 10), child: time);
+    }
     return LayoutBuilder(
       builder: (context, bounds) {
         if (requiredWidth <= bounds.maxWidth) {

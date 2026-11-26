@@ -16,3 +16,5 @@ export 'src/widgets/bthere_primary_button.dart';
 export 'src/widgets/bthere_field_group.dart';
 export 'src/widgets/bthere_inline_error.dart';
 export 'src/widgets/bthere_selector_field.dart';
+
+export 'src/widgets/bthere_banner_carousel.dart';

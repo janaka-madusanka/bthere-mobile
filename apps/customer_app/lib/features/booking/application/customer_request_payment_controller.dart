@@ -106,7 +106,9 @@ class CustomerRequestPaymentController extends ChangeNotifier {
       !pending &&
       !funded &&
       !closed &&
-      window?['canCancel'] == true;
+      (request?['status'] == 'MATCHING'
+          ? {'NOT_STARTED', 'PENDING'}.contains(request?['paymentStatus'])
+          : window?['canCancel'] == true);
   bool get failed =>
       request?['paymentStatus'] == 'FAILED' ||
       retryStartedAt != null ||
@@ -202,7 +204,7 @@ class CustomerRequestPaymentController extends ChangeNotifier {
         _paymentBaseline = null;
       }
       if (!alive) return;
-      if (funded || closed) {
+      if (funded || closed || view['status'] == 'MATCHING') {
         window = null;
       } else {
         final actions = await repository.paymentWindow(requestId);

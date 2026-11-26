@@ -1,3 +1,4 @@
+import '../../../app/widgets/customer_content_surface.dart';
 import '../../../app/customer_theme.dart';
 import '../../../app/widgets/customer_top_bar.dart';
 
@@ -21,25 +22,19 @@ class CustomerServicesScreen extends ConsumerStatefulWidget {
 class _CustomerServicesScreenState
     extends ConsumerState<CustomerServicesScreen> {
   final _search = TextEditingController();
-  final _expandedKey = GlobalKey();
-  int? _expanded;
+  final _target = GlobalKey();
+  final _showAll = <int>{};
   bool _scrolled = false;
   @override
   void initState() {
     super.initState();
-    _expanded = widget.initialServiceId;
+    if (widget.initialServiceId != null) _showAll.add(widget.initialServiceId!);
   }
 
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
-  }
-
-  void _open(CustomerDiscoveryController controller, int id) {
-    FocusScope.of(context).unfocus();
-    setState(() => _expanded = _expanded == id ? null : id);
-    if (_expanded != null) controller.loadOptions(id);
   }
 
   void _optionDetails(CustomerServiceOption option) {
@@ -92,589 +87,394 @@ class _CustomerServicesScreenState
     final controller = ref.watch(customerDiscoveryProvider);
     return Theme(
       data: CustomerTheme.authentication(),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(gradient: catalogGradient),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          bottomNavigationBar: const CustomerBottomNavigation(
-            selected: CustomerNavigationTab.services,
-          ),
-          body: SafeArea(
-            top: false,
-            bottom: false,
-            child: Column(
-              children: [
-                const CustomerTopBar(),
-                Expanded(
-                  child: Container(
-                    clipBehavior: Clip.antiAlias,
-                    decoration: const BoxDecoration(
-                      color: CustomerColors.background,
-                    ),
-                    child: ListenableBuilder(
-                      listenable: controller,
-                      builder: (context, _) {
-                        final query = _search.text.trim().toLowerCase();
-                        final services = controller.services
-                            .where(
-                              (service) =>
-                                  service.name.toLowerCase().contains(query) ||
-                                  (service.description?.toLowerCase().contains(
-                                        query,
-                                      ) ??
-                                      false),
-                            )
-                            .toList();
-                        final expanded = _expanded;
-                        if (expanded != null &&
-                            controller.services.any(
-                              (item) => item.id == expanded,
-                            )) {
-                          final stage = controller.optionsFor(expanded).stage;
-                          if (stage == DiscoveryStage.idle) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted && _expanded == expanded) {
-                                controller.loadOptions(expanded);
-                              }
-                            });
+      child: Scaffold(
+        backgroundColor: catalogTeal,
+        bottomNavigationBar: const CustomerBottomNavigation(
+          selected: CustomerNavigationTab.services,
+        ),
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: Column(
+            children: [
+              const CustomerTopBar(extendBehindContent: true),
+              Expanded(
+                child: CustomerContentSurface(
+                  child: ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) {
+                      final query = _search.text.trim().toLowerCase();
+                      final idle = controller.services
+                          .where(
+                            (s) =>
+                                controller.optionsFor(s.id).stage ==
+                                DiscoveryStage.idle,
+                          )
+                          .toList();
+                      if (idle.isNotEmpty) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          for (final service in idle) {
+                            controller.loadOptions(service.id);
                           }
-                          if (!_scrolled && stage == DiscoveryStage.ready) {
-                            _scrolled = true;
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              final target = _expandedKey.currentContext;
-                              if (mounted &&
-                                  target != null &&
-                                  controller.services.indexWhere(
-                                        (service) => service.id == expanded,
-                                      ) >
-                                      1) {
-                                Scrollable.ensureVisible(
-                                  target,
-                                  duration:
-                                      MediaQuery.disableAnimationsOf(context)
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 240),
-                                  alignment: .05,
-                                );
-                              }
-                            });
+                        });
+                      }
+                      if (!_scrolled &&
+                          widget.initialServiceId != null &&
+                          controller
+                                  .optionsFor(widget.initialServiceId!)
+                                  .stage ==
+                              DiscoveryStage.ready) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted ||
+                              _scrolled ||
+                              _target.currentContext == null) {
+                            return;
                           }
-                        }
-                        return RefreshIndicator(
-                          onRefresh: controller.loadServices,
-                          child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 720,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        IconButton(
-                                          key: const ValueKey(
-                                            'customer-services-back',
-                                          ),
-                                          tooltip: 'Back to home',
-                                          onPressed: () => context.canPop()
-                                              ? context.pop()
-                                              : context.go('/home'),
-                                          icon: const Icon(
-                                            Icons.arrow_back_rounded,
-                                          ),
-                                          style: IconButton.styleFrom(
-                                            backgroundColor: Colors.white,
-                                            foregroundColor:
-                                                CustomerColors.action,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            'Services',
-                                            key: const ValueKey(
-                                              'customer-services-title',
-                                            ),
-                                            style: CustomerTypography.screen
-                                                .copyWith(
-                                                  color: const Color(
-                                                    0xFF101D42,
-                                                  ),
-                                                ),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 9,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFE1F4F2),
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            controller.serviceStage ==
-                                                    DiscoveryStage.ready
-                                                ? '${controller.services.length}'
-                                                : '\u2014',
-                                            style: CustomerTypography.section
-                                                .copyWith(
-                                                  color: CustomerColors.primary,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                      ],
+                          _scrolled = true;
+                          Scrollable.ensureVisible(
+                            _target.currentContext!,
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 240),
+                          );
+                        });
+                      }
+                      final services = controller.services
+                          .where(
+                            (s) =>
+                                query.isEmpty ||
+                                s.name.toLowerCase().contains(query) ||
+                                (s.description?.toLowerCase().contains(query) ??
+                                    false) ||
+                                controller
+                                    .optionsFor(s.id)
+                                    .options
+                                    .any(
+                                      (o) =>
+                                          o.name.toLowerCase().contains(query),
                                     ),
-                                    const SizedBox(height: 14),
-                                    TextField(
-                                      key: const ValueKey(
-                                        'customer-service-search',
+                          )
+                          .toList();
+                      return RefreshIndicator(
+                        onRefresh: controller.loadServices,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 720),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    key: const ValueKey(
+                                      'customer-service-search',
+                                    ),
+                                    controller: _search,
+                                    style: CustomerTypography.body.copyWith(
+                                      color: CustomerColors.text,
+                                    ),
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search services',
+                                      hintStyle: CustomerTypography.compact
+                                          .copyWith(color: catalogMuted),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF0F5F5),
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 13,
+                                          ),
+                                      prefixIcon: const Icon(
+                                        Icons.search_rounded,
+                                        color: catalogMuted,
+                                        size: 20,
                                       ),
-                                      controller: _search,
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: InputDecoration(
-                                        hintText: 'Search services',
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        prefixIcon: const Icon(
-                                          Icons.search_rounded,
-                                          color: catalogTeal,
-                                        ),
-                                        suffixIcon: _search.text.isEmpty
-                                            ? null
-                                            : IconButton(
-                                                tooltip: 'Clear service search',
-                                                icon: const Icon(
-                                                  Icons.close_rounded,
-                                                ),
-                                                onPressed: () =>
-                                                    setState(_search.clear),
+                                      suffixIcon: query.isEmpty
+                                          ? null
+                                          : IconButton(
+                                              tooltip: 'Clear service search',
+                                              onPressed: () =>
+                                                  setState(_search.clear),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 18,
                                               ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFCADFE1),
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: catalogTeal,
-                                            width: 1.5,
-                                          ),
-                                        ),
+                                            ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                        borderSide: BorderSide.none,
                                       ),
                                     ),
-                                    const SizedBox(height: 18),
-                                    if (controller.serviceStage ==
-                                            DiscoveryStage.idle ||
-                                        controller.serviceStage ==
-                                            DiscoveryStage.loading)
-                                      const _ServicesLoadingSkeleton()
-                                    else if (controller.serviceStage !=
-                                            DiscoveryStage.ready ||
-                                        controller.services.isEmpty)
-                                      CatalogStatus(
-                                        loading:
-                                            controller.serviceStage ==
-                                                DiscoveryStage.idle ||
-                                            controller.serviceStage ==
-                                                DiscoveryStage.loading,
-                                        failed:
-                                            controller.serviceStage ==
-                                            DiscoveryStage.failure,
-                                        empty: controller.services.isEmpty,
-                                        retry: controller.loadServices,
-                                      )
-                                    else if (services.isEmpty)
-                                      const Padding(
-                                        padding: EdgeInsets.all(24),
-                                        child: Text(
-                                          'No matching services',
-                                          textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (controller.serviceStage ==
+                                          DiscoveryStage.loading ||
+                                      controller.serviceStage ==
+                                          DiscoveryStage.idle)
+                                    const _ServicesLoadingSkeleton()
+                                  else if (controller.serviceStage !=
+                                          DiscoveryStage.ready ||
+                                      controller.services.isEmpty)
+                                    CatalogStatus(
+                                      loading: false,
+                                      failed:
+                                          controller.serviceStage ==
+                                          DiscoveryStage.failure,
+                                      empty: controller.services.isEmpty,
+                                      retry: controller.loadServices,
+                                    )
+                                  else if (services.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Text(
+                                        'No matching services',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
+                                  else
+                                    for (final service in services)
+                                      _ServiceOptionGroup(
+                                        key:
+                                            widget.initialServiceId ==
+                                                service.id
+                                            ? _target
+                                            : ValueKey(
+                                                'service-group-${service.id}',
+                                              ),
+                                        service: service,
+                                        state: controller.optionsFor(
+                                          service.id,
                                         ),
-                                      )
-                                    else
-                                      for (final service in services)
-                                        Padding(
-                                          key: _expanded == service.id
-                                              ? _expandedKey
-                                              : null,
-                                          padding: const EdgeInsets.only(
-                                            bottom: 10,
-                                          ),
-                                          child: _ServiceAccordion(
-                                            service: service,
-                                            appearance:
-                                                ServiceAppearance.forService(
-                                                  service,
-                                                  controller.services.indexOf(
-                                                    service,
-                                                  ),
-                                                ),
-                                            expanded: _expanded == service.id,
-                                            state: controller.optionsFor(
-                                              service.id,
-                                            ),
-                                            onTap: () =>
-                                                _open(controller, service.id),
-                                            retry: () => controller.loadOptions(
-                                              service.id,
-                                              retry: true,
-                                            ),
-                                            onOption: _optionDetails,
-                                          ),
+                                        query: query,
+                                        index: controller.services.indexOf(
+                                          service,
                                         ),
-                                  ],
-                                ),
+                                        showAll:
+                                            _showAll.contains(service.id) ||
+                                            query.isNotEmpty,
+                                        onSeeAll: () => setState(() {
+                                          if (!_showAll.add(service.id)) {
+                                            _showAll.remove(service.id);
+                                          }
+                                        }),
+                                        retry: () => controller.loadOptions(
+                                          service.id,
+                                          retry: true,
+                                        ),
+                                        onOption: _optionDetails,
+                                      ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ServiceOptionGroup extends StatelessWidget {
+  const _ServiceOptionGroup({
+    super.key,
+    required this.service,
+    required this.state,
+    required this.index,
+    required this.query,
+    required this.showAll,
+    required this.onSeeAll,
+    required this.retry,
+    required this.onOption,
+  });
+  final CustomerService service;
+  final CustomerOptionsState state;
+  final int index;
+  final String query;
+  final bool showAll;
+  final VoidCallback onSeeAll, retry;
+  final ValueChanged<CustomerServiceOption> onOption;
+  @override
+  Widget build(BuildContext context) {
+    final appearance = ServiceAppearance.forService(service, index);
+    final categoryMatches =
+        service.name.toLowerCase().contains(query) ||
+        (service.description?.toLowerCase().contains(query) ?? false);
+    final options = state.options
+        .where(
+          (o) =>
+              query.isEmpty ||
+              categoryMatches ||
+              o.name.toLowerCase().contains(query),
+        )
+        .toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CatalogIcon(
+                appearance: appearance,
+                url: service.iconUrl,
+                size: 28,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  service.name,
+                  key: ValueKey('customer-category-${service.id}'),
+                  style: CustomerTypography.section.copyWith(
+                    color: CustomerColors.text,
+                  ),
+                ),
+              ),
+              if (options.length > 4)
+                TextButton(
+                  key: ValueKey('service-see-all-${service.id}'),
+                  onPressed: onSeeAll,
+                  child: Text(
+                    showAll ? 'Show less' : 'See all',
+                    style: CustomerTypography.compact.copyWith(
+                      color: CustomerColors.action,
                     ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (!{'ELIGIBLE', 'CHECK_OPTION'}.contains(service.accessStatus))
+            CatalogAccess(service: service),
+          if (state.stage == DiscoveryStage.loading ||
+              state.stage == DiscoveryStage.idle)
+            const _OptionSkeleton()
+          else if (state.stage == DiscoveryStage.failure || options.isEmpty)
+            CatalogStatus(
+              options: true,
+              loading: false,
+              failed: state.stage == DiscoveryStage.failure,
+              empty: options.isEmpty,
+              retry: retry,
+            )
+          else
+            LayoutBuilder(
+              builder: (context, bounds) {
+                final large = MediaQuery.textScalerOf(context).scale(12) > 18;
+                final columns = large || bounds.maxWidth < 300 ? 2 : 4;
+                final width = (bounds.maxWidth - (columns - 1) * 10) / columns;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 14,
+                  children: [
+                    for (final option in (showAll ? options : options.take(4)))
+                      SizedBox(
+                        width: width,
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            key: ValueKey('customer-option-${option.id}'),
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => onOption(option),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 5,
+                              ),
+                              child: Column(
+                                children: [
+                                  CatalogIcon(
+                                    appearance: appearance,
+                                    url: option.iconUrl,
+                                    size: 60,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    option.name,
+                                    textAlign: TextAlign.center,
+                                    style: CustomerTypography.compactStrong
+                                        .copyWith(color: CustomerColors.text),
+                                  ),
+                                  if (option.access.accessStatus != 'ELIGIBLE')
+                                    CatalogAccess(service: option.access),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionSkeleton extends StatelessWidget {
+  const _OptionSkeleton();
+  @override
+  Widget build(BuildContext context) => Row(
+    key: const ValueKey('service-options-loading-skeleton'),
+    children: [
+      for (var i = 0; i < 3; i++)
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE5F1F1),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5F1F1),
+                    borderRadius: BorderRadius.circular(5),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ServiceAccordion extends StatelessWidget {
-  const _ServiceAccordion({
-    required this.service,
-    required this.appearance,
-    required this.expanded,
-    required this.state,
-    required this.onTap,
-    required this.retry,
-    required this.onOption,
-  });
-  final CustomerService service;
-  final ServiceAppearance appearance;
-  final bool expanded;
-  final CustomerOptionsState state;
-  final VoidCallback onTap, retry;
-  final ValueChanged<CustomerServiceOption> onOption;
-  ServiceAppearance _optionAppearance(CustomerServiceOption option) {
-    final name = option.name.toLowerCase();
-    return ServiceAppearance(
-      catalogTeal,
-      name.contains('hospital')
-          ? Icons.local_hospital_outlined
-          : name.contains('home')
-          ? Icons.home_outlined
-          : name.contains('ride') || name.contains('transport')
-          ? Icons.directions_car_outlined
-          : appearance.icon,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    elevation: 1,
-    shadowColor: const Color(0x100F666B),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: BorderSide(
-        color: expanded ? const Color(0xFF8BCFC7) : const Color(0xFFE1EBEF),
-        width: expanded ? 1.2 : 1,
-      ),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Ink(
-      decoration: BoxDecoration(
-        gradient: expanded
-            ? const LinearGradient(
-                colors: [Color(0xFFEAF9F6), Color(0xFFF3FCFB)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            expanded: expanded,
-            child: InkWell(
-              key: ValueKey('customer-category-${service.id}'),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 13,
-                ),
-                child: Row(
-                  children: [
-                    CatalogIcon(
-                      appearance: appearance,
-                      url: service.iconUrl,
-                      size: 42,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            service.name,
-                            style: CustomerTypography.section.copyWith(
-                              color: const Color(0xFF101D42),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (!{
-                            'ELIGIBLE',
-                            'CHECK_OPTION',
-                          }.contains(service.accessStatus))
-                            CatalogAccess(service: service),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: expanded
-                            ? const Color(0xFFCFF3EF)
-                            : const Color(0xFFF0FAF8),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: AnimatedRotation(
-                        turns: expanded ? .5 : 0,
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : const Duration(milliseconds: 220),
-                        child: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: catalogTeal,
-                          size: 23,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          AnimatedSize(
-            duration: MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: !expanded
-                ? const SizedBox(width: double.infinity)
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final reason in service.reasons)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-                            child: Text(
-                              reason,
-                              style: CustomerTypography.compact.copyWith(
-                                color: catalogMuted,
-                              ),
-                            ),
-                          ),
-                        Material(
-                          color: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0xFFE0EFEF)),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child:
-                              state.stage == DiscoveryStage.idle ||
-                                  state.stage == DiscoveryStage.loading
-                              ? const _ServicesLoadingSkeleton(options: true)
-                              : state.stage != DiscoveryStage.ready ||
-                                    state.options.isEmpty
-                              ? CatalogStatus(
-                                  options: true,
-                                  loading:
-                                      state.stage == DiscoveryStage.idle ||
-                                      state.stage == DiscoveryStage.loading,
-                                  failed: state.stage == DiscoveryStage.failure,
-                                  empty: state.options.isEmpty,
-                                  retry: retry,
-                                )
-                              : Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    for (
-                                      var index = 0;
-                                      index < state.options.length;
-                                      index++
-                                    ) ...[
-                                      if (index > 0)
-                                        const Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                          ),
-                                          child: Divider(
-                                            height: 1,
-                                            color: Color(0xFFDCEEEE),
-                                          ),
-                                        ),
-                                      InkWell(
-                                        key: ValueKey(
-                                          'customer-option-${state.options[index].id}',
-                                        ),
-                                        onTap: () =>
-                                            onOption(state.options[index]),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              CatalogIcon(
-                                                appearance: _optionAppearance(
-                                                  state.options[index],
-                                                ),
-                                                url: state
-                                                    .options[index]
-                                                    .iconUrl,
-                                                size: 34,
-                                              ),
-                                              const SizedBox(width: 11),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      state.options[index].name,
-                                                      style: CustomerTypography
-                                                          .card
-                                                          .copyWith(
-                                                            color: const Color(
-                                                              0xFF101D42,
-                                                            ),
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                          ),
-                                                    ),
-                                                    if (state
-                                                            .options[index]
-                                                            .access
-                                                            .accessStatus !=
-                                                        'ELIGIBLE')
-                                                      CatalogAccess(
-                                                        service: state
-                                                            .options[index]
-                                                            .access,
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              const Icon(
-                                                Icons.chevron_right_rounded,
-                                                color: catalogTeal,
-                                                size: 22,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    ),
+    ],
   );
 }
 
-/// Static placeholders avoid extra animation work while catalog reads run.
 class _ServicesLoadingSkeleton extends StatelessWidget {
-  const _ServicesLoadingSkeleton({this.options = false});
-  final bool options;
+  const _ServicesLoadingSkeleton();
   @override
-  Widget build(BuildContext context) {
-    Widget block(double height, {double? width}) => Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE6F0F1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-    );
-    return Semantics(
-      label: options ? 'Loading service options' : 'Loading services',
-      liveRegion: true,
-      child: ExcludeSemantics(
-        child: Column(
-          key: ValueKey(
-            options
-                ? 'service-options-loading-skeleton'
-                : 'services-loading-skeleton',
-          ),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < (options ? 3 : 4); i++)
-              Container(
-                margin: EdgeInsets.only(bottom: options ? 0 : 10),
-                padding: EdgeInsets.all(options ? 12 : 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(options ? 0 : 18),
-                  border: options
-                      ? null
-                      : Border.all(color: const Color(0xFFE1EBEF)),
-                ),
-                child: Row(
-                  children: [
-                    block(options ? 34 : 42, width: options ? 34 : 42),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: i.isEven ? .65 : .48,
-                          child: block(options ? 14 : 18),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    block(20, width: 20),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const Column(
+    key: ValueKey('services-loading-skeleton'),
+    children: [
+      _OptionSkeleton(),
+      SizedBox(height: 24),
+      _OptionSkeleton(),
+      SizedBox(height: 24),
+      _OptionSkeleton(),
+    ],
+  );
 }

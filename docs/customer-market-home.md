@@ -100,7 +100,7 @@ races, and narrow large-text layouts, alongside existing market/auth/profile tes
 Run the synthetic-data visual preview from apps/customer_app:
 
 ```powershell
-flutter test tool/auth_preview_test.dart --dart-define=FLUTTER_SDK=C:/Users/hjana/develop/flutter
+flutter test test/customer_auth_test.dart
 ```
 
 It exports build/auth-previews/customer-home.png and

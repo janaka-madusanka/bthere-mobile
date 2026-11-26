@@ -277,7 +277,7 @@ void main() {
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
       expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Account verification'), findsOneWidget);
+      expect(find.text('Account'), findsOneWidget);
     },
   );
 

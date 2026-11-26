@@ -723,7 +723,8 @@ void main() {
       expect(find.text('Your booking is confirmed!'), findsNothing);
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
-      expect(find.text('Bookings'), findsOneWidget);
+      expect(find.text('Bookings'), findsNothing);
+      expect(find.text('All'), findsWidgets);
       final bookingCard = find.byKey(const ValueKey('customer-booking-70'));
       final bookingLabel = find.descendant(
         of: bookingCard,

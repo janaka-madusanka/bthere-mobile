@@ -1,3 +1,5 @@
+import 'customer_request_recovery.dart';
+
 import 'package:timezone/timezone.dart' as tz;
 
 import 'dart:convert';
@@ -39,6 +41,8 @@ final customerBookingProvider = Provider.autoDispose
           ref.watch(customerDiscoveryProvider),
           now: ref.watch(customerClockProvider),
           autoAvailability: ref.watch(customerAutoAvailabilityEnabledProvider),
+          onRequestCreated: (row) =>
+              ref.read(customerRequestRecoveryProvider).trackCreated(row),
         );
         ref.onDispose(controller.dispose);
         return controller;
@@ -49,6 +53,7 @@ final customerBookingProvider = Provider.autoDispose
         customerDiscoveryProvider,
         customerClockProvider,
         customerAutoAvailabilityEnabledProvider,
+        customerRequestRecoveryProvider,
       ],
     );
 
@@ -70,11 +75,13 @@ class CustomerBookingController extends ChangeNotifier {
     this.discovery, {
     required this.now,
     this.autoAvailability = true,
+    this.onRequestCreated,
     this.availabilityDebounce = const Duration(milliseconds: 500),
   }) : userId = auth.user?.id {
     auth.addListener(_sync);
     discovery.addListener(_sync);
   }
+  final Future<void> Function(Map<String, dynamic>)? onRequestCreated;
   final BookingKey key;
   final CustomerBookingRepository repository;
   final CustomerAuthController auth;
@@ -1793,12 +1800,18 @@ class CustomerBookingController extends ChangeNotifier {
       } catch (_) {
         /* Do not hide confirmed creation after cleanup failure. */
       }
-      return {
+      final created = <String, dynamic>{
         ...response,
         'serviceTypeId': key.serviceId,
         'optionId': key.optionId,
         'paymentMethod': method,
       };
+      try {
+        await onRequestCreated?.call(created);
+      } catch (_) {
+        /* UI recovery must not hide a created request. */
+      }
+      return created;
     } on BookingProblem catch (failure) {
       if ({400, 403, 404, 409}.contains(failure.status)) {
         try {

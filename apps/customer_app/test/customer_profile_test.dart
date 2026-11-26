@@ -107,7 +107,7 @@ void main() {
         final f = Fixture();
         addTearDown(f.dispose);
         await signIn(tester, f);
-        await tester.tap(find.text('Edit profile'));
+        await tester.tap(find.byTooltip('Edit profile'));
         await tester.pumpAndSettle();
         expect(find.text('Edit your profile'), findsOneWidget);
         expect(
@@ -433,7 +433,7 @@ void main() {
       await tester.pumpAndSettle();
       await openCustomerAccount(tester);
       expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Account verification'), findsOneWidget);
+      expect(find.text('Account'), findsOneWidget);
       expect(
         (f.adapter.requests.lastWhere((request) => request.method == 'PUT').data
             as Map)['firstName'],
@@ -467,7 +467,7 @@ void main() {
       final f = Fixture();
       addTearDown(f.dispose);
       await signIn(tester, f);
-      await tester.tap(find.text('Edit profile'));
+      await tester.tap(find.byTooltip('Edit profile'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('customer-profile-firstName')),

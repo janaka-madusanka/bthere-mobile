@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/booking/presentation/customer_booking_map.dart';
+import 'package:customer_app/features/booking/presentation/customer_booking_map.dart';
 
 /// An explicitly labelled offline renderer for the production map boundary.
 /// No native map, tile downloads, geolocation or directions requests.

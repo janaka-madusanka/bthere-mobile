@@ -1,3 +1,5 @@
+import 'booking_request_progress_screen.dart';
+
 import 'dart:async';
 
 import '../data/customer_request_recovery_store.dart';
@@ -345,6 +347,21 @@ class _CustomerRequestPaymentScreenState
     final c = payment;
     void home() => context.go('/home');
     final busy = c?.working == true;
+    if (c != null &&
+        c.alive &&
+        !c.loading &&
+        c.request?['status'] == 'MATCHING') {
+      return BookingRequestProgressView(
+        matching: true,
+        serviceName: widget.serviceName ?? 'your service',
+        requestId: widget.requestId,
+        busy: busy,
+        error: c.error,
+        onCancel: c.canCancel ? _cancel : null,
+        onDetails: () {},
+        onHome: home,
+      );
+    }
     if (c != null &&
         c.alive &&
         !c.loading &&

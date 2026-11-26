@@ -1,3 +1,4 @@
+import '../features/booking/presentation/customer_active_request_host.dart';
 import '../features/profile/presentation/customer_profile_overview_screen.dart';
 import 'customer_theme.dart';
 import 'widgets/customer_startup_splash.dart';
@@ -113,13 +114,22 @@ final customerRouterProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: '/account',
-          builder: (_, _) => const CustomerProfileOverviewScreen(),
+          pageBuilder: (_, state) => NoTransitionPage(
+            key: state.pageKey,
+            child: const CustomerProfileOverviewScreen(),
+          ),
         ),
         GoRoute(
           path: '/market',
           builder: (_, _) => const CustomerMarketScreen(),
         ),
-        GoRoute(path: '/home', builder: (_, _) => const CustomerHomeScreen()),
+        GoRoute(
+          path: '/home',
+          pageBuilder: (_, state) => NoTransitionPage(
+            key: state.pageKey,
+            child: const CustomerHomeScreen(),
+          ),
+        ),
         GoRoute(
           path: '/messages',
           builder: (_, _) => const CustomerMessagesScreen(),
@@ -133,7 +143,10 @@ final customerRouterProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: '/wallet',
-          builder: (_, _) => const CustomerWalletScreen(),
+          pageBuilder: (_, state) => NoTransitionPage(
+            key: state.pageKey,
+            child: const CustomerWalletScreen(),
+          ),
         ),
         GoRoute(
           path: '/bookings',
@@ -152,8 +165,10 @@ final customerRouterProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: '/opportunities',
-          builder: (_, _) =>
-              const CustomerBookingsScreen(asOpportunities: true),
+          pageBuilder: (_, state) => NoTransitionPage(
+            key: state.pageKey,
+            child: const CustomerBookingsScreen(asOpportunities: true),
+          ),
         ),
         GoRoute(
           path: '/booking/:service/:option',
@@ -174,9 +189,12 @@ final customerRouterProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: '/services',
-          builder: (_, state) => CustomerServicesScreen(
-            initialServiceId: int.tryParse(
-              state.uri.queryParameters['service'] ?? '',
+          pageBuilder: (_, state) => NoTransitionPage(
+            key: state.pageKey,
+            child: CustomerServicesScreen(
+              initialServiceId: int.tryParse(
+                state.uri.queryParameters['service'] ?? '',
+              ),
             ),
           ),
         ),
@@ -211,8 +229,9 @@ class CustomerApp extends ConsumerWidget {
     darkTheme: CustomerTheme.dark(),
     routerConfig: ref.watch(customerRouterProvider),
     scaffoldMessengerKey: ref.watch(customerMessengerKeyProvider),
-    builder: (_, child) =>
-        CustomerNotificationHost(child: child ?? const SizedBox.shrink()),
+    builder: (_, child) => CustomerActiveRequestHost(
+      child: CustomerNotificationHost(child: child ?? const SizedBox.shrink()),
+    ),
   );
 }
 

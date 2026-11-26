@@ -1,3 +1,4 @@
+import '../../../app/widgets/customer_content_surface.dart';
 import '../../../app/widgets/customer_home_skeleton.dart';
 import 'customer_booking_details_screen.dart';
 import '../../discovery/presentation/customer_bottom_navigation.dart';
@@ -32,7 +33,7 @@ class CustomerBookingsScreen extends ConsumerWidget {
     return Theme(
       data: CustomerTheme.authentication(),
       child: Scaffold(
-        backgroundColor: CustomerColors.background,
+        backgroundColor: catalogTeal,
         appBar: asOpportunities
             ? null
             : AppBar(
@@ -46,46 +47,51 @@ class CustomerBookingsScreen extends ConsumerWidget {
               ),
         bottomNavigationBar: const CustomerBottomNavigation(
           selected: CustomerNavigationTab.opportunities,
+          surfaceColor: CustomerColors.background,
         ),
         body: Column(
           children: [
-            if (asOpportunities) const CustomerTopBar(),
+            if (asOpportunities)
+              const CustomerTopBar(extendBehindContent: true),
             Expanded(
-              child: history == null
-                  ? const CustomerBookingsSkeleton()
-                  : history.when(
-                      skipLoadingOnReload: true,
-                      skipLoadingOnRefresh: true,
-                      skipError: history.hasValue,
-                      loading: () => const CustomerBookingsSkeleton(),
-                      error: (_, _) => BThereStateView(
-                        title: 'Unable to load bookings',
-                        message: 'Please try again.',
-                        action: TextButton(
-                          onPressed: () => ref.invalidate(
-                            customerBookingHistoryProvider(id!),
-                          ),
-                          child: const Text('Retry booking history'),
-                        ),
-                      ),
-                      data: (rows) => CustomerOpportunitiesBody(
-                        bookings: rows,
-                        serviceNames: names,
-                        onRefresh: () async {
-                          ref.invalidate(customerBookingHistoryProvider(id!));
-                          await ref.read(
-                            customerBookingHistoryProvider(id).future,
-                          );
-                        },
-                        onOpen: (booking) => context.push(
-                          '/bookings/${booking['jobId']}',
-                          extra: BookingDetailsExtras(
-                            jobId: booking['jobId'] as int,
-                            serviceName: names[booking['serviceTypeId']],
+              child: CustomerContentSurface(
+                color: CustomerColors.background,
+                child: history == null
+                    ? const CustomerBookingsSkeleton()
+                    : history.when(
+                        skipLoadingOnReload: true,
+                        skipLoadingOnRefresh: true,
+                        skipError: history.hasValue,
+                        loading: () => const CustomerBookingsSkeleton(),
+                        error: (_, _) => BThereStateView(
+                          title: 'Unable to load bookings',
+                          message: 'Please try again.',
+                          action: TextButton(
+                            onPressed: () => ref.invalidate(
+                              customerBookingHistoryProvider(id!),
+                            ),
+                            child: const Text('Retry booking history'),
                           ),
                         ),
+                        data: (rows) => CustomerOpportunitiesBody(
+                          bookings: rows,
+                          serviceNames: names,
+                          onRefresh: () async {
+                            ref.invalidate(customerBookingHistoryProvider(id!));
+                            await ref.read(
+                              customerBookingHistoryProvider(id).future,
+                            );
+                          },
+                          onOpen: (booking) => context.push(
+                            '/bookings/${booking['jobId']}',
+                            extra: BookingDetailsExtras(
+                              jobId: booking['jobId'] as int,
+                              serviceName: names[booking['serviceTypeId']],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+              ),
             ),
           ],
         ),
@@ -126,40 +132,6 @@ class _CustomerOpportunitiesBodyState extends State<CustomerOpportunitiesBody> {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                'Bookings',
-                style: CustomerTypography.screen.copyWith(
-                  color: const Color(0xFF101D42),
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE3F4F3),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                '${widget.bookings.length}',
-                style: CustomerTypography.card.copyWith(
-                  color: CustomerColors.primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Keep track of your care, all in one place.',
-          style: CustomerTypography.body.copyWith(
-            color: CustomerColors.secondaryText,
-          ),
-        ),
-        const SizedBox(height: 22),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(

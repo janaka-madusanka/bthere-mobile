@@ -44,7 +44,7 @@ void main() {
       );
       final optionsGate = Completer<void>();
       f.adapter.pendingOptions['1/3'] = optionsGate;
-      await tester.tap(find.byKey(const ValueKey('customer-category-3')));
+      discovery.loadOptions(3, retry: true);
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('service-options-loading-skeleton')),
@@ -306,7 +306,7 @@ void main() {
   });
 
   testWidgets(
-    'home service opens that category and fetches only its options; accordion collapses',
+    'service groups show options immediately, cache reads and See all expands the grid',
     (tester) async {
       final f = Fixture();
       addTearDown(f.dispose);
@@ -314,66 +314,38 @@ void main() {
         serviceJson(),
         serviceJson(id: 4, name: 'Pet Care'),
       ];
-      await marketEntry(tester, f);
-      await continueMarket(tester);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('customer-service-4')),
-      );
-      await tester.tap(find.byKey(const ValueKey('customer-service-4')));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('customer-services-title')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('customer-option-12')), findsOneWidget);
-      expect(
-        f.adapter.requests.where((r) => r.path.contains('/3/options')),
-        isEmpty,
-      );
-      expect(
-        f.adapter.requests.where((r) => r.path.contains('/4/options')).length,
-        1,
-      );
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('customer-category-4')),
-      );
-      await tester.tap(find.byKey(const ValueKey('customer-category-4')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('customer-option-12')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('customer-category-4')));
-      await tester.pumpAndSettle();
-      expect(
-        f.adapter.requests.where((r) => r.path.contains('/4/options')).length,
-        1,
-      );
-    },
-  );
-
-  testWidgets(
-    'help banner shows all categories collapsed; categories expand one at a time',
-    (tester) async {
-      final f = Fixture();
-      addTearDown(f.dispose);
-      f.adapter.serviceBodies[1] = [
-        serviceJson(),
-        serviceJson(id: 4, name: 'Pet Care'),
+      f.adapter.optionBodies['1/3'] = [
+        for (var i = 0; i < 5; i++)
+          optionJson(id: 12 + i, name: 'Care option $i', order: i),
+      ];
+      f.adapter.optionBodies['1/4'] = [
+        optionJson(id: 24, serviceId: 4, name: 'Pet sitting'),
       ];
       await marketEntry(tester, f);
       await continueMarket(tester);
-      await tester.tap(find.byKey(const ValueKey('customer-find-help')));
-      await tester.pumpAndSettle();
-      expect(find.text('Nursing'), findsOneWidget);
-      expect(find.text('Pet Care'), findsOneWidget);
-      expect(find.byKey(const ValueKey('customer-option-12')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('customer-category-3')));
+      await tester.tap(find.byKey(const ValueKey('customer-nav-services')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('customer-option-12')), findsOneWidget);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('customer-category-4')),
+      expect(find.byKey(const ValueKey('customer-option-16')), findsNothing);
+      expect(find.byKey(const ValueKey('customer-option-24')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('service-see-all-3')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('customer-option-16')), findsOneWidget);
+      expect(
+        f.adapter.requests.where((r) => r.path.contains('/3/options')).length,
+        1,
       );
-      await tester.tap(find.byKey(const ValueKey('customer-category-4')));
+      expect(
+        f.adapter.requests.where((r) => r.path.contains('/4/options')).length,
+        1,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('customer-service-search')),
+        'Pet sitting',
+      );
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('customer-option-12')), findsOneWidget);
+      expect(find.byKey(const ValueKey('customer-option-24')), findsOneWidget);
+      expect(find.byKey(const ValueKey('customer-option-12')), findsNothing);
     },
   );
 

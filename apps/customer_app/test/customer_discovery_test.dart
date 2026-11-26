@@ -330,7 +330,7 @@ void main() {
       expect(find.text('Where do you need care?'), findsOneWidget);
       expect(find.byType(DropdownButtonFormField<int>), findsNothing);
       await continueMarket(tester);
-      expect(find.text('Jane'), findsOneWidget);
+      expect(find.textContaining('Jane', findRichText: true), findsOneWidget);
       expect(find.text('Nursing'), findsOneWidget);
       expect(find.text('Restricted care'), findsOneWidget);
       expect(find.text('Restricted'), findsNothing);
@@ -340,10 +340,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('customer-service-4')));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const ValueKey('customer-services-title')),
+        find.byKey(const ValueKey('customer-service-search')),
         findsOneWidget,
       );
-      expect(find.text('Home Care'), findsOneWidget);
+      expect(find.text('Home Care'), findsWidgets);
       await tester.ensureVisible(
         find.byKey(const ValueKey('customer-service-search')),
       );
@@ -359,20 +359,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Restricted care'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('customer-services-back')));
+      await tester.tap(find.byKey(const ValueKey('customer-nav-home')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('customer-home-market')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('customer-home-account')));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(
+      expect(
         find.byKey(const ValueKey('customer-account-market')),
+        findsNothing,
       );
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('customer-account-market')),
-      );
-      await tester.tap(find.byKey(const ValueKey('customer-account-market')));
-      await tester.pumpAndSettle();
-      expect(find.text('Where do you need care?'), findsOneWidget);
+      expect(find.text('Test spending (not real money)'), findsNothing);
     },
   );
   testWidgets(

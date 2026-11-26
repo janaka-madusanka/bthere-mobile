@@ -10,10 +10,9 @@ val dartDefines = (project.findProperty("dart-defines") as? String).orEmpty()
     .split(",").filter { it.isNotBlank() }.mapNotNull {
         runCatching { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }.getOrNull()
     }.associate { it.substringBefore("=") to it.substringAfter("=", "") }
-val bookingUiLab = dartDefines["BTHERE_BOOKING_UI_LAB"] == "true"
 
-// The offline lab has its own Android identity and does not configure Firebase.
-if (!bookingUiLab && file("google-services.json").exists()) {
+// Firebase is configured only when local configuration is available.
+if (file("google-services.json").exists()) {
     pluginManager.apply("com.google.gms.google-services")
 }
 
@@ -29,8 +28,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = if (bookingUiLab) "com.bthere.customer.bookinglab" else "com.bthere.customer"
-        manifestPlaceholders["BTHERE_APPLICATION_LABEL"] = if (bookingUiLab) "Booking UI Lab" else "B there Customer"
+        applicationId = "com.bthere.customer"
+        manifestPlaceholders["BTHERE_APPLICATION_LABEL"] = "B there Customer"
         manifestPlaceholders["BTHERE_GOOGLE_MAPS_API_KEY"] = dartDefines["BTHERE_GOOGLE_MAPS_API_KEY"].orEmpty()
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

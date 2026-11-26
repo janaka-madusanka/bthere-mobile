@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:go_router/go_router.dart';
+
 import 'package:customer_app/features/discovery/application/customer_discovery_controller.dart';
 import 'package:customer_app/features/discovery/data/customer_discovery_repository.dart';
 import 'package:customer_app/features/discovery/data/customer_market_selection_store.dart';
@@ -148,7 +150,7 @@ void main() {
   );
 
   testWidgets(
-    'app restart skips selection and Account can change and remember the market',
+    'app restart skips selection and market route can change and remember the market',
     (tester) async {
       final f = Fixture();
       addTearDown(f.dispose);
@@ -165,13 +167,8 @@ void main() {
       expect(find.text('Where do you need care?'), findsNothing);
       expect(find.text('Explore Services'), findsOneWidget);
       expect(find.text('Service area'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('customer-home-account')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('customer-account-market')),
-      );
-      await tester.ensureVisible(find.byKey(const ValueKey('customer-account-market')));
-      await tester.tap(find.byKey(const ValueKey('customer-account-market')));
+      GoRouter.of(tester.element(find.byType(CustomerHomeScreen)))
+          .go('/market');
       await tester.pumpAndSettle();
       expect(find.text('Where do you need care?'), findsOneWidget);
       await tester.ensureVisible(find.byType(DropdownButtonFormField<int>));

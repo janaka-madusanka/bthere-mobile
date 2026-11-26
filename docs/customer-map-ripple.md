@@ -15,7 +15,7 @@ Automatic camera refitting on provider-result changes and panel height changes w
 
 `booking_map_ripple_test.dart` covers no startup pulse, 1.6-second progress, rapid restart, unchanged radius, retained map element, no per-frame native projection calls, stable camera during provider/panel updates, pan/zoom reprojection, playback after location-camera completion even without an idle event, reduced motion and safe disposal during pending projection.
 
-Existing booking widget regressions and Google Maps marker/location checks also run. The older map test expectation was updated to the already-requested 10 km default. `tool/water_ripple_preview_test.dart` renders a synthetic map preview; a native phone review remains useful for device-specific rendering and gesture alignment.
+Existing booking widget regressions and Google Maps marker/location checks also run. The older map test expectation was updated to the already-requested 10 km default. The standalone ripple screenshot tool is retired; a native phone review remains useful for device-specific rendering and gesture alignment.
 
 Visual refinement: the public reference preview and motion data were inspected directly. The painter now uses flat transparent filled discs with linear growth and fading opacity, matching that reference style. White highlights, shaded troughs and outlined wave crests were removed. The public animation is a visual reference only; its asset is not bundled.
 

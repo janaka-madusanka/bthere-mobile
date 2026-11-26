@@ -1,4 +1,5 @@
-import 'package:customer_app/debug/booking_ui_lab.dart';
+import 'support/booking_ui/booking_ui_lab.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest.dart' as tz;
