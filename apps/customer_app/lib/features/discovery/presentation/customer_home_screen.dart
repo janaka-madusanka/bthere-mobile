@@ -1,3 +1,5 @@
+import '../../../app/widgets/market_banners.dart';
+import '../../../app/widgets/customer_content_surface.dart';
 import '../../../app/customer_theme.dart';
 import '../../../app/widgets/customer_home_skeleton.dart';
 import '../../booking/presentation/customer_payment_requests.dart';
@@ -51,11 +53,13 @@ class CustomerHomeScreen extends ConsumerWidget {
                 final name = details?.firstName.trim();
                 return Column(
                   children: [
-                    CustomerTopBar(photo: safeImageUrl(details?.profilePhoto)),
+                    CustomerTopBar(
+                      extendBehindContent: true,
+                      photo: safeImageUrl(details?.profilePhoto),
+                    ),
                     Expanded(
-                      child: Container(
-                        clipBehavior: Clip.antiAlias,
-                        decoration: const BoxDecoration(color: catalogPaper),
+                      child: CustomerContentSurface(
+                        color: catalogPaper,
                         child: RefreshIndicator(
                           onRefresh: discovery.loadServices,
                           child: SingleChildScrollView(
@@ -77,35 +81,34 @@ class CustomerHomeScreen extends ConsumerWidget {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                greeting,
-                                                style: CustomerTypography
-                                                    .compact
-                                                    .copyWith(
-                                                      color: catalogMuted,
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                name == null || name.isEmpty
-                                                    ? 'Welcome!'
-                                                    : name,
-                                                style: CustomerTypography.screen
-                                                    .copyWith(
-                                                      color: catalogInk,
-                                                    ),
-                                              ),
-                                            ],
+                                          Text.rich(
+                                            TextSpan(
+                                              text: '$greeting ',
+                                              style: CustomerTypography.body
+                                                  .copyWith(
+                                                    color: catalogMuted,
+                                                  ),
+                                              children: [
+                                                TextSpan(
+                                                  text:
+                                                      name == null ||
+                                                          name.isEmpty
+                                                      ? 'Welcome!'
+                                                      : name,
+                                                  style: CustomerTypography.card
+                                                      .copyWith(
+                                                        color: catalogInk,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                          const SizedBox(height: 18),
-                                          _ServiceHero(
-                                            onTap: () => _browse(context),
-                                          ),
-                                          const SizedBox(height: 15),
+                                          const SizedBox(height: 12),
+                                          if (discovery.activeMarket
+                                              case final market?)
+                                            CustomerMarketBanners(
+                                              marketId: market.id,
+                                            ),
                                           _SectionHeading(
                                             title: 'Explore Services',
                                             onViewAll: () => _browse(context),
@@ -143,67 +146,6 @@ class CustomerHomeScreen extends ConsumerWidget {
                                           const SizedBox(height: 8),
                                           const CustomerPaymentRequests(),
                                           const CustomerRecentBookings(),
-                                          const SizedBox(height: 16),
-                                          Container(
-                                            padding: const EdgeInsets.only(
-                                              left: 15,
-                                              right: 8,
-                                              top: 12,
-                                              bottom: 12,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFEDF9FD),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.calendar_month_rounded,
-                                                  color: Color(0xFF0AA6DD),
-                                                  size: 34,
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        'Need help regularly?',
-                                                        style: CustomerTypography
-                                                            .card
-                                                            .copyWith(
-                                                              color: catalogInk,
-                                                            ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        'Recurring services are coming soon.',
-                                                        style: CustomerTypography
-                                                            .compact
-                                                            .copyWith(
-                                                              color:
-                                                                  catalogMuted,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 82,
-                                                  height: 70,
-                                                  child: Transform.rotate(
-                                                    angle: .12,
-                                                    child: const CareBee(
-                                                      sleeping: true,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
                                         ],
                                       ),
                               ),
@@ -221,81 +163,6 @@ class CustomerHomeScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _ServiceHero extends StatelessWidget {
-  const _ServiceHero({required this.onTap});
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Material(
-    key: const ValueKey('customer-find-help'),
-    color: const Color(0xFFE8F8F5),
-    borderRadius: BorderRadius.circular(20),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: onTap,
-      child: LayoutBuilder(
-        builder: (context, bounds) {
-          final largeText = MediaQuery.textScalerOf(context).scale(16) > 22;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: largeText ? .2 : 1,
-                    child: Image.asset(
-                      'assets/illustrations/get_a_service.png',
-                      fit: BoxFit.cover,
-                      alignment: Alignment.centerRight,
-                      excludeFromSemantics: true,
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: largeText ? double.infinity : bounds.maxWidth * .58,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'GET A SERVICE',
-                        style: CustomerTypography.micro.copyWith(
-                          color: catalogMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Find the right help, right when you need it',
-                        style: CustomerTypography.screen.copyWith(
-                          color: catalogInk,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: const BoxDecoration(
-                          color: catalogTeal,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
-  );
 }
 
 class _SectionHeading extends StatelessWidget {
@@ -386,14 +253,14 @@ class _CategoryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CatalogIcon(
                 appearance: appearance,
                 url: service.iconUrl,
-                size: 45,
+                size: 54,
               ),
               const SizedBox(height: 7),
               Text(

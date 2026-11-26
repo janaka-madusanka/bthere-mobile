@@ -122,7 +122,7 @@ Validation: 228 Customer tests pass, including exact decimal formatting, 404/ope
 503/retry, reconciliation, explicit mock setup, history deduplication/pagination,
 logout with an outstanding read and narrow 2x-text layout. Rendered preview:
 apps/customer_app/build/wallet-previews/initial-wallet.png using
-tool/wallet_preview_test.dart. Actual deployed backend/device testing remains.
+The standalone wallet screenshot tool is retired. Automated wallet regressions remain; deployed backend/device testing is separate.
 
 ### Add Money sheet (2026-10-28)
 

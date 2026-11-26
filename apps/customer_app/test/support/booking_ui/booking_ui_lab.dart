@@ -5,28 +5,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../app/customer_config.dart';
-import '../app/customer_providers.dart';
-import '../app/customer_theme.dart';
-import '../features/auth/application/customer_auth_controller.dart';
-import '../features/auth/data/customer_auth_service.dart';
-import '../features/profile/application/customer_profile_controller.dart';
-import '../features/profile/data/customer_profile_repository.dart';
-import '../features/discovery/application/customer_discovery_controller.dart';
-import '../features/discovery/data/customer_discovery_repository.dart';
-import '../features/discovery/data/customer_market_selection_store.dart';
-import '../features/discovery/domain/customer_discovery.dart';
-import '../features/booking/presentation/customer_booking_details_screen.dart';
-import '../features/booking/presentation/customer_booking_providers.dart';
-import '../features/booking/presentation/customer_booking_map.dart';
-import '../features/messages/presentation/customer_messages_screen.dart';
+import 'package:customer_app/app/customer_config.dart';
+import 'package:customer_app/app/customer_providers.dart';
+import 'package:customer_app/app/customer_theme.dart';
+import 'package:customer_app/features/auth/application/customer_auth_controller.dart';
+import 'package:customer_app/features/auth/data/customer_auth_service.dart';
+import 'package:customer_app/features/profile/application/customer_profile_controller.dart';
+import 'package:customer_app/features/profile/data/customer_profile_repository.dart';
+import 'package:customer_app/features/discovery/application/customer_discovery_controller.dart';
+import 'package:customer_app/features/discovery/data/customer_discovery_repository.dart';
+import 'package:customer_app/features/discovery/data/customer_market_selection_store.dart';
+import 'package:customer_app/features/discovery/domain/customer_discovery.dart';
+import 'package:customer_app/features/booking/presentation/customer_booking_details_screen.dart';
+import 'package:customer_app/features/booking/presentation/customer_booking_providers.dart';
+import 'package:customer_app/features/booking/presentation/customer_booking_map.dart';
+import 'package:customer_app/features/messages/presentation/customer_messages_screen.dart';
+
 import 'booking_ui_lab_backend.dart';
 import 'booking_ui_lab_map.dart';
 
 export 'booking_ui_lab_backend.dart' show BookingLabScene;
 
-/// A separate entry point supplies every boundary. The normal app does not
-/// import this file, and release/profile builds do not render the lab.
+/// Test-only scene harness. Not shipped as an executable application.
 class BookingUiLab extends StatefulWidget {
   const BookingUiLab({super.key, this.initialScene = BookingLabScene.ready});
   final BookingLabScene initialScene;

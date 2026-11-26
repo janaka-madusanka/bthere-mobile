@@ -111,6 +111,7 @@ class BookingRequestProgressView extends StatefulWidget {
     required this.onCancel,
     required this.onDetails,
     this.provider,
+    this.onHome,
     this.confirmationSeconds,
     this.busy = false,
     this.error,
@@ -120,6 +121,7 @@ class BookingRequestProgressView extends StatefulWidget {
     this.paymentMethod = 'WALLET',
   });
   final bool matching, busy, animate;
+  final VoidCallback? onHome;
   final String serviceName;
   final int? requestId;
   final String? paymentAmount;
@@ -330,6 +332,11 @@ class _BookingRequestProgressViewState extends State<BookingRequestProgressView>
                           ),
                         ),
                       const SizedBox(height: 18),
+                      if (_matching && widget.onHome != null)
+                        TextButton(
+                          onPressed: widget.busy ? null : widget.onHome,
+                          child: const Text('Back to Home'),
+                        ),
                       if (_matching && widget.onCancel != null)
                         TextButton.icon(
                           key: const ValueKey('booking-cancel-request'),

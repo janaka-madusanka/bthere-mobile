@@ -17,6 +17,57 @@ import 'customer_live_tracking_test.dart' show liveTrackingJson, timestamp;
 
 void main() {
   testWidgets(
+    'status sits right of service identity, including enlarged text',
+    (tester) async {
+      for (final scale in [1.0, 2.0]) {
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(
+                body: Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: 300,
+                    child: MediaQuery(
+                      data: MediaQueryData(
+                        textScaler: TextScaler.linear(scale),
+                      ),
+                      child: const BookingDetailsIdentity(
+                        name: 'Hospital Care',
+                        jobId: 38,
+                        status: 'CONFIRMED',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final name = tester.getRect(
+          find.byKey(const ValueKey('booking-service-name')),
+        );
+        final badge = tester.getRect(
+          find.byKey(const ValueKey('booking-status-pill')),
+        );
+        expect(badge.left, greaterThan(name.left));
+        expect(
+          badge.right,
+          closeTo(
+            tester
+                .getRect(find.byKey(const ValueKey('booking-details-header')))
+                .right,
+            .1,
+          ),
+        );
+        expect(find.text('Ready'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'overdue card stays readable on a narrow screen with enlarged text',
     (tester) async {
       tester.view.physicalSize = const Size(320, 640);

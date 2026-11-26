@@ -45,6 +45,32 @@ void main() {
     payment.dispose();
     f.dispose();
   });
+  test('matching recovery never loads payment actions or pays before acceptance; it can cancel the same request', () async {
+    f.requestViewBody['status'] = 'MATCHING';
+    await payment.refresh();
+    expect(payment.canPay, isFalse);
+    expect(payment.canCancel, isTrue);
+    expect(payment.error, isNull);
+    expect(payment.window, isNull);
+    expect(
+      f.f.adapter.requests.where((r) => r.path.endsWith('/payment-window')),
+      isEmpty,
+    );
+    await payment.pay();
+    expect(
+      f.f.adapter.requests.where((r) => r.path.endsWith('/confirm-wallet')),
+      isEmpty,
+    );
+    await payment.cancel();
+    expect(payment.request?['status'], 'CANCELLED');
+    expect(
+      f.f.adapter.requests
+          .where((r) => r.method == 'POST' && r.path.endsWith('/501/cancel'))
+          .length,
+      1,
+    );
+  });
+
   test(
     'details recover their request without waiting for a blocked event feed',
     () async {

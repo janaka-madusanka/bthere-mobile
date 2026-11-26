@@ -39,7 +39,8 @@ void main() {
         find.byKey(const ValueKey('customer-home-loading-skeleton')),
         findsNothing,
       );
-      expect(find.byKey(const ValueKey('customer-find-help')), findsOneWidget);
+      expect(find.byKey(const ValueKey('customer-find-help')), findsNothing);
+      expect(find.text('Explore Services'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );

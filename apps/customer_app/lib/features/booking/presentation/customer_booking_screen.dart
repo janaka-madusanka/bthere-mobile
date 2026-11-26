@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 import '../../profile/presentation/service_documents_screen.dart';
 import '../../profile/presentation/profile_document_sheet.dart';
 import 'booking_checkout_contents.dart';
@@ -579,7 +581,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                   if (!didPop) _back(c);
                 },
                 child: Scaffold(
-                  backgroundColor: catalogTeal,
+                  backgroundColor: Colors.white,
                   appBar:
                       c.context != null &&
                           {
@@ -591,8 +593,12 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
                           !c.uncertain
                       ? null
                       : AppBar(
-                          backgroundColor: catalogTeal,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.white,
+                          foregroundColor: CustomerColors.text,
+                          elevation: 0,
+                          scrolledUnderElevation: 0,
+                          surfaceTintColor: Colors.transparent,
+                          systemOverlayStyle: SystemUiOverlayStyle.dark,
                           title: const Text('Get a Service'),
                           leading: IconButton(
                             tooltip: 'Back',
