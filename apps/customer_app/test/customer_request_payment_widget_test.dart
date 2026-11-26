@@ -1,3 +1,8 @@
+import 'package:customer_app/features/booking/application/customer_booking_controller.dart';
+import 'package:go_router/go_router.dart';
+import 'package:customer_app/features/booking/presentation/customer_booking_screen.dart';
+import 'package:customer_app/features/booking/domain/booking_option_draft.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,6 +62,86 @@ Future<BookingFixture> ready(
 }
 
 void main() {
+  testWidgets(
+    'recovered cancelled request can reopen its booking form with saved answers',
+    (tester) async {
+      final f = await ready(tester, status: 'CANCELLED');
+      f.requestViewBody.addAll({
+        'serviceTypeId': 3,
+        'optionId': 12,
+        'startDatetime': '2030-01-03T10:00:00',
+        'expectedEndDatetime': '2030-01-03T16:00:00',
+        'deliveryMode': 'PROVIDER_TO_CUSTOMER',
+        'meetingPoint': {
+          'latitude': 6.93,
+          'longitude': 79.86,
+          'address': 'Colombo',
+        },
+        'answers': [
+          {'fieldId': 10, 'value': 'Patient name'},
+        ],
+      });
+      final context = tester.element(find.byType(Scaffold).first);
+      GoRouter.of(context).go('/booking-requests/501/payment');
+      await tester.pumpAndSettle();
+      final button = find.byKey(const ValueKey('booking-cancelled-edit'));
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      final screen = tester.widget<CustomerBookingScreen>(
+        find.byType(CustomerBookingScreen),
+      );
+      expect(screen.bookingKey.serviceId, 3);
+      expect(screen.bookingKey.optionId, 12);
+      expect(
+        GoRouter.of(tester.element(find.byType(CustomerBookingScreen)))
+            .routeInformationProvider
+            .value
+            .uri
+            .path,
+        '/booking/3/12',
+      );
+      final controller = ProviderScope.containerOf(
+        tester.element(find.byType(CustomerBookingScreen)),
+      ).read(customerBookingProvider(screen.bookingKey));
+      expect(controller.address, 'Colombo');
+      expect(controller.start, '2030-01-03T10:00:00');
+      expect(controller.created, isNull);
+      expect(find.text('Request cancelled'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  test('recovered draft keeps schedule, location, method and answers without provider identity', () {
+    final draft = recoveredBookingDraft(
+      {
+        'booking': {
+          'startDatetime': '2030-01-03T10:00:00',
+          'expectedEndDatetime': '2030-01-03T16:00:00',
+          'paymentMethod': 'WALLET',
+          'customerNote': 'Keep this note',
+          'meetingPoint': {
+            'latitude': 6.93,
+            'longitude': 79.86,
+            'addressLine1': 'Colombo',
+          },
+          'answers': [
+            {'fieldId': 10, 'value': 'Patient name'},
+          ],
+        },
+      },
+      7,
+      12,
+    );
+    expect(draft.paymentMethod, 'WALLET');
+    expect(draft.start, '2030-01-03T10:00:00');
+    expect(draft.point!.latitude, 6.93);
+    expect(draft.answersById[10], 'Patient name');
+    expect(draft.customerNote, 'Keep this note');
+    expect(draft.userId, 12);
+  });
+
   testWidgets(
     'View booking details waits for fresh history without flashing retry',
     (tester) async {
