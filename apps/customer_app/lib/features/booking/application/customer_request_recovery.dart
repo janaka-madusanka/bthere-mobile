@@ -93,6 +93,24 @@ class CustomerRequestRecovery extends ChangeNotifier {
     await CustomerRequestRecoveryStore(selection, owner).remember(id);
   }
 
+  /// A server-confirmed creation becomes resumable before leaving the screen.
+  Future<void> trackCreated(Map<String, dynamic> row) async {
+    final id = row['requestId'], owner = auth.user?.id, epoch = _epoch;
+    if (_disposed ||
+        id is! int ||
+        owner == null ||
+        auth.stage != CustomerAuthStage.authenticated) {
+      return;
+    }
+    try {
+      await remember(id);
+    } catch (_) {
+      /* Events recover storage failures. */
+    }
+    if (!current(owner, epoch)) return;
+    _publish(id, Map<String, dynamic>.from(row));
+  }
+
   Future<Map<String, dynamic>> _readRequest(int id) async {
     final row = await repository.readRequest(id);
     if (row['requestId'] != id) {
@@ -360,6 +378,7 @@ class CustomerRequestRecovery extends ChangeNotifier {
       requests.values
           .where(
             (r) => {
+              'MATCHING',
               'AWAITING_CUSTOMER_CONFIRMATION',
               'PAYMENT_PENDING',
               'PAYMENT_RECONCILIATION',

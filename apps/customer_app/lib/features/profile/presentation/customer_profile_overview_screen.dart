@@ -1,5 +1,6 @@
+import '../../../app/widgets/customer_content_surface.dart';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -71,38 +72,54 @@ class _CustomerProfileOverviewScreenState
   );
   Widget title(String text, {VoidCallback? all}) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
-    child: LayoutBuilder(
-      builder: (context, bounds) {
-        final heading = Text(
-          text,
-          style: CustomerTypography.section.copyWith(color: _navy),
-        );
-        final action = all == null
-            ? null
-            : TextButton.icon(
-                onPressed: all,
-                iconAlignment: IconAlignment.end,
-                icon: const Icon(Icons.chevron_right, size: 18),
-                label: const Text('View all'),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: text == 'Pending services' || text == 'Service history'
+            ? const LinearGradient(colors: [Color(0xFFE9F8F6), Colors.white])
+            : null,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: text == 'Pending services' || text == 'Service history'
+              ? 12
+              : 0,
+          vertical: 6,
+        ),
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            final heading = Text(
+              text,
+              style: CustomerTypography.section.copyWith(color: _navy),
+            );
+            final action = all == null
+                ? null
+                : TextButton.icon(
+                    onPressed: all,
+                    iconAlignment: IconAlignment.end,
+                    icon: const Icon(Icons.chevron_right, size: 18),
+                    label: const Text('View all'),
+                  );
+            if (bounds.maxWidth < 300 ||
+                MediaQuery.textScalerOf(context).scale(14) > 20) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  heading,
+                  if (action != null)
+                    Align(alignment: Alignment.centerRight, child: action),
+                ],
               );
-        if (bounds.maxWidth < 300 ||
-            MediaQuery.textScalerOf(context).scale(14) > 20) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              heading,
-              if (action != null)
-                Align(alignment: Alignment.centerRight, child: action),
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: heading),
-            ?action,
-          ],
-        );
-      },
+            }
+            return Row(
+              children: [
+                Expanded(child: heading),
+                ?action,
+              ],
+            );
+          },
+        ),
+      ),
     ),
   );
   Widget badge(String label, bool verified) => Container(
@@ -161,45 +178,20 @@ class _CustomerProfileOverviewScreenState
     return Theme(
       data: CustomerTheme.authentication(),
       child: Scaffold(
-        backgroundColor: const Color(0xFF00686D),
+        backgroundColor: Colors.white,
         appBar: AppBar(
           title: Text(
             'Profile',
-            style: CustomerTypography.section.copyWith(color: Colors.white),
-          ),
-          centerTitle: true,
-          backgroundColor: CustomerColors.action,
-          foregroundColor: Colors.white,
-          flexibleSpace: ClipRect(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFF00666B),
-                        Color(0xFF009D9E),
-                        Color(0xFF005A61),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: -45,
-                  top: -105,
-                  child: Container(
-                    width: 210,
-                    height: 210,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0x2400D9D6),
-                    ),
-                  ),
-                ),
-              ],
+            style: CustomerTypography.section.copyWith(
+              color: CustomerColors.primary,
             ),
           ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          foregroundColor: CustomerColors.primary,
           leading: IconButton(
             tooltip: 'Back',
             icon: const Icon(Icons.arrow_back),
@@ -207,13 +199,10 @@ class _CustomerProfileOverviewScreenState
                 context.canPop() ? context.pop() : context.go('/home'),
           ),
         ),
-        bottomNavigationBar: const CustomerBottomNavigation(selected: null),
-        body: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
+        bottomNavigationBar: const CustomerBottomNavigation(
+          selected: CustomerNavigationTab.profile,
+        ),
+        body: CustomerContentSurface(
           child: overview == null
               ? const SizedBox.shrink()
               : overview.when(
@@ -313,7 +302,7 @@ class _CustomerProfileOverviewScreenState
                                     ),
                                   ),
                                 const SizedBox(height: 20),
-                                title('Account verification'),
+                                title('Account'),
                                 panel([
                                   _contactRow(
                                     Icons.phone_outlined,
@@ -409,27 +398,6 @@ class _CustomerProfileOverviewScreenState
                                       Map<String, dynamic>.from(row as Map),
                                     ),
                                 ]),
-                                if (kDebugMode &&
-                                    (stats['testSpending'] as List)
-                                        .isNotEmpty) ...[
-                                  _spending(
-                                    stats['testSpending'] as List,
-                                    'Test spending (not real money)',
-                                    const Color(0xFFF1F5F8),
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
-                                _accountAction(
-                                  key: const ValueKey(
-                                    'customer-account-market',
-                                  ),
-                                  label: 'Change service area',
-                                  icon: Icons.location_on_outlined,
-                                  onTap: auth.busy
-                                      ? null
-                                      : () => context.go('/market'),
-                                ),
-                                const SizedBox(height: 10),
                                 _accountAction(
                                   key: const ValueKey(
                                     'customer-account-signout',
@@ -499,24 +467,22 @@ class _CustomerProfileOverviewScreenState
 
   Widget _identity(Map? profile, dynamic photo, Uri? uri) => LayoutBuilder(
     builder: (context, bounds) {
-      final edit = TextButton.icon(
-        style: TextButton.styleFrom(
-          backgroundColor: const Color(0xFFE8F9F7),
-          foregroundColor: CustomerColors.action,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: () => context.go('/profile'),
-        icon: const Icon(Icons.edit_outlined, size: 18),
-        label: Text(
-          profile == null ? 'Complete profile' : 'Edit profile',
-          style: CustomerTypography.compactStrong.copyWith(
-            color: CustomerColors.action,
-          ),
-        ),
-      );
+      final edit = profile == null
+          ? TextButton(
+              onPressed: () => context.go('/profile'),
+              child: const Text('Complete profile'),
+            )
+          : IconButton.filledTonal(
+              tooltip: 'Edit profile',
+              onPressed: () => context.go('/profile'),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFFE4F7F3),
+                foregroundColor: CustomerColors.action,
+              ),
+              icon: const Icon(Icons.edit_outlined, size: 22),
+            );
       final narrow =
+          profile == null ||
           bounds.maxWidth < 310 ||
           MediaQuery.textScalerOf(context).scale(14) > 20;
       return Column(
@@ -526,14 +492,14 @@ class _CustomerProfileOverviewScreenState
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
-                radius: 36,
+                radius: 43,
                 backgroundColor: CustomerColors.selection,
                 child: uri != null && {'http', 'https'}.contains(uri.scheme)
                     ? ClipOval(
                         child: Image.network(
                           photo as String,
-                          width: 72,
-                          height: 72,
+                          width: 86,
+                          height: 86,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) =>
                               const Icon(Icons.person_outline, size: 36),
@@ -549,7 +515,7 @@ class _CustomerProfileOverviewScreenState
                     Text(
                       profile?['displayName'] as String? ??
                           'Complete your profile',
-                      style: CustomerTypography.section.copyWith(color: _navy),
+                      style: CustomerTypography.screen.copyWith(color: _navy),
                     ),
                     const SizedBox(height: 7),
                     Container(
@@ -599,78 +565,54 @@ class _CustomerProfileOverviewScreenState
     String label,
     Color colour,
     Color accent,
-  ) => Container(
-    constraints: const BoxConstraints(minHeight: 88),
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: colour,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  ) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _bubble(icon, accent, size: 28),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: CustomerTypography.section.copyWith(color: _navy),
-              ),
-              Text(
-                label,
-                style: CustomerTypography.compact.copyWith(
-                  color: const Color(0xFF555B80),
-                ),
-              ),
-            ],
-          ),
+        _bubble(icon, accent, size: 42),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          style: CustomerTypography.screen.copyWith(color: _navy),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: CustomerTypography.compact.copyWith(color: _muted),
         ),
       ],
     ),
   );
-  Widget _spending(List values, String label, Color colour) => Container(
-    constraints: const BoxConstraints(minHeight: 88),
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: colour,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _spending(List values, String label, Color colour) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _bubble(Icons.bar_chart_rounded, const Color(0xFFF1A111), size: 28),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (values.isEmpty)
-                Text(
-                  'No real payments yet',
-                  style: CustomerTypography.compactStrong.copyWith(
-                    color: _navy,
-                  ),
-                ),
-              for (final raw in values)
-                Text(
-                  '${raw['currencyCode']} ${walletMoney(raw['totalSpent']).replaceFirst('Rs. ', '')}',
-                  style: CustomerTypography.compactStrong.copyWith(
-                    color: _navy,
-                  ),
-                ),
-              Text(
-                label,
-                style: CustomerTypography.compact.copyWith(
-                  color: const Color(0xFF555B80),
-                ),
-              ),
-            ],
+        _bubble(Icons.bar_chart_rounded, const Color(0xFFF1A111), size: 42),
+        const SizedBox(height: 10),
+        if (values.isEmpty)
+          Text(
+            'No real payments yet',
+            textAlign: TextAlign.center,
+            style: CustomerTypography.compactStrong.copyWith(color: _navy),
           ),
+        for (final raw in values)
+          Text(
+            '${raw['currencyCode']} ${walletMoney(raw['totalSpent']).replaceFirst('Rs. ', '')}',
+            textAlign: TextAlign.center,
+            style: CustomerTypography.card.copyWith(
+              color: _navy,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: CustomerTypography.compact.copyWith(color: _muted),
         ),
       ],
     ),
@@ -696,9 +638,7 @@ class _CustomerProfileOverviewScreenState
               children: [
                 Text(
                   label,
-                  style: CustomerTypography.compactStrong.copyWith(
-                    color: _navy,
-                  ),
+                  style: CustomerTypography.card.copyWith(color: _navy),
                 ),
                 const SizedBox(height: 4),
                 Text(

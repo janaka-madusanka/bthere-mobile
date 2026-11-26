@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'customer_payment_requests.dart';
@@ -385,36 +386,71 @@ class BookingDetailsPage extends StatelessWidget {
   final VoidCallback onBack;
   final Widget child;
   @override
-  Widget build(BuildContext context) => Theme(
-    data: CustomerTheme.authentication(),
-    child: Scaffold(
-      backgroundColor: CustomerColors.primary,
-      appBar: AppBar(
-        toolbarHeight: 76,
-        flexibleSpace: const BookingDetailsHeaderBackground(),
-        backgroundColor: CustomerColors.action,
-        foregroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        title: Text(
-          'Booking details',
-          style: CustomerTypography.section.copyWith(color: Colors.white),
+  Widget build(BuildContext context) {
+    const toolbarHeight = 64.0;
+    const cornerRadius = 30.0;
+    final headerHeight = MediaQuery.paddingOf(context).top + toolbarHeight;
+    return Theme(
+      data: CustomerTheme.authentication(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F8FC),
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          toolbarHeight: toolbarHeight,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          systemOverlayStyle: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
+          foregroundColor: CustomerColors.text,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: true,
+          title: Text(
+            'Booking details',
+            style: CustomerTypography.section.copyWith(
+              color: CustomerColors.text,
+            ),
+          ),
+          leading: IconButton(
+            tooltip: 'Back',
+            onPressed: onBack,
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFE7F5F2),
+              foregroundColor: CustomerColors.primary,
+            ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 21),
+          ),
         ),
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: headerHeight + cornerRadius,
+              child: const BookingDetailsHeaderBackground(),
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: headerHeight),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(cornerRadius),
+                ),
+                child: ColoredBox(
+                  color: const Color(0xFFF4F8FC),
+                  child: SafeArea(top: false, child: child),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      body: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        child: ColoredBox(
-          color: const Color(0xFFF4F8FC),
-          child: SafeArea(top: false, child: child),
-        ),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _DetailsUnavailable extends StatelessWidget {
@@ -708,6 +744,7 @@ class CustomerBookingDetailsView extends StatelessWidget {
                 ),
                 CustomerServiceTimer(booking: booking),
                 ?paymentRecovery,
+                if (!cancelled && !completed) ?startCode,
                 map,
                 if (!completed && !unpaid) ...[
                   const SizedBox(height: 12),
@@ -750,7 +787,6 @@ class CustomerBookingDetailsView extends StatelessWidget {
                       style: CustomerTypography.compact,
                     ),
                   ),
-                if (!cancelled && !completed) ?startCode,
                 if (!cancelled) ?serviceProgress,
                 if (details.isNotEmpty)
                   Container(

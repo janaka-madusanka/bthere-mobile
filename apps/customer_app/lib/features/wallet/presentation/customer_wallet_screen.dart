@@ -1,3 +1,5 @@
+import '../../../app/widgets/customer_content_surface.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -273,153 +275,149 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
       child: ListenableBuilder(
         listenable: Listenable.merge([c, profile]),
         builder: (context, _) => Scaffold(
-          backgroundColor: CustomerColors.surface,
+          backgroundColor: CustomerColors.action,
           bottomNavigationBar: const CustomerBottomNavigation(
             selected: CustomerNavigationTab.wallet,
           ),
           body: Column(
             children: [
               CustomerTopBar(
+                extendBehindContent: true,
                 photo: safeImageUrl(profile.profile?.details.profilePhoto),
               ),
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: c.load,
-                  child: SingleChildScrollView(
-                    key: const ValueKey('customer-wallet-scroll'),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 800),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (c.loading && c.data == null)
-                              const _WalletLoadingSkeleton()
-                            else if (c.loading || c.working)
-                              const LinearProgressIndicator(),
-                            if (c.error != null)
-                              _WalletMessage(
-                                message: c.error!,
-                                action: c.loading ? null : c.load,
-                              ),
-                            if (c.data == null && !c.loading && c.error == null)
-                              const _WalletMessage(
-                                message: 'Sign in to see your wallet.',
-                              ),
-                            if (c.data case final data?) ...[
-                              if (!data.balanced)
-                                const _WalletMessage(
-                                  message: 'Your wallet needs a balance check. Please contact support before making payments.',
-                                ),
-                              if (data.balance != null &&
-                                  data.balance!['status'] != 'ACTIVE')
-                                const _WalletMessage(
-                                  message: 'This wallet is currently inactive. Please contact support.',
-                                ),
-                              if (data.methods.any(
-                                (m) => m['type'] == 'CARD',
-                              )) ...[
-                                Text(
-                                  'Wallet',
-                                  style: CustomerTypography.screen.copyWith(
-                                    color: CustomerColors.text,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Manage your money',
-                                  style: CustomerTypography.compact.copyWith(
-                                    color: CustomerColors.secondaryText,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              _balance(c, data),
-                              const SizedBox(height: 14),
-                              _heading(
-                                'Payment methods',
-                                'Manage',
-                                () => _methods(c),
-                              ),
-                              const SizedBox(height: 6),
-                              if (!data.methods.any(
-                                (method) => method['type'] == 'CARD',
-                              ))
-                                _EmptyWalletPanel(
-                                  icon: Icons.credit_card_rounded,
-                                  title: 'No payment methods yet',
-                                  message: 'Your saved payment methods will appear here.',
-                                  action: OutlinedButton.icon(
-                                    onPressed: c.working || c.loading
-                                        ? null
-                                        : () => _addCard(c),
-                                    icon: const Icon(Icons.add_rounded),
-                                    label: const Text('Add new payment method'),
-                                  ),
-                                )
-                              else
-                                for (final method
-                                    in data.methods
-                                        .where(
-                                          (method) => method['type'] == 'CARD',
-                                        )
-                                        .take(2))
-                                  _savedCard(method, c),
-                              if (data.methods.any((m) => m['type'] == 'CARD'))
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(44),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      textStyle: CustomerTypography.card,
-                                      alignment: Alignment.centerLeft,
-                                      side: const BorderSide(
-                                        color: CustomerColors.border,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                    onPressed: c.loading || c.working
-                                        ? null
-                                        : () => _addCard(c),
-                                    icon: const Icon(
-                                      Icons.add_circle_outline,
-                                      size: 22,
-                                    ),
-                                    label: const Text('Add new payment method'),
-                                  ),
-                                ),
-                              const SizedBox(height: 14),
-                              KeyedSubtree(
-                                key: _historyKey,
-                                child: _heading(
-                                  'Payment history',
-                                  'View all',
-                                  _history,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              if (c.entries.isEmpty)
-                                const _EmptyWalletPanel(
-                                  icon: Icons.receipt_long_outlined,
-                                  title: 'No transactions yet',
-                                  message: 'Your payments and wallet top-ups will appear here.',
-                                ),
-                              ..._transactions(c),
-                              if (c.pageError != null)
+                child: CustomerContentSurface(
+                  child: RefreshIndicator(
+                    onRefresh: c.load,
+                    child: SingleChildScrollView(
+                      key: const ValueKey('customer-wallet-scroll'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 800),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (c.loading && c.data == null)
+                                const _WalletLoadingSkeleton()
+                              else if (c.loading || c.working)
+                                const LinearProgressIndicator(),
+                              if (c.error != null)
                                 _WalletMessage(
-                                  message: c.pageError!,
-                                  action: c.more,
+                                  message: c.error!,
+                                  action: c.loading ? null : c.load,
                                 ),
+                              if (c.data == null &&
+                                  !c.loading &&
+                                  c.error == null)
+                                const _WalletMessage(
+                                  message: 'Sign in to see your wallet.',
+                                ),
+                              if (c.data case final data?) ...[
+                                if (!data.balanced)
+                                  const _WalletMessage(
+                                    message: 'Your wallet needs a balance check. Please contact support before making payments.',
+                                  ),
+                                if (data.balance != null &&
+                                    data.balance!['status'] != 'ACTIVE')
+                                  const _WalletMessage(
+                                    message: 'This wallet is currently inactive. Please contact support.',
+                                  ),
+                                _balance(c, data),
+                                const SizedBox(height: 14),
+                                _heading(
+                                  'Payment methods',
+                                  'Manage',
+                                  () => _methods(c),
+                                ),
+                                const SizedBox(height: 6),
+                                if (!data.methods.any(
+                                  (method) => method['type'] == 'CARD',
+                                ))
+                                  _EmptyWalletPanel(
+                                    icon: Icons.credit_card_rounded,
+                                    title: 'No payment methods yet',
+                                    message: 'Your saved payment methods will appear here.',
+                                    action: OutlinedButton.icon(
+                                      onPressed: c.working || c.loading
+                                          ? null
+                                          : () => _addCard(c),
+                                      icon: const Icon(Icons.add_rounded),
+                                      label: const Text(
+                                        'Add new payment method',
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  for (final method
+                                      in data.methods
+                                          .where(
+                                            (method) =>
+                                                method['type'] == 'CARD',
+                                          )
+                                          .take(2))
+                                    _savedCard(method, c),
+                                if (data.methods.any(
+                                  (m) => m['type'] == 'CARD',
+                                ))
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(44),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        textStyle: CustomerTypography.card,
+                                        alignment: Alignment.centerLeft,
+                                        side: const BorderSide(
+                                          color: CustomerColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: c.loading || c.working
+                                          ? null
+                                          : () => _addCard(c),
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        size: 22,
+                                      ),
+                                      label: const Text(
+                                        'Add new payment method',
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 14),
+                                KeyedSubtree(
+                                  key: _historyKey,
+                                  child: _heading(
+                                    'Payment history',
+                                    'View all',
+                                    _history,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                if (c.entries.isEmpty)
+                                  const _EmptyWalletPanel(
+                                    icon: Icons.receipt_long_outlined,
+                                    title: 'No transactions yet',
+                                    message: 'Your payments and wallet top-ups will appear here.',
+                                  ),
+                                ..._transactions(c),
+                                if (c.pageError != null)
+                                  _WalletMessage(
+                                    message: c.pageError!,
+                                    action: c.more,
+                                  ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),

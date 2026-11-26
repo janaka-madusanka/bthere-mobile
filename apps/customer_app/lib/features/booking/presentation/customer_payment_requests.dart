@@ -156,6 +156,36 @@ class _RequestTile extends ConsumerWidget {
   final bool detailsStyle;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (row['status'] == 'MATCHING') {
+      return Material(
+        color: CustomerColors.selection,
+        borderRadius: BorderRadius.circular(16),
+        child: ListTile(
+          key: ValueKey('active-matching-request-${row['requestId']}'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          leading: const Icon(
+            Icons.person_search_outlined,
+            color: CustomerColors.action,
+          ),
+          title: const Text(
+            'Finding a provider',
+            style: CustomerTypography.card,
+          ),
+          subtitle: Text(
+            'Request #${row['requestId']} \u00b7 Tap to continue',
+            style: CustomerTypography.compact,
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+            color: CustomerColors.action,
+          ),
+          onTap: () =>
+              context.push('/booking-requests/${row['requestId']}/payment'),
+        ),
+      );
+    }
     final pending = {
       'PAYMENT_PENDING',
       'PAYMENT_RECONCILIATION',

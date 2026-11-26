@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 /// Customer UI tokens from the designer's October 2026 guidelines.
 /// Kept app-local so the independently maintained Provider UI is unaffected.
 abstract final class CustomerColors {
+  static const navigationGradient = LinearGradient(
+    colors: [Color(0xFF007C78), Color(0xFF007C86), Color(0xFF07586B)],
+  );
   static const primary = Color(0xFF0F666B);
   static const action = Color(0xFF008F95);
   static const secondary = Color(0xFF3E8EC7);

@@ -31,13 +31,11 @@ class CustomerHomeSkeleton extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: _HomePlaceholder(12, width: 100),
           ),
-          const SizedBox(height: 8),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: _HomePlaceholder(24, width: 160),
+          const SizedBox(height: 12),
+          const AspectRatio(
+            aspectRatio: 1.8,
+            child: _HomePlaceholder(double.infinity),
           ),
-          const SizedBox(height: 18),
-          const _HomePlaceholder(164),
           const SizedBox(height: 18),
           const Align(
             alignment: Alignment.centerLeft,
