@@ -1788,6 +1788,7 @@ class CustomerBookingController extends ChangeNotifier {
           userId!,
         );
         await recovery.remember(response['requestId'] as int);
+        await recovery.saveDraft(response['requestId'] as int, input);
         if (method != null) {
           await recovery.saveMethod(response['requestId'] as int, method!);
         }

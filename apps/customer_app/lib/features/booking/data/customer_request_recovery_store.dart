@@ -30,6 +30,15 @@ class CustomerRequestRecoveryStore {
     return id != null && id > 0 ? id : null;
   }
 
+  Future<void> saveDraft(int id, Map<String, Object?> input) =>
+      selection.store.write('$_key.draft.$id', jsonEncode(input));
+  Future<Map<String, dynamic>?> draft(int id) async {
+    final raw = await selection.store.read('$_key.draft.$id');
+    if (raw == null) return null;
+    final value = jsonDecode(raw);
+    return value is Map ? Map<String, dynamic>.from(value) : null;
+  }
+
   Future<String?> method(int id) => selection.store.read('$_key.method.$id');
   Future<bool> methodChangePending(int id) async =>
       await selection.store.read('$_key.methodPending.$id') == 'true';
