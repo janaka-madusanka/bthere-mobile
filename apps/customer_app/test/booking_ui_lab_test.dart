@@ -1,7 +1,9 @@
 import 'package:bthere_network/bthere_network.dart';
-import 'package:customer_app/debug/booking_ui_lab.dart';
-import 'package:customer_app/debug/booking_ui_lab_backend.dart';
-import 'package:customer_app/debug/booking_ui_lab_map.dart';
+
+import 'support/booking_ui/booking_ui_lab.dart';
+import 'support/booking_ui/booking_ui_lab_backend.dart';
+import 'support/booking_ui/booking_ui_lab_map.dart';
+
 import 'package:customer_app/features/booking/presentation/customer_booking_details_screen.dart';
 import 'package:customer_app/features/messages/presentation/customer_messages_screen.dart';
 import 'package:flutter/material.dart';

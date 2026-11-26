@@ -84,7 +84,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/payment/
-    - assets/illustrations/get_a_service.png
     - assets/illustrations/payment/
     - assets/illustrations/booking/
     - assets/illustrations/documents/
