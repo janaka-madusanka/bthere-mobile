@@ -1,3 +1,4 @@
+import '../domain/booking_option_draft.dart';
 import 'booking_request_progress_screen.dart';
 
 import 'dart:async';
@@ -328,6 +329,44 @@ class _CustomerRequestPaymentScreenState
     }
   }
 
+  Future<void> _returnToBookingForm(Map<String, dynamic> row) async {
+    final c = payment;
+    if (c == null || !c.alive || c.working) return;
+    try {
+      final input = await c.store?.draft(widget.requestId) ?? row;
+      if (!mounted || !c.alive) return;
+      final booking = input['booking'] is Map ? input['booking'] as Map : input;
+      final service = booking['serviceTypeId'] ?? row['serviceTypeId'];
+      final option = booking['optionId'] ?? row['optionId'];
+      final market = ref.read(customerDiscoveryProvider).activeMarket?.id;
+      if (service is! int || option is! int || market == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Choose your service to start a new booking. The previous booking form is unavailable.',
+            ),
+          ),
+        );
+        context.go('/services');
+        return;
+      }
+      context.replace(
+        '/booking/$service/$option',
+        extra: recoveredBookingDraft(input, market, c.owner!),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your booking form could not be restored. Please try again.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _cancel() async {
     final c = payment!;
     final yes = await showDialog<bool>(
@@ -460,6 +499,8 @@ class _CustomerRequestPaymentScreenState
               onRefresh: c.refresh,
               onConfirmWallet: () {},
               onHome: home,
+              onBookingForm: () => _returnToBookingForm(row),
+              onBookingFilters: () => _returnToBookingForm(row),
               onBookingDetails: row['jobId'] is int
                   ? () => context.go('/bookings/${row['jobId']}')
                   : null,

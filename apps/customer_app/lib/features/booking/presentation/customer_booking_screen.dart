@@ -276,6 +276,17 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
         }
       }
     });
+    c.edit(() {
+      for (final field in c.context!.fields) {
+        if (draft.answersById.containsKey(field.id)) {
+          c.answers[field.code] = draft.answersById[field.id];
+        }
+      }
+      c.note = draft.customerNote;
+      if (c.availableMethods.contains(draft.paymentMethod)) {
+        c.method = draft.paymentMethod;
+      }
+    });
     if (draft.serviceDetails) await c.nextServiceDetails();
   }
 
