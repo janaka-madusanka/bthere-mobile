@@ -85,6 +85,46 @@ Future<void> advanceToServiceDetails(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('filter panel collapses to reveal map and restores the draft', (
+    tester,
+  ) async {
+    final f = BookingFixture();
+    addTearDown(f.f.dispose);
+    await openBooking(tester, f);
+    final c = activeJourney(tester);
+    c.edit(() => c.languages.add('ENGLISH'));
+    await tester.pumpAndSettle();
+    final handle = find.byKey(const ValueKey('booking-filter-handle'));
+    final map = find.byType(CustomerTestMap);
+    final originalHeight = tester.getSize(map).height;
+    final handlePosition = tester.getTopLeft(handle);
+    final form = find.byKey(const ValueKey('booking-form-scroll-area'));
+    await tester.drag(form, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(handle), handlePosition);
+    await tester.drag(handle, const Offset(0, 650));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(map).height, greaterThan(originalHeight + 100));
+    expect(
+      find.byKey(const ValueKey('booking-location-continue')),
+      findsNothing,
+    );
+    await tester.tap(handle);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('booking-location-continue')),
+      findsNothing,
+    );
+    await tester.drag(handle, const Offset(0, -650));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('booking-location-continue')),
+      findsOneWidget,
+    );
+    expect(c.languages, contains('ENGLISH'));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'map continues under sheet corners while controls retain clearance',
     (tester) async {
@@ -158,7 +198,11 @@ void main() {
       await tester.tap(send);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
-      expect(c.resendingRequest, isTrue);
+      expect(
+        c.resendingRequest,
+        isTrue,
+        reason: '${c.error} ${c.stage} ${c.created?['status']}',
+      );
       expect(
         find.byKey(const ValueKey('booking-finding-provider')),
         findsOneWidget,
@@ -1699,7 +1743,12 @@ void main() {
         greaterThan(initial),
       );
       expect(sheet.controller!.size, lessThan(sheet.maxChildSize));
-      expect(tester.getRect(button).bottom, lessThanOrEqualTo(850));
+      // The pinned action is hidden when the map is expanded.
+      if (sheet.controller!.size < .2) {
+        expect(button, findsNothing);
+      } else {
+        expect(tester.getRect(button).bottom, lessThanOrEqualTo(850));
+      }
       expect(find.byType(RangeSlider), findsNothing);
       expect(tester.takeException(), isNull);
     },

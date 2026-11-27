@@ -60,7 +60,7 @@ void main() {
     },
   );
   testWidgets(
-    'service list keeps names and restrictions while descriptions stay in details',
+    'pending review option does not open the service description before document checks',
     (tester) async {
       final f = Fixture();
       addTearDown(f.dispose);
@@ -83,7 +83,8 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('customer-option-12')));
       await tester.pumpAndSettle();
-      expect(find.text('Care at your location'), findsOneWidget);
+      expect(find.text('Care at your location'), findsNothing);
+      expect(find.text('Continue with this service'), findsNothing);
     },
   );
   for (final hasIcon in [true, false]) {

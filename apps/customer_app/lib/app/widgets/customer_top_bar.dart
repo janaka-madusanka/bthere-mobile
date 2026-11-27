@@ -1,3 +1,6 @@
+import '../../features/discovery/domain/customer_discovery.dart'
+    show safeImageUrl;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -12,25 +15,24 @@ import 'customer_content_surface.dart';
 import '../../features/booking/presentation/customer_notification_host.dart';
 
 class CustomerTopBar extends ConsumerWidget {
-  const CustomerTopBar({
-    super.key,
-    this.photo,
-    this.extendBehindContent = false,
-  });
-  final String? photo;
+  const CustomerTopBar({super.key, this.extendBehindContent = false});
   final bool extendBehindContent;
+  static const toolbarHeight = 68.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(customerProfileControllerProvider);
     return ListenableBuilder(
       listenable: profile,
-      builder: (context, _) =>
-          _build(context, profile.profile?.details.firstName),
+      builder: (context, _) => _build(
+        context,
+        profile.profile?.details.firstName,
+        safeImageUrl(profile.profile?.details.profilePhoto),
+      ),
     );
   }
 
-  Widget _build(BuildContext context, String? name) =>
+  Widget _build(BuildContext context, String? name, String? photo) =>
       AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.dark.copyWith(
           statusBarColor: Colors.transparent,

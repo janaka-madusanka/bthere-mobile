@@ -1,4 +1,6 @@
 import '../../../app/customer_theme.dart';
+import '../../../app/customer_providers.dart';
+import '../../booking/presentation/customer_payment_requests.dart';
 
 import 'dart:math' as math;
 
@@ -69,16 +71,23 @@ class CustomerBottomNavigation extends ConsumerWidget {
     final motion = ref.read(_navigationMotionProvider);
     final start = motion.position ?? target.toDouble();
     motion.position ??= start;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: start, end: target.toDouble()),
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 340),
-      curve: Curves.easeOutCubic,
-      builder: (context, position, _) {
-        motion.position = position;
-        return _build(context, position);
-      },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (ref.watch(customerConfigProvider) != null)
+          const CustomerPaymentRequests(compact: true),
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: start, end: target.toDouble()),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 340),
+          curve: Curves.easeOutCubic,
+          builder: (context, position, _) {
+            motion.position = position;
+            return _build(context, position);
+          },
+        ),
+      ],
     );
   }
 

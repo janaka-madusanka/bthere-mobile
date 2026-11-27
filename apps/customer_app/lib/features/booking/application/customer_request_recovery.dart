@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import 'dart:async';
+
+import '../domain/booking_models.dart';
+
 import '../../wallet/application/customer_wallet_controller.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,6 +70,63 @@ class CustomerRequestRecovery extends ChangeNotifier {
   int? _owner;
   int _after = 0, _epoch = 0;
   final _jobReads = <int>{};
+
+  /// Reuse an owned active request rather than dispatching the same option twice.
+  Future<Map<String, dynamic>?> activeForOption(
+    BookingKey key, {
+    bool requireFresh = false,
+  }) async {
+    final owner = auth.user?.id, epoch = _epoch;
+    if (owner == null) return null;
+    if (loading) {
+      final done = Completer<void>();
+      void changed() {
+        if ((!loading || !current(owner, epoch)) && !done.isCompleted) {
+          done.complete();
+        }
+      }
+
+      addListener(changed);
+      try {
+        changed();
+        await done.future.timeout(const Duration(seconds: 20));
+      } finally {
+        removeListener(changed);
+      }
+    } else {
+      await refresh();
+    }
+    if (!current(owner, epoch)) return null;
+    final store = CustomerRequestRecoveryStore(selection, owner);
+    for (final row in active) {
+      final id = row['requestId'];
+      if (id is! int) continue;
+      final saved = await store.draft(id);
+      if (!current(owner, epoch)) return null;
+      final booking = saved?['booking'];
+      final details = booking is Map ? booking : const <String, dynamic>{};
+      final service = row['serviceTypeId'] ?? details['serviceTypeId'];
+      final option = row['optionId'] ?? details['optionId'];
+      final market = row['marketId'] ?? saved?['marketId'];
+      if (service == key.serviceId &&
+          option == key.optionId &&
+          (market == null || market == key.marketId)) {
+        return row;
+      }
+    }
+    // A failed history/notification refresh must not prevent replacing a
+    // request whose owned server View already confirms a terminal state.
+    if (requireFresh &&
+        error != null &&
+        (_knownIds.isEmpty ||
+            _knownIds.any((id) => !requests.containsKey(id)))) {
+      throw const BookingProblem(
+        'Unable to check active requests. Please try again.',
+      );
+    }
+    return null;
+  }
+
   void _identityChanged() {
     if (_owner != auth.user?.id ||
         auth.stage != CustomerAuthStage.authenticated) {

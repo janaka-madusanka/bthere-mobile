@@ -2,7 +2,6 @@ import '../../../app/widgets/market_banners.dart';
 import '../../../app/widgets/customer_content_surface.dart';
 import '../../../app/customer_theme.dart';
 import '../../../app/widgets/customer_home_skeleton.dart';
-import '../../booking/presentation/customer_payment_requests.dart';
 
 import 'package:flutter/material.dart';
 
@@ -53,13 +52,10 @@ class CustomerHomeScreen extends ConsumerWidget {
                 final name = details?.firstName.trim();
                 return Column(
                   children: [
-                    CustomerTopBar(
-                      extendBehindContent: true,
-                      photo: safeImageUrl(details?.profilePhoto),
-                    ),
+                    CustomerTopBar(extendBehindContent: true),
                     Expanded(
                       child: CustomerContentSurface(
-                        color: catalogPaper,
+                        color: CustomerColors.pageBackground,
                         child: RefreshIndicator(
                           onRefresh: discovery.loadServices,
                           child: SingleChildScrollView(
@@ -144,7 +140,6 @@ class CustomerHomeScreen extends ConsumerWidget {
                                                 context.push('/bookings'),
                                           ),
                                           const SizedBox(height: 8),
-                                          const CustomerPaymentRequests(),
                                           const CustomerRecentBookings(),
                                         ],
                                       ),

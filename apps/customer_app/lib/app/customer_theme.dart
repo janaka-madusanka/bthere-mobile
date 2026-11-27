@@ -13,6 +13,7 @@ abstract final class CustomerColors {
   static const mint = Color(0xFF66F4F2);
   static const coral = Color(0xFFF2998C);
   static const background = Color(0xFFF8FAFB);
+  static const pageBackground = Color(0xFFF9FBFD);
   static const surface = Color(0xFFFFFFFF);
   static const text = Color(0xFF0B3037);
   static const secondaryText = Color(0xFF687B83);

@@ -63,6 +63,33 @@ Future<BookingFixture> ready(
 
 void main() {
   testWidgets(
+    'Booking tab opens details without an intermediate My bookings header and returns to the tab',
+    (tester) async {
+      await ready(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('customer-nav-opportunities')),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Booking #70').last);
+      await tester.tap(find.text('Booking #70').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('My bookings'), findsNothing);
+      await tester.pumpAndSettle();
+      expect(find.text('Booking details'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back').first);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('customer-nav-opportunities')),
+        findsOneWidget,
+      );
+      expect(find.text('My bookings'), findsNothing);
+      expect(find.text('Booking details'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'recovered cancelled request can reopen its booking form with saved answers',
     (tester) async {
       final f = await ready(tester, status: 'CANCELLED');
@@ -152,8 +179,10 @@ void main() {
       );
       container.invalidate(customerBookingHistoryProvider(12));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Payment required'));
-      await tester.tap(find.text('Payment required'));
+      await tester.ensureVisible(
+        find.text('Provider accepted · Confirm payment'),
+      );
+      await tester.tap(find.text('Provider accepted · Confirm payment'));
       await tester.pumpAndSettle();
       f.bookings = [
         {
@@ -385,8 +414,10 @@ void main() {
     'Home Recent opens accepted request; payment stays confirmed until explicit navigation',
     (tester) async {
       final f = await ready(tester);
-      await tester.ensureVisible(find.text('Payment required'));
-      await tester.tap(find.text('Payment required'));
+      await tester.ensureVisible(
+        find.text('Provider accepted · Confirm payment'),
+      );
+      await tester.tap(find.text('Provider accepted · Confirm payment'));
       await tester.pumpAndSettle();
       expect(find.byType(CustomerRequestPaymentScreen), findsOneWidget);
       expect(find.text('15:00'), findsOneWidget);
@@ -426,7 +457,11 @@ void main() {
         find.byKey(const ValueKey('customer-nav-opportunities')),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Payment failed'), findsNothing);
+      expect(find.text('Payment failed'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('active-request-mini-card')),
+        findsOneWidget,
+      );
       expect(find.text('Pay now'), findsNothing);
       await tester.tap(find.text('Booking #70').last);
       await tester.pumpAndSettle();
@@ -477,8 +512,10 @@ void main() {
     '30 second warning and extension update from server without blocking actions',
     (tester) async {
       final f = await ready(tester);
-      await tester.ensureVisible(find.text('Payment required'));
-      await tester.tap(find.text('Payment required'));
+      await tester.ensureVisible(
+        find.text('Provider accepted · Confirm payment'),
+      );
+      await tester.tap(find.text('Provider accepted · Confirm payment'));
       await tester.pumpAndSettle();
       f.requestViewBody['confirmationExpiresAt'] = clock
           .add(const Duration(seconds: 30))
@@ -509,8 +546,10 @@ void main() {
     (tester) async {
       final f = await ready(tester);
       f.walletConfirmationStatus = 409;
-      await tester.ensureVisible(find.text('Payment required'));
-      await tester.tap(find.text('Payment required'));
+      await tester.ensureVisible(
+        find.text('Provider accepted · Confirm payment'),
+      );
+      await tester.tap(find.text('Provider accepted · Confirm payment'));
       await tester.pumpAndSettle();
       final pay = find.text('Confirm and Pay');
       await tester.ensureVisible(pay);
@@ -576,8 +615,10 @@ void main() {
             .add(const Duration(minutes: 15))
             .toIso8601String(),
       });
-      await tester.ensureVisible(find.text('Payment required'));
-      await tester.tap(find.text('Payment required'));
+      await tester.ensureVisible(
+        find.text('Provider accepted · Confirm payment'),
+      );
+      await tester.tap(find.text('Provider accepted · Confirm payment'));
       await tester.pumpAndSettle();
       expect(find.text('Payment Failed!'), findsOneWidget);
       expect(find.text('Time remaining to retry'), findsOneWidget);
