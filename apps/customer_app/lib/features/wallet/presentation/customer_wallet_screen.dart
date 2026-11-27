@@ -7,7 +7,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../app/customer_theme.dart';
 import '../../../app/customer_providers.dart';
 import '../../../app/widgets/customer_top_bar.dart';
-import '../../discovery/domain/customer_discovery.dart';
 import '../../discovery/presentation/customer_bottom_navigation.dart';
 import '../../profile/application/customer_profile_controller.dart';
 import '../application/customer_wallet_controller.dart';
@@ -41,15 +40,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
               ),
               body: Column(
                 children: [
-                  CustomerTopBar(
-                    photo: safeImageUrl(
-                      ref
-                          .read(customerProfileControllerProvider)
-                          .profile
-                          ?.details
-                          .profilePhoto,
-                    ),
-                  ),
+                  CustomerTopBar(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 6, 16, 4),
                     child: Row(
@@ -181,6 +172,7 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: CustomerColors.surface,
                   minimumSize: const Size.fromHeight(44),
                   textStyle: CustomerTypography.card,
                 ),
@@ -281,12 +273,10 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
           ),
           body: Column(
             children: [
-              CustomerTopBar(
-                extendBehindContent: true,
-                photo: safeImageUrl(profile.profile?.details.profilePhoto),
-              ),
+              CustomerTopBar(extendBehindContent: true),
               Expanded(
                 child: CustomerContentSurface(
+                  color: CustomerColors.pageBackground,
                   child: RefreshIndicator(
                     onRefresh: c.load,
                     child: SingleChildScrollView(
@@ -445,7 +435,9 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
         border: Border.all(color: CustomerColors.border),
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
-          colors: [Colors.white, Color(0xFFF5FAFB)],
+          colors: [Colors.white, Color(0xFFF3FAFB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: ListTile(
@@ -706,46 +698,56 @@ class _CustomerWalletScreenState extends ConsumerState<CustomerWalletScreen> {
       }
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 0,
-          ),
-          horizontalTitleGap: 8,
-          minLeadingWidth: 28,
-          minVerticalPadding: 6,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: CustomerColors.border),
-          ),
-          leading: CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(0xFFE4F8F8),
-            child: Icon(
-              type == 'TOPUP'
-                  ? Icons.arrow_upward_rounded
-                  : Icons.receipt_long_outlined,
-              color: CustomerColors.action,
-              size: 16,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Colors.white, Color(0xFFF3FAFB)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
+            borderRadius: BorderRadius.circular(14),
           ),
-          title: Text(title, style: CustomerTypography.compactStrong),
-          subtitle: Text(
-            '$date${['MOCK', 'PAYHERE_SANDBOX'].contains(row['fundingMode']) ? ' · Test transaction' : ''}',
-            style: CustomerTypography.micro,
-          ),
-          trailing: formatted == null
-              ? null
-              : Text(
-                  _hidden ? '••••' : formatted,
-                  style: CustomerTypography.compactStrong.copyWith(
-                    color: amount != null && amount > BigInt.zero
-                        ? const Color(0xFF258048)
-                        : CustomerColors.text,
+          child: ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 0,
+            ),
+            horizontalTitleGap: 8,
+            minLeadingWidth: 28,
+            minVerticalPadding: 6,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: CustomerColors.border),
+            ),
+            leading: CircleAvatar(
+              radius: 14,
+              backgroundColor: const Color(0xFFE4F8F8),
+              child: Icon(
+                type == 'TOPUP'
+                    ? Icons.arrow_upward_rounded
+                    : Icons.receipt_long_outlined,
+                color: CustomerColors.action,
+                size: 16,
+              ),
+            ),
+            title: Text(title, style: CustomerTypography.compactStrong),
+            subtitle: Text(
+              '$date${['MOCK', 'PAYHERE_SANDBOX'].contains(row['fundingMode']) ? ' · Test transaction' : ''}',
+              style: CustomerTypography.micro,
+            ),
+            trailing: formatted == null
+                ? null
+                : Text(
+                    _hidden ? '••••' : formatted,
+                    style: CustomerTypography.compactStrong.copyWith(
+                      color: amount != null && amount > BigInt.zero
+                          ? const Color(0xFF258048)
+                          : CustomerColors.text,
+                    ),
                   ),
-                ),
+          ),
         ),
       );
     }).toList();
