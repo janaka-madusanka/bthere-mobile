@@ -1,6 +1,7 @@
 import 'package:customer_app/features/booking/application/customer_request_recovery.dart';
 import 'package:customer_app/features/booking/data/customer_active_request_notifications.dart';
 import 'package:customer_app/features/booking/data/customer_request_recovery_store.dart';
+import 'package:customer_app/features/booking/domain/booking_models.dart';
 import 'package:customer_app/features/discovery/presentation/customer_home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,119 @@ import 'customer_request_payment_widget_test.dart' show ready;
 import 'customer_auth_test.dart' show clock;
 
 void main() {
+  testWidgets(
+    'mini-card fits small screens with large text and clears after cancellation',
+    (tester) async {
+      final f = await ready(tester);
+      tester.view.physicalSize = const Size(320, 568);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('active-request-mini-card')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      final recovery = ProviderScope.containerOf(
+        tester.element(find.byType(CustomerHomeScreen)),
+      ).read(customerRequestRecoveryProvider);
+      f.requestViewBody['status'] = 'CANCELLED';
+      final refresh = recovery.refresh();
+      await tester.pumpAndSettle();
+      await refresh;
+      expect(
+        find.byKey(const ValueKey('active-request-mini-card')),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'mini-card follows all main tabs and resumes the same service request',
+    (tester) async {
+      final f = await ready(tester, status: 'MATCHING');
+      f.requestViewBody.addAll({
+        'marketId': 1,
+        'serviceTypeId': 3,
+        'optionId': 12,
+      });
+      for (final tab in [
+        'services',
+        'opportunities',
+        'wallet',
+        'home',
+        'services',
+      ]) {
+        await tester.tap(find.byKey(ValueKey('customer-nav-$tab')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('active-request-mini-card')),
+          findsOneWidget,
+        );
+      }
+      await tester.tap(find.byKey(const ValueKey('customer-option-12')));
+      for (
+        var i = 0;
+        i < 30 &&
+            find
+                .byKey(const ValueKey('booking-finding-provider'))
+                .evaluate()
+                .isEmpty;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        find.byKey(const ValueKey('booking-finding-provider')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('active-request-mini-card')),
+        findsNothing,
+      );
+      expect(find.text('Continue with this service'), findsNothing);
+      expect(
+        f.f.adapter.requests.where(
+          (r) => r.method == 'POST' && r.path.endsWith('/booking-requests'),
+        ),
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'active request lookup restores option from draft and ignores other options and markets',
+    (tester) async {
+      final f = await ready(tester, status: 'MATCHING');
+      final recovery = ProviderScope.containerOf(
+        tester.element(find.byType(CustomerHomeScreen)),
+      ).read(customerRequestRecoveryProvider);
+      await CustomerRequestRecoveryStore(recovery.selection, 12).saveDraft(
+        501,
+        {
+          'marketId': 1,
+          'booking': {'serviceTypeId': 3, 'optionId': 12},
+        },
+      );
+      Future<Map<String, dynamic>?> lookup(BookingKey key) async {
+        final result = recovery.activeForOption(key);
+        await tester.pumpAndSettle();
+        return result;
+      }
+
+      expect((await lookup(const BookingKey(1, 3, 12)))?['requestId'], 501);
+      expect(await lookup(const BookingKey(1, 3, 13)), isNull);
+      expect(await lookup(const BookingKey(2, 3, 12)), isNull);
+      f.requestViewBody['status'] = 'EXPIRED';
+      expect(await lookup(const BookingKey(1, 3, 12)), isNull);
+      expect(
+        find.byKey(const ValueKey('active-request-mini-card')),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   final channel = AndroidActiveRequestNotifications.channel;
   final calls = <MethodCall>[];
   Map<String, dynamic>? initialOpen;
@@ -194,7 +308,7 @@ void main() {
       });
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(find.text('Payment required'), findsOneWidget);
+      expect(find.text('Provider accepted · Confirm payment'), findsOneWidget);
       expect(
         calls.where((c) => c.method == 'show').last.arguments,
         containsPair('title', 'Provider found - confirm payment'),

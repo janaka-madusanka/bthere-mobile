@@ -34,6 +34,7 @@ final customerAutoAvailabilityEnabledProvider = Provider<bool>((ref) => true);
 final customerBookingProvider = Provider.autoDispose
     .family<CustomerBookingController, BookingKey>(
       (ref, key) {
+        final recovery = ref.watch(customerRequestRecoveryProvider);
         final controller = CustomerBookingController(
           key,
           ref.watch(customerBookingRepositoryProvider),
@@ -41,8 +42,9 @@ final customerBookingProvider = Provider.autoDispose
           ref.watch(customerDiscoveryProvider),
           now: ref.watch(customerClockProvider),
           autoAvailability: ref.watch(customerAutoAvailabilityEnabledProvider),
-          onRequestCreated: (row) =>
-              ref.read(customerRequestRecoveryProvider).trackCreated(row),
+          onRequestCreated: recovery.trackCreated,
+          findActiveRequest: () =>
+              recovery.activeForOption(key, requireFresh: true),
         );
         ref.onDispose(controller.dispose);
         return controller;
@@ -76,12 +78,14 @@ class CustomerBookingController extends ChangeNotifier {
     required this.now,
     this.autoAvailability = true,
     this.onRequestCreated,
+    this.findActiveRequest,
     this.availabilityDebounce = const Duration(milliseconds: 500),
   }) : userId = auth.user?.id {
     auth.addListener(_sync);
     discovery.addListener(_sync);
   }
   final Future<void> Function(Map<String, dynamic>)? onRequestCreated;
+  final Future<Map<String, dynamic>?> Function()? findActiveRequest;
   final BookingKey key;
   final CustomerBookingRepository repository;
   final CustomerAuthController auth;
@@ -1688,6 +1692,13 @@ class CustomerBookingController extends ChangeNotifier {
     error = null;
     _notify();
     try {
+      final active = await findActiveRequest?.call();
+      if (!alive || epoch != _epoch) return;
+      if (active != null) {
+        created = Map<String, dynamic>.from(active);
+        stage = BookingStage.created;
+        return;
+      }
       final policy = await repository.requestPolicy(key.optionId);
       if (!alive || epoch != _epoch) return;
       requestPolicy = policy;

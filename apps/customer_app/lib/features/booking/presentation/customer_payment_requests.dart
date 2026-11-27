@@ -18,11 +18,13 @@ class CustomerPaymentRequests extends ConsumerStatefulWidget {
     this.requestId,
     this.awaitingPayment = false,
     this.detailsStyle = false,
+    this.compact = false,
   });
   final int? jobId;
   final int? requestId;
   final bool awaitingPayment;
   final bool detailsStyle;
+  final bool compact;
   @override
   ConsumerState<CustomerPaymentRequests> createState() =>
       _CustomerPaymentRequestsState();
@@ -96,6 +98,16 @@ class _CustomerPaymentRequestsState
         final rows = recovery.active
             .where((r) => widget.jobId == null || r['jobId'] == widget.jobId)
             .toList();
+        if (widget.compact) {
+          rows.removeWhere((r) {
+            final expires = DateTime.tryParse('${r['confirmationExpiresAt']}');
+            return r['status'] == 'AWAITING_CUSTOMER_CONFIRMATION' &&
+                expires != null &&
+                !expires.isAfter(ref.read(customerClockProvider)());
+          });
+          if (rows.isEmpty) return const SizedBox.shrink();
+          return _ActiveRequestCard(rows: rows);
+        }
         if (rows.isEmpty && recovery.error == null) {
           final resolved = recovery.requests.values.any(
             (row) => row['jobId'] == widget.jobId,
@@ -146,6 +158,109 @@ class _CustomerPaymentRequestsState
           ],
         );
       },
+    );
+  }
+}
+
+class _ActiveRequestCard extends ConsumerWidget {
+  const _ActiveRequestCard({required this.rows});
+  final List<Map<String, dynamic>> rows;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final row = rows.first;
+    final matching = row['status'] == 'MATCHING';
+    final checking = {
+      'PAYMENT_PENDING',
+      'PAYMENT_RECONCILIATION',
+    }.contains(row['status']);
+    final failed =
+        row['paymentStatus'] == 'FAILED' ||
+        row['paymentRetryStartedAt'] != null;
+    final expiry = DateTime.tryParse('${row['confirmationExpiresAt']}');
+    final seconds = expiry
+        ?.difference(ref.read(customerClockProvider)())
+        .inSeconds;
+    final urgent = seconds != null && seconds <= 30;
+    void open(int id) => context.push('/booking-requests/$id/payment');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Material(
+        key: const ValueKey('active-request-mini-card'),
+        color: urgent && !matching
+            ? const Color(0xFFFFF1DA)
+            : const Color(0xFFE2F5F3),
+        elevation: 3,
+        shadowColor: const Color(0x180B3037),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          key: matching
+              ? ValueKey('active-matching-request-${row['requestId']}')
+              : null,
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => open(row['requestId'] as int),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  matching
+                      ? Icons.person_search_outlined
+                      : checking
+                      ? Icons.schedule
+                      : Icons.payments_outlined,
+                  color: CustomerColors.action,
+                  size: 25,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        matching
+                            ? 'Finding your provider…'
+                            : checking
+                            ? 'Checking payment'
+                            : failed
+                            ? 'Payment failed'
+                            : 'Provider accepted · Confirm payment',
+                        style: CustomerTypography.compactStrong,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Request #${row['requestId']}'
+                        '${!matching && !checking && seconds != null ? ' · ${seconds.clamp(0, 2147483647) ~/ 60}:${(seconds.clamp(0, 2147483647) % 60).toString().padLeft(2, '0')} remaining' : ' · Tap to continue'}',
+                        style: CustomerTypography.compact,
+                      ),
+                    ],
+                  ),
+                ),
+                if (rows.length > 1)
+                  PopupMenuButton<int>(
+                    tooltip: 'Other active requests',
+                    onSelected: open,
+                    itemBuilder: (_) => [
+                      for (final item in rows)
+                        PopupMenuItem(
+                          value: item['requestId'] as int,
+                          child: Text(
+                            'Request #${item['requestId']} · ${item['status'] == 'MATCHING' ? 'Finding provider' : 'Payment'}',
+                          ),
+                        ),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text('+${rows.length - 1}'),
+                    ),
+                  )
+                else
+                  const Icon(Icons.chevron_right, color: CustomerColors.action),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

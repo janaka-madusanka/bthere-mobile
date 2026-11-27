@@ -40,8 +40,10 @@ class ServiceDocumentRequirements extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: CustomerColors.selection,
-            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE6F7F5), Color(0xFFF2FAFA)],
+            ),
+            borderRadius: BorderRadius.circular(22),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +69,7 @@ class ServiceDocumentRequirements extends StatelessWidget {
                       eligible
                           ? 'Documents ready'
                           : 'Documents needed before booking',
-                      style: CustomerTypography.card.copyWith(
+                      style: CustomerTypography.section.copyWith(
                         color: const Color(0xFF10143F),
                       ),
                     ),
@@ -76,7 +78,9 @@ class ServiceDocumentRequirements extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Submit the documents required for this service. Documents that need review must be approved before you can book.',
+                eligible
+                    ? 'Your documents are approved. You can continue with your booking.'
+                    : 'Upload your documents here. Once approved, you can book this service.',
                 style: CustomerTypography.compact.copyWith(
                   color: CustomerColors.secondaryText,
                 ),
@@ -94,10 +98,10 @@ class ServiceDocumentRequirements extends StatelessWidget {
           Container(
             key: ValueKey('service-document-${r.field.id}'),
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(22),
               border: Border.all(color: CustomerColors.border),
             ),
             child: Column(
@@ -222,22 +226,18 @@ class ServiceDocumentRequirements extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '${r.field.minFiles}-${r.field.maxFiles ?? "many"} files, up to ${r.field.maxMb} MB each',
+                          '${r.field.minFiles}-${r.field.maxFiles ?? "many"} files · Up to ${r.field.maxMb} MB each'
+                          '${r.field.fileTypes.isEmpty ? "" : "\n${r.field.fileTypes.join(', ')}"}',
                           style: CustomerTypography.compact,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (r.field.fileTypes.isNotEmpty)
-                  Text(
-                    r.field.fileTypes.join(', '),
-                    style: CustomerTypography.compact,
-                  ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: CustomerColors.selection,
+                    backgroundColor: Colors.white,
                     foregroundColor: CustomerColors.action,
                     side: const BorderSide(color: Color(0xFFB6E3DF)),
                     minimumSize: const Size.fromHeight(46),
@@ -246,10 +246,24 @@ class ServiceDocumentRequirements extends StatelessWidget {
                     ),
                   ),
                   onPressed: busy ? null : () => onOpen(r),
-                  child: Text(
-                    {'MISSING', 'REJECTED', 'EXPIRED'}.contains(r.status)
-                        ? 'Upload / resubmit'
-                        : 'View documents',
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        {'MISSING', 'REJECTED', 'EXPIRED'}.contains(r.status)
+                            ? Icons.upload_file_outlined
+                            : Icons.visibility_outlined,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          {'MISSING', 'REJECTED', 'EXPIRED'}.contains(r.status)
+                              ? 'Upload / resubmit'
+                              : 'View documents',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -274,7 +288,7 @@ class ServiceDocumentRequirements extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 10),
-        OutlinedButton(
+        TextButton(
           onPressed: busy ? null : onRefresh,
           child: Row(
             children: [
