@@ -121,6 +121,7 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
       // Include scroll padding and the SafeArea, but no unused viewport space.
       final height =
           body.height +
+          31 + // The drag handle stays outside the scrolling form.
           18 +
           8 + // Keep the last payment row clear of the pinned footer.
           footer.height +
@@ -167,7 +168,11 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
     });
   }
 
-  double get _minSize => widget.controller.context?.route == true
+  bool get _collapsible => widget.panelTitle == 'Location and time';
+  double get _minSize => _collapsible && _normalViewportHeight > 0
+      ? ((40 + MediaQuery.paddingOf(context).bottom) / _normalViewportHeight)
+            .clamp(.04, .2)
+      : widget.controller.context?.route == true
       ? .25
       : widget.panelTitle == 'Service details'
       ? .25
@@ -517,170 +522,205 @@ class _BookingDetailsCanvasState extends State<BookingDetailsCanvas> {
                     clipBehavior: Clip.antiAlias,
                     child: SafeArea(
                       top: keyboardOpen,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            key: const ValueKey('booking-form-scroll-area'),
-                            child: SingleChildScrollView(
-                              controller: scroll,
-                              keyboardDismissBehavior: keyboardOpen
-                                  ? ScrollViewKeyboardDismissBehavior.manual
-                                  : ScrollViewKeyboardDismissBehavior.onDrag,
-                              padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
-                              child:
-                                  NotificationListener<
-                                    SizeChangedLayoutNotification
-                                  >(
-                                    onNotification: (_) {
-                                      _measureContent(bounds.maxHeight);
-                                      return false;
-                                    },
-                                    child: SizeChangedLayoutNotifier(
-                                      child: Column(
-                                        key: _bodyKey,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          if (!keyboardOpen)
-                                            Center(
-                                              child: Container(
-                                                width: 42,
-                                                height: 5,
-                                                margin: const EdgeInsets.only(
-                                                  bottom: 16,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black26,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                            ),
-                                          if (c.availabilityNotice
-                                              case final notice?)
-                                            Container(
-                                              key: const ValueKey(
-                                                'booking-availability-notice',
-                                              ),
-                                              margin: const EdgeInsets.only(
-                                                bottom: 12,
-                                              ),
-                                              padding: const EdgeInsets.all(14),
-                                              decoration: BoxDecoration(
-                                                color: catalogTeal.withValues(
-                                                  alpha: .06,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                                border: Border.all(
-                                                  color: catalogTeal.withValues(
-                                                    alpha: .14,
-                                                  ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  const Icon(
-                                                    Icons
-                                                        .travel_explore_rounded,
-                                                    color: catalogTeal,
-                                                    size: 22,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          notice,
-                                                          style: CustomerTypography
-                                                              .body
-                                                              .copyWith(
-                                                                color:
-                                                                    catalogInk,
-
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                              ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 4,
-                                                        ),
-                                                        Text(
-                                                          'Try a different time, widen your search area or adjust your filters.',
-                                                          style: CustomerTypography
-                                                              .compact
-                                                              .copyWith(
-                                                                color:
-                                                                    catalogMuted,
-                                                              ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          if (c.error != null &&
-                                              (c.fieldErrors.isEmpty ||
-                                                  (widget.panelTitle ==
-                                                          'Service details' &&
-                                                      !hasServiceHints)))
-                                            BThereInlineError(c.error!),
-                                          if (widget.panelTitle ==
-                                              'Service details')
-                                            for (final error
-                                                in c.fieldErrors.entries.where(
-                                                  (entry) =>
-                                                      !inlineServiceError(
-                                                        entry.key,
-                                                      ),
-                                                ))
-                                              Text(
-                                                '${error.key}: ${error.value}',
-                                                style: const TextStyle(
-                                                  color: CustomerColors.error,
-                                                ),
-                                              ),
-                                          if (c.busy)
-                                            const LinearProgressIndicator(),
-                                          Column(
-                                            key: const ValueKey(
-                                              'booking-form-content',
-                                            ),
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: widget.children
-                                                .take(
-                                                  widget.children.length - 1,
-                                                )
-                                                .toList(),
-                                          ),
-                                          if (inlineFooter) ...[
-                                            const SizedBox(height: 12),
-                                            widget.children.last,
-                                          ],
-                                        ],
+                      child: LayoutBuilder(
+                        builder: (context, panelBounds) => Column(
+                          children: [
+                            if (!keyboardOpen)
+                              GestureDetector(
+                                key: const ValueKey('booking-filter-handle'),
+                                behavior: HitTestBehavior.opaque,
+                                onVerticalDragStart: (_) {
+                                  _userAdjustedSheet = true;
+                                },
+                                onVerticalDragUpdate: (details) {
+                                  if (!_sheet.isAttached) return;
+                                  _sheet.jumpTo(
+                                    (_sheet.size -
+                                            details.delta.dy / bounds.maxHeight)
+                                        .clamp(minimum, maximum),
+                                  );
+                                },
+                                onVerticalDragEnd: (details) {
+                                  if (!_sheet.isAttached) return;
+                                  final velocity = details.primaryVelocity ?? 0;
+                                  final target = velocity.abs() > 250
+                                      ? (velocity > 0 ? minimum : maximum)
+                                      : (_sheet.size < (minimum + maximum) / 2
+                                            ? minimum
+                                            : maximum);
+                                  _sheet.animateTo(
+                                    target,
+                                    duration: const Duration(milliseconds: 220),
+                                    curve: Curves.easeOutCubic,
+                                  );
+                                },
+                                child: SizedBox(
+                                  height: 31,
+                                  width: double.infinity,
+                                  child: Center(
+                                    child: Container(
+                                      width: 42,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: Colors.black26,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
                                   ),
-                            ),
-                          ),
-                          if (!inlineFooter)
-                            Padding(
-                              key: _footerKey,
-                              padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: widget.children.last,
+                                ),
+                              ),
+                            Expanded(
+                              key: const ValueKey('booking-form-scroll-area'),
+                              child: SingleChildScrollView(
+                                controller: scroll,
+                                keyboardDismissBehavior: keyboardOpen
+                                    ? ScrollViewKeyboardDismissBehavior.manual
+                                    : ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding: const EdgeInsets.fromLTRB(
+                                  18,
+                                  10,
+                                  18,
+                                  8,
+                                ),
+                                child: NotificationListener<SizeChangedLayoutNotification>(
+                                  onNotification: (_) {
+                                    _measureContent(bounds.maxHeight);
+                                    return false;
+                                  },
+                                  child: SizeChangedLayoutNotifier(
+                                    child: Column(
+                                      key: _bodyKey,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (c.availabilityNotice
+                                            case final notice?)
+                                          Container(
+                                            key: const ValueKey(
+                                              'booking-availability-notice',
+                                            ),
+                                            margin: const EdgeInsets.only(
+                                              bottom: 12,
+                                            ),
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: catalogTeal.withValues(
+                                                alpha: .06,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              border: Border.all(
+                                                color: catalogTeal.withValues(
+                                                  alpha: .14,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Icon(
+                                                  Icons.travel_explore_rounded,
+                                                  color: catalogTeal,
+                                                  size: 22,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        notice,
+                                                        style: CustomerTypography
+                                                            .body
+                                                            .copyWith(
+                                                              color: catalogInk,
+
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Try a different time, widen your search area or adjust your filters.',
+                                                        style: CustomerTypography
+                                                            .compact
+                                                            .copyWith(
+                                                              color:
+                                                                  catalogMuted,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        if (c.error != null &&
+                                            (c.fieldErrors.isEmpty ||
+                                                (widget.panelTitle ==
+                                                        'Service details' &&
+                                                    !hasServiceHints)))
+                                          BThereInlineError(c.error!),
+                                        if (widget.panelTitle ==
+                                            'Service details')
+                                          for (final error
+                                              in c.fieldErrors.entries.where(
+                                                (entry) => !inlineServiceError(
+                                                  entry.key,
+                                                ),
+                                              ))
+                                            Text(
+                                              '${error.key}: ${error.value}',
+                                              style: const TextStyle(
+                                                color: CustomerColors.error,
+                                              ),
+                                            ),
+                                        if (c.busy)
+                                          const LinearProgressIndicator(),
+                                        Column(
+                                          key: const ValueKey(
+                                            'booking-form-content',
+                                          ),
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: widget.children
+                                              .take(widget.children.length - 1)
+                                              .toList(),
+                                        ),
+                                        if (inlineFooter) ...[
+                                          const SizedBox(height: 12),
+                                          widget.children.last,
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                        ],
+                            if (!inlineFooter)
+                              Offstage(
+                                offstage:
+                                    _collapsible && panelBounds.maxHeight < 180,
+                                child: Padding(
+                                  key: _footerKey,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    18,
+                                    8,
+                                    18,
+                                    12,
+                                  ),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: widget.children.last,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
