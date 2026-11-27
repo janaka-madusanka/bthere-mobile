@@ -13,6 +13,59 @@ import 'customer_discovery_test.dart' show waitForState;
 
 void main() {
   test(
+    'submit reuses an active option request and sends no duplicate POST',
+    () async {
+      final f = BookingFixture();
+      f.contextBody = contextJson(
+        selectionMode: 'OPEN_REQUEST',
+        methods: ['WALLET'],
+      );
+      f.policyBody = {
+        'enabled': true,
+        'minimumNoticeMinutes': 30,
+        'maximumRadiusKm': 50,
+      };
+      await f.start();
+      addTearDown(f.dispose);
+      final c = CustomerBookingController(
+        f.journey.key,
+        f.journey.repository,
+        f.f.controller,
+        f.discovery,
+        now: f.journey.now,
+        autoAvailability: false,
+        findActiveRequest: () async => {
+          ...f.requestViewBody,
+          'status': 'MATCHING',
+        },
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      c.start = '2030-01-07T08:00:00';
+      c.end = '2030-01-07T10:00:00';
+      c.point = const GeoPoint(6.9271, 79.8612);
+      c.address = 'Service address';
+      c.method = 'WALLET';
+      c.languages.add('ENGLISH');
+      c.skills.add(10);
+      await c.nextServiceDetails();
+      for (final field in c.context!.fields) {
+        c.answer(field, 'Patient details');
+      }
+      c.continueServiceDetails();
+      await c.submit();
+      expect(c.error, isNull);
+      expect(c.created?['requestId'], 501);
+      expect(c.stage, BookingStage.created);
+      expect(
+        f.f.adapter.requests.where(
+          (r) => r.method == 'POST' && r.path.endsWith('/booking-requests'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+  test(
     'service setup starts payment settings alongside context, not after it',
     () async {
       final f = BookingFixture();

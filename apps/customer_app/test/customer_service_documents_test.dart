@@ -7,8 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'booking_fixture.dart';
-import 'customer_booking_widget_test.dart' show openBooking, activeJourney;
+import 'customer_discovery_test.dart' show marketEntry, continueMarket;
 import 'customer_profile_overview_test.dart' show press;
+
+Future<void> openBooking(WidgetTester tester, BookingFixture f) async {
+  f.install();
+  await marketEntry(tester, f.f);
+  await continueMarket(tester);
+  await press(tester, find.byKey(const ValueKey('customer-service-3')));
+  await press(tester, find.byKey(const ValueKey('customer-option-12')));
+}
 
 Map<String, dynamic> certificate(String status) {
   final row = requirementJson(
@@ -101,7 +109,6 @@ void main() {
       f.requirementBody = [row];
       f.eligibility = {'eligible': false, 'reasons': []};
       await openBooking(tester, f);
-      await press(tester, find.text('Upload / resubmit'));
       expect(
         find.byKey(const ValueKey('document-review-status')),
         findsOneWidget,
@@ -136,106 +143,53 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets(
-    'missing required document opens gate before filters and provider search',
-    (tester) async {
+
+  for (final status in ['MISSING', 'PENDING', 'REJECTED']) {
+    testWidgets('blocked $status service opens Profile document UI directly', (
+      tester,
+    ) async {
       final f = BookingFixture()..autoAvailability = true;
       addTearDown(f.f.dispose);
-      f.requirementBody = [certificate('MISSING')];
+      f.requirementBody = [certificate(status)];
       f.eligibility = {'eligible': false, 'reasons': []};
       await openBooking(tester, f);
-      expect(find.text('Documents needed before booking'), findsOneWidget);
-      expect(find.text('Service certificate'), findsOneWidget);
-      expect(find.text('Not submitted'), findsOneWidget);
+      expect(find.text('Profile'), findsNothing);
+      expect(find.text('My documents'), findsNothing);
+      expect(find.text('Continue with this service'), findsNothing);
+      expect(find.text('Documents required'), findsNothing);
+      expect(find.text('Documents needed before booking'), findsNothing);
       expect(
         find.byKey(const ValueKey('booking-location-continue')),
         findsNothing,
       );
       expect(
+        find.byKey(const ValueKey('document-review-status')),
+        findsOneWidget,
+      );
+      expect(
         f.f.adapter.requests.where((r) => r.path.contains('/provider-search')),
         isEmpty,
       );
-      await press(tester, find.text('Upload / resubmit'));
-      expect(find.text('Upload document'), findsOneWidget);
-      await press(tester, find.text('Close'));
-      expect(find.text('Documents needed before booking'), findsOneWidget);
       expect(
-        f.f.adapter.requests.where(
-          (r) =>
-              r.method == 'PUT' && r.path.endsWith('/requirement-submissions'),
-        ),
+        f.f.adapter.requests.where((r) => r.path.contains('/booking-context')),
         isEmpty,
       );
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-  testWidgets(
-    'rejected document resubmits explicitly, pending is read-only, approval returns to booking',
-    (tester) async {
-      final f = BookingFixture();
-      addTearDown(f.f.dispose);
-      f.requirementBody = [certificate('REJECTED')];
-      f.eligibility = {'eligible': false, 'reasons': []};
-      await openBooking(tester, f);
-      final previous = f.f.adapter.extraHandler!;
-      f.f.adapter.extraHandler = (r) async {
-        if (r.method == 'PUT' && r.path.endsWith('/requirement-submissions')) {
-          f.requirementBody = [certificate('PENDING')];
-        }
-        return previous(r);
-      };
-      expect(find.text('Please correct the evidence'), findsOneWidget);
-      await press(tester, find.text('Upload / resubmit'));
-      tester.view.physicalSize = const Size(320, 568);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = 2;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      await press(tester, find.text('Submit documents'));
-      expect(find.text('Under review'), findsOneWidget);
       expect(
         f.f.adapter.requests.where(
-          (r) =>
-              r.method == 'PUT' && r.path.endsWith('/requirement-submissions'),
+          (r) => r.path == '/customers/me/documents/7',
         ),
         hasLength(1),
       );
-      await press(tester, find.text('View documents'));
-      expect(
-        tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Submit documents'),
-            )
-            .onPressed,
-        isNull,
-      );
       await press(tester, find.text('Close'));
-      expect(activeJourney(tester).allowed, isFalse);
       expect(
-        f.f.adapter.requests.where((r) => r.path.contains('/provider-search')),
-        isEmpty,
+        find.byKey(const ValueKey('document-review-status')),
+        findsNothing,
       );
-      // The document gate and both upload/read-only sheets were checked at 2x.
-      // Return to the normal viewport before testing the separate booking form.
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-      tester.platformDispatcher.clearTextScaleFactorTestValue();
-      await tester.pumpAndSettle();
-      f.requirementBody = [certificate('APPROVED')];
-      f.eligibility = {'eligible': true, 'reasons': []};
-      await press(tester, find.text('Check review status'));
-      expect(find.text('Documents needed before booking'), findsNothing);
-      expect(activeJourney(tester).allowed, isTrue);
-      expect(
-        find.byKey(const ValueKey('booking-location-continue')),
-        findsOneWidget,
-      );
+      expect(find.text('Get a Service'), findsNothing);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
-    },
-  );
+    });
+  }
 
   test('context denial still exposes document requirements; all blocked states remain blocked', () async {
     final f = BookingFixture();

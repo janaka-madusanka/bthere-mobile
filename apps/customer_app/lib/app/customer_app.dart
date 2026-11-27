@@ -151,17 +151,32 @@ final customerRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: '/bookings',
           builder: (_, _) => const CustomerBookingsScreen(),
-          routes: [
-            GoRoute(
-              path: ':jobId',
-              builder: (_, state) => CustomerBookingDetailsScreen(
-                jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
-                extras: state.extra is BookingDetailsExtras
-                    ? state.extra as BookingDetailsExtras
-                    : null,
-              ),
+        ),
+        GoRoute(
+          path: '/bookings/:jobId',
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            transitionDuration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 240),
+            reverseTransitionDuration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) =>
+                    FadeTransition(
+                      opacity: animation.drive(
+                        CurveTween(curve: Curves.easeOutCubic),
+                      ),
+                      child: child,
+                    ),
+            child: CustomerBookingDetailsScreen(
+              jobId: int.tryParse(state.pathParameters['jobId'] ?? '') ?? 0,
+              extras: state.extra is BookingDetailsExtras
+                  ? state.extra as BookingDetailsExtras
+                  : null,
             ),
-          ],
+          ),
         ),
         GoRoute(
           path: '/opportunities',

@@ -10,6 +10,12 @@ import '../application/customer_discovery_controller.dart';
 import '../domain/customer_discovery.dart';
 import 'customer_discovery_style.dart';
 import 'customer_bottom_navigation.dart';
+import '../../auth/application/customer_auth_controller.dart';
+import '../../booking/application/customer_booking_controller.dart';
+import '../../booking/application/customer_request_recovery.dart';
+import '../../booking/domain/booking_models.dart';
+import '../../profile/presentation/profile_document_sheet.dart';
+import '../../profile/presentation/service_documents_screen.dart';
 
 class CustomerServicesScreen extends ConsumerStatefulWidget {
   const CustomerServicesScreen({super.key, this.initialServiceId});
@@ -25,6 +31,92 @@ class _CustomerServicesScreenState
   final _target = GlobalKey();
   final _showAll = <int>{};
   bool _scrolled = false;
+  bool _openingDocument = false;
+
+  Future<bool> _requiredDocuments(CustomerServiceOption option) async {
+    if (_openingDocument) return true;
+    final market = ref.read(customerDiscoveryProvider).activeMarket;
+    final owner = ref.read(customerAuthControllerProvider).user?.id;
+    if (market == null || owner == null) return true;
+    _openingDocument = true;
+    try {
+      final key = BookingKey(market.id, option.serviceId, option.id);
+      final active = await ref
+          .read(customerRequestRecoveryProvider)
+          .activeForOption(key);
+      if (!mounted ||
+          ref.read(customerAuthControllerProvider).user?.id != owner) {
+        return true;
+      }
+      if (active != null) {
+        context.push('/booking-requests/${active['requestId']}/payment');
+        return true;
+      }
+      final rows = await ref
+          .read(customerBookingRepositoryProvider)
+          .requirements(key);
+      if (!mounted ||
+          ref.read(customerAuthControllerProvider).user?.id != owner ||
+          ref.read(customerDiscoveryProvider).activeMarket?.id != market.id) {
+        return true;
+      }
+      final documents = rows
+          .where(
+            (r) =>
+                r.field.upload &&
+                r.blocksBooking &&
+                !{'APPROVED', 'PROVIDED'}.contains(r.status),
+          )
+          .toList();
+      if (documents.isEmpty) return false;
+      CustomerRequirement? selected = documents.length == 1
+          ? documents.single
+          : null;
+      selected ??= await showModalBottomSheet<CustomerRequirement>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final r in documents)
+                ListTile(
+                  title: Text(r.field.label),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(sheet, r),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (selected != null && mounted) {
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          backgroundColor: const Color(0xFFF8F9FE),
+          builder: (_) => ProfileDocumentSheet(
+            owner: owner,
+            document: scopedDocument(selected!, key),
+          ),
+        );
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Documents could not be checked. Please try again.'),
+          ),
+        );
+      }
+      return true;
+    } finally {
+      _openingDocument = false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,8 +129,9 @@ class _CustomerServicesScreenState
     super.dispose();
   }
 
-  void _optionDetails(CustomerServiceOption option) {
+  void _optionDetails(CustomerServiceOption option) async {
     FocusScope.of(context).unfocus();
+    if (await _requiredDocuments(option) || !mounted) return;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
@@ -100,6 +193,7 @@ class _CustomerServicesScreenState
               const CustomerTopBar(extendBehindContent: true),
               Expanded(
                 child: CustomerContentSurface(
+                  color: CustomerColors.pageBackground,
                   child: ListenableBuilder(
                     listenable: controller,
                     builder: (context, _) {
@@ -410,8 +504,30 @@ class _ServiceOptionGroup extends StatelessWidget {
                                     style: CustomerTypography.compactStrong
                                         .copyWith(color: CustomerColors.text),
                                   ),
-                                  if (option.access.accessStatus != 'ELIGIBLE')
-                                    CatalogAccess(service: option.access),
+                                  if (option.access.accessStatus !=
+                                      'ELIGIBLE') ...[
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF1DA),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        option.access.badge,
+                                        textAlign: TextAlign.center,
+                                        style: CustomerTypography.micro
+                                            .copyWith(
+                                              color: const Color(0xFF946019),
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.3,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

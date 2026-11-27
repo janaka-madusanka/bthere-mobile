@@ -182,9 +182,7 @@ class _CustomerProfileOverviewScreenState
         appBar: AppBar(
           title: Text(
             'Profile',
-            style: CustomerTypography.section.copyWith(
-              color: CustomerColors.primary,
-            ),
+            style: CustomerTypography.section.copyWith(color: Colors.black),
           ),
           centerTitle: true,
           backgroundColor: Colors.white,

@@ -47,7 +47,7 @@ class CustomerBookingsScreen extends ConsumerWidget {
               ),
         bottomNavigationBar: const CustomerBottomNavigation(
           selected: CustomerNavigationTab.opportunities,
-          surfaceColor: CustomerColors.background,
+          surfaceColor: CustomerColors.pageBackground,
         ),
         body: Column(
           children: [
@@ -55,7 +55,7 @@ class CustomerBookingsScreen extends ConsumerWidget {
               const CustomerTopBar(extendBehindContent: true),
             Expanded(
               child: CustomerContentSurface(
-                color: CustomerColors.background,
+                color: CustomerColors.pageBackground,
                 child: history == null
                     ? const CustomerBookingsSkeleton()
                     : history.when(

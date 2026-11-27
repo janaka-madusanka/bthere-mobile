@@ -1,3 +1,21 @@
+## Customer refinements (2026-11-28)
+
+Customer tabs now share the lighter page surface and reactive profile avatar.
+Booking details use a white header and a standalone fade route; system Back
+from a root details route returns to Booking. Map filters have a fixed drag
+handle outside the scrolling form, collapse for map viewing, and preserve inputs.
+
+Services check active requests and blocking documents before opening booking.
+Missing/rejected documents open the shared Profile upload sheet; pending ones
+open its read-only view, without intermediate Profile or booking pages.
+An active request mini-card appears above the four main tab footers, follows
+provider acceptance/payment deadlines, and resumes the same request. Same-option
+selection/submission reuses an active owned request; terminal requests allow a
+new request. Existing account/API-scoped recovery and restart persistence remain.
+
+Validation: full Customer suite 629 tests passed; Flutter analysis and
+git diff --check clean. Provider work remains in its existing stashes.
+
 ## Current override: offline preview removed (2026-11-03)
 
 User explicitly requested removing preview code and scripts after the integration

@@ -379,26 +379,60 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
     }
   }
 
-  Future<void> _openServiceDocument(
-    CustomerBookingController c,
-    CustomerRequirement r,
-  ) async {
-    if (!c.alive || c.busy) return;
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (_) => ProfileDocumentSheet(
-        owner: c.userId!,
-        document: scopedDocument(r, c.key),
+  Widget _documentGate(CustomerBookingController c) {
+    final documents = c.requirements
+        .where(
+          (r) => r.field.upload && !{'APPROVED', 'PROVIDED'}.contains(r.status),
+        )
+        .toList();
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: CustomerColors.primary,
+        title: Text(
+          'My documents',
+          style: CustomerTypography.section.copyWith(color: Colors.black),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: documents.length == 1 && c.userId != null
+            ? ProfileDocumentSheet(
+                key: ValueKey(
+                  'booking-required-document-${documents.single.field.id}',
+                ),
+                owner: c.userId!,
+                document: scopedDocument(documents.single, c.key),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: ServiceDocumentRequirements(
+                  requirements: c.requirements,
+                  bookingKey: c.key,
+                  busy: c.busy,
+                  eligible: c.allowed,
+                  error: c.error,
+                  onRefresh: () => _refreshServiceDocuments(c),
+                  onOpen: (r) async {
+                    await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      showDragHandle: true,
+                      backgroundColor: const Color(0xFFF8F9FE),
+                      builder: (_) => ProfileDocumentSheet(
+                        owner: c.userId!,
+                        document: scopedDocument(r, c.key),
+                      ),
+                    );
+                    if (mounted && c.alive) await _refreshServiceDocuments(c);
+                  },
+                ),
+              ),
       ),
     );
-    if (mounted && c.alive) {
-      if (saved == true) c.dirtyRequirements.remove(r.field.id);
-      await _refreshServiceDocuments(c);
-    }
   }
 
   @override
@@ -408,40 +442,43 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen>
       data: CustomerTheme.authentication(),
       child: ListenableBuilder(
         listenable: c,
-        builder: (context, _) => c.needsServiceDocuments
+        builder: (context, _) => c.stage == BookingStage.loading && c.busy
             ? Scaffold(
+                key: const ValueKey('booking-access-loading'),
+                backgroundColor: CustomerColors.pageBackground,
                 appBar: AppBar(
-                  backgroundColor: CustomerColors.action,
-                  foregroundColor: Colors.white,
-                  title: Text(
-                    'Service documents',
-                    style: CustomerTypography.section.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
+                  backgroundColor: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
                   leading: IconButton(
                     tooltip: 'Back to services',
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: c.busy
-                        ? null
-                        : () => context.canPop()
-                              ? context.pop()
-                              : context.go('/services'),
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : context.go('/services'),
                   ),
                 ),
-                body: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: ServiceDocumentRequirements(
-                    requirements: c.requirements,
-                    bookingKey: c.key,
-                    busy: c.busy,
-                    eligible: c.allowed,
-                    error: c.error,
-                    onRefresh: () => _refreshServiceDocuments(c),
-                    onOpen: (r) => _openServiceDocument(c, r),
+                body: Semantics(
+                  label: 'Checking service requirements',
+                  liveRegion: true,
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      for (final height in [116.0, 220.0])
+                        Container(
+                          height: height,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF2F3),
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               )
+            : c.needsServiceDocuments
+            ? _documentGate(c)
             : c.resendingRequest
             ? BookingRequestProgressView(
                 matching: true,
